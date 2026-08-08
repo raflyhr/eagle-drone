@@ -1,18 +1,45 @@
-const logoUrl = 'https://lh3.googleusercontent.com/aida/AP1WRLtVE_7213Rt9fqz8YTDohCzOiDbD_uWKRr1kjImrtZsVtlxefE2AvOT_QVYo98G6t3Tu6uvn9AhHp3HygArhNKDpNBmmtuzLmw1OIoo2KKmc9LI4Y47XDZ8B9xtg0NBcOyn7cn5UkYrSARxPkqqgEpV8KPbZZ0MXnH0brQ0eRgbl6hwjd8kPJ4rUycWB6Uf8PsD1xZir08Xc4UVkwEsWUUnztCi1O24dbWvSdYznXA468dOiNeeznyKZQT5'
+import { useEffect, useRef } from 'react'
+import L from 'leaflet'
+import 'leaflet/dist/leaflet.css'
 
-const navigationItems = [
-  ['dashboard', 'Mission Overview', 'mission'],
-  ['map', 'Map & Search Area', 'map'],
-  ['target', 'Detection Events', 'events'],
-  ['history', 'Flight History', 'history'],
-  ['settings', 'System Settings', 'settings'],
-]
+const logoUrl = 'https://lh3.googleusercontent.com/aida/AP1WRLtVE_7213Rt9fqz8YTDohCzOiDbD_uWKRr1kjImrtZsVtlxefE2AvOT_QVYo98G6t3Tu6uvn9AhHp3HygArhNKDpNBmmtuzLmw1OIoo2KKmc9LI4Y47XDZ8B9xtg0NBcOyn7cn5UkYrSARxPkqqgEpV8KPbZZ0MXnH0brQ0eRgbl6hwjd8kPJ4rUycWB6Uf8PsD1xZir08Xc4UVkwEsWUUnztCi1O24dbWvSdYznXA468dOiNeeznyKZQT5'
+const navigationItems = [['dashboard', 'Mission Overview', 'mission'], ['map', 'Map & Search Area', 'map'], ['target', 'Detection Events', 'events'], ['history', 'Flight History', 'history'], ['settings', 'System Settings', 'settings']]
+const initialPosition = [-6.2, 106.816666]
 
 function Icon({ children, className = '' }) {
   return <span className={`material-symbols-outlined ${className}`}>{children}</span>
 }
 
-function MapArea({ onNavigate }) {
+function MapArea({ onNavigate, telemetry, active }) {
+  const mapRef = useRef(null)
+  const leafletRef = useRef(null)
+  const markerRef = useRef(null)
+
+  useEffect(() => {
+    if (!mapRef.current || leafletRef.current) return
+    leafletRef.current = L.map(mapRef.current, { zoomControl: false }).setView(initialPosition, 15)
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap' }).addTo(leafletRef.current)
+    markerRef.current = L.marker(initialPosition).addTo(leafletRef.current).bindPopup('EGL-01')
+    return () => {
+      leafletRef.current?.remove()
+      leafletRef.current = null
+      markerRef.current = null
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!leafletRef.current || !markerRef.current) return
+    const position = [telemetry.latitude, telemetry.longitude]
+    markerRef.current.setLatLng(position).bindPopup(`EGL-01 · ALT: ${telemetry.altitude}m`)
+    leafletRef.current.panTo(position, { animate: true })
+  }, [telemetry.latitude, telemetry.longitude, telemetry.altitude])
+
+  useEffect(() => {
+    if (active && leafletRef.current) {
+      setTimeout(() => leafletRef.current?.invalidateSize(), 0)
+    }
+  }, [active])
+
   return (
     <div className="flex h-screen justify-center overflow-hidden bg-[#0b0e14]">
       <div className="relative flex h-full w-full overflow-hidden bg-surface-container-lowest">
@@ -39,16 +66,14 @@ function MapArea({ onNavigate }) {
 
           <div className="flex min-h-0 flex-1 flex-col overflow-y-auto lg:flex-row lg:overflow-hidden">
             <section className="relative min-h-[520px] flex-1 overflow-hidden bg-surface-container-low">
-              <div className="absolute inset-0 opacity-80 [background-image:radial-gradient(#32353c_1px,transparent_1px)] [background-size:24px_24px]" />
-              <div className="absolute inset-0 bg-[linear-gradient(135deg,transparent_35%,rgba(74,217,232,.08)_35%,rgba(74,217,232,.08)_36%,transparent_36%,transparent_64%,rgba(199,191,255,.08)_64%,rgba(199,191,255,.08)_65%,transparent_65%)]" />
+              <div ref={mapRef} className="absolute inset-0" />
               <div className="map-overlay pointer-events-none absolute inset-0" />
-              <div className="absolute left-4 top-4 flex flex-wrap gap-3 md:left-6 md:top-6"><Info icon="my_location" label="UAV Pos" value="45.892N, 7.341E" variant="secondary" /><Info icon="radar" label="Active Sector" value="C-4 (Alpine Ridge)" variant="primary" /></div>
-              <div className="absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center"><div className="flex h-16 w-16 animate-pulse items-center justify-center rounded-full border-2 border-secondary/50"><Icon className="rotate-45 text-secondary">navigation</Icon></div><div className="mt-2 flex flex-col items-center rounded border border-white/10 bg-surface-container/90 px-2 py-1"><span className="font-data-md text-sm text-secondary">EGL-01</span><span className="font-label-caps text-xs text-on-surface-variant">ALT: 450m</span></div></div>
-              <div className="absolute bottom-6 left-6 rounded-lg border border-white/10 bg-surface-container/90 p-3 backdrop-blur-sm"><p className="font-label-caps text-[10px] text-on-surface-variant">MAP LAYER</p><p className="data-font mt-1 text-xs text-on-surface">TOPOGRAPHIC · SECTOR GRID</p></div>
+              <div className="absolute left-4 top-4 z-[500] flex flex-wrap gap-3 md:left-6 md:top-6"><Info icon="my_location" label="UAV Pos" value={`${telemetry.latitude.toFixed(3)}, ${telemetry.longitude.toFixed(3)}`} variant="secondary" /><Info icon="radar" label="Active Sector" value="C-4 (Alpine Ridge)" variant="primary" /></div>
+              <div className="absolute bottom-6 left-6 z-[500] rounded-lg border border-white/10 bg-surface-container/90 p-3 backdrop-blur-sm"><p className="font-label-caps text-[10px] text-on-surface-variant">MAP LAYER</p><p className="data-font mt-1 text-xs text-on-surface">OPENSTREETMAP · LIVE GPS</p></div>
             </section>
 
             <aside className="z-30 flex w-full shrink-0 flex-col border-l border-white/10 bg-surface-container lg:w-96">
-              <div className="flex-1 space-y-6 overflow-y-auto p-6"><section><h3 className="mb-4 flex items-center gap-2 font-headline-sm text-lg text-on-surface"><Icon>route</Icon>Active Waypoints</h3><div className="space-y-3"><Waypoint no="1" title="Alpha Ridge Base" meta="Cleared - 14:02" icon="check_circle" done /><Waypoint no="2" title="Sector C-4 Center" meta="En Route - ETA 2m" icon="sync" active /><Waypoint no="3" title="Ravine Echo" meta="Pending" icon="schedule" faded /></div></section><section><h3 className="mb-4 flex items-center gap-2 font-headline-sm text-lg text-on-surface"><Icon>analytics</Icon>Environment</h3><div className="grid grid-cols-2 gap-3">{[['Wind SPD', '14 m/s'], ['Visibility', '12 km'], ['Temp', '-4 °C'], ['Signal', '98%']].map(([label, value]) => <div className="rounded-lg border border-white/5 bg-surface-container-low p-3" key={label}><p className="mb-1 font-label-caps text-xs text-on-surface-variant">{label}</p><p className={`font-data-lg text-lg ${label === 'Temp' ? 'text-secondary' : 'text-on-surface'}`}>{value}</p></div>)}</div></section></div>
+              <div className="flex-1 space-y-6 overflow-y-auto p-6"><section><h3 className="mb-4 flex items-center gap-2 font-headline-sm text-lg text-on-surface"><Icon>route</Icon>Active Waypoints</h3><div className="space-y-3"><Waypoint no="1" title="Alpha Ridge Base" meta="Cleared - 14:02" icon="check_circle" done /><Waypoint no="2" title="Sector C-4 Center" meta="En Route - ETA 2m" icon="sync" active /><Waypoint no="3" title="Ravine Echo" meta="Pending" icon="schedule" faded /></div></section><section><h3 className="mb-4 flex items-center gap-2 font-headline-sm text-lg text-on-surface"><Icon>analytics</Icon>Environment</h3><div className="grid grid-cols-2 gap-3">{[['Wind SPD', `${telemetry.speed} m/s`], ['Visibility', '12 km'], ['Temp', '-4 °C'], ['Signal', `${telemetry.signal}%`]].map(([label, value]) => <div className="rounded-lg border border-white/5 bg-surface-container-low p-3" key={label}><p className="mb-1 font-label-caps text-xs text-on-surface-variant">{label}</p><p className={`font-data-lg text-lg ${label === 'Temp' ? 'text-secondary' : 'text-on-surface'}`}>{value}</p></div>)}</div></section></div>
             </aside>
           </div>
 
