@@ -29,3 +29,4 @@ export default function useTelemetry() {
 
   return telemetry
 }
+

@@ -1,8 +1,7 @@
 import { useEffect, useRef } from 'react'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
-
-const logoUrl = 'https://lh3.googleusercontent.com/aida/AP1WRLtVE_7213Rt9fqz8YTDohCzOiDbD_uWKRr1kjImrtZsVtlxefE2AvOT_QVYo98G6t3Tu6uvn9AhHp3HygArhNKDpNBmmtuzLmw1OIoo2KKmc9LI4Y47XDZ8B9xtg0NBcOyn7cn5UkYrSARxPkqqgEpV8KPbZZ0MXnH0brQ0eRgbl6hwjd8kPJ4rUycWB6Uf8PsD1xZir08Xc4UVkwEsWUUnztCi1O24dbWvSdYznXA468dOiNeeznyKZQT5'
+import logoUrl from '../assets/logo-eagle.png'
 const navigationItems = [['dashboard', 'Mission Overview', 'mission'], ['map', 'Map & Search Area', 'map'], ['target', 'Detection Events', 'events'], ['history', 'Flight History', 'history'], ['settings', 'System Settings', 'settings']]
 const initialPosition = [-6.2, 106.816666]
 
@@ -45,7 +44,7 @@ function MapArea({ onNavigate, telemetry, active }) {
       <div className="relative flex h-full w-full overflow-hidden bg-surface-container-lowest">
         <aside className="z-50 hidden h-full w-64 shrink-0 flex-col border-r border-white/10 bg-surface-container py-5 md:flex">
           <div className="mb-8 flex items-center gap-3 px-6">
-            <img alt="Eagle Drone Logo" className="h-10 w-10 rounded-md object-cover" src={logoUrl} />
+            <img alt="Eagle Drone Logo" className="h-10 w-24 rounded-md object-contain" src={logoUrl} />
             <div><h1 className="font-headline-md text-2xl font-bold tracking-tight text-primary">Eagle Drone</h1><p className="font-body-sm text-sm text-on-surface-variant">SAR Command Unit</p></div>
           </div>
           <nav className="flex-1 space-y-2 px-4">

@@ -1,4 +1,4 @@
-const logoUrl = 'https://lh3.googleusercontent.com/aida/AP1WRLtVE_7213Rt9fqz8YTDohCzOiDbD_uWKRr1kjImrtZsVtlxefE2AvOT_QVYo98G6t3Tu6uvn9AhHp3HygArhNKDpNBmmtuzLmw1OIoo2KKmc9LI4Y47XDZ8B9xtg0NBcOyn7cn5UkYrSARxPkqqgEpV8KPbZZ0MXnH0brQ0eRgbl6hwjd8kPJ4rUycWB6Uf8PsD1xZir08Xc4UVkwEsWUUnztCi1O24dbWvSdYznXA468dOiNeeznyKZQT5'
+import logoUrl from '../assets/logo-eagle.png'
 const mapUrl = 'https://lh3.googleusercontent.com/aida-public/AB6AXuAyKw-SlJLPK5V1kyhZYg5VZNESohy1nb_CGeTkegBn5Znl_neLEYhvXYczAr60mfkRGG47EDRByoptidJ5gw1IoyHSiEbICF30VC2Idy3K0A2dCiHyprwpqEWBYye_nS5-ynxfc7IHg9UosZMX2m38bPP-UfshPCQIiwqMwtYQ8NbvjYvNBpb6W0sA48SmINXAHDMtK2JM0afsNq_0LRyehHGr1Vyf9tVBsgrjwK85GsmynYCrRFj3Zg'
 
 const navigationItems = [
@@ -24,7 +24,7 @@ function FlightHistory({ onNavigate }) {
       <div className="relative flex h-full w-full overflow-hidden bg-surface-container-lowest">
         <aside className="z-50 hidden h-full w-64 shrink-0 flex-col border-r border-white/10 bg-surface-container py-5 md:flex">
           <div className="mb-8 flex items-center gap-3 px-6">
-            <img alt="Eagle Drone Logo" className="h-10 w-10 rounded-md object-cover" src={logoUrl} />
+            <img alt="Eagle Drone Logo" className="h-10 w-24 rounded-md object-contain" src={logoUrl} />
             <div><h1 className="font-headline-md text-2xl font-bold tracking-tight text-primary">Eagle Drone</h1><p className="font-body-sm text-sm text-on-surface-variant">SAR Command Unit</p></div>
           </div>
           <nav className="flex-1 space-y-2 px-4">
@@ -52,8 +52,8 @@ function FlightHistory({ onNavigate }) {
                 </div>
 
                 <div className="glass-panel flex min-h-[420px] flex-1 flex-col overflow-hidden rounded-2xl">
-                  <div className="grid min-w-[760px] grid-cols-7 gap-4 border-b border-white/10 bg-surface-container/50 px-5 py-3 font-label-caps text-xs text-on-surface-variant"><div>Mission ID</div><div>Date</div><div>Duration</div><div>Distance</div><div>Max Alt</div><div>Pilot</div><div className="text-right">Status</div></div>
-                  <div className="flex-1 space-y-2 overflow-auto p-3">
+                  <div className="grid grid-cols-[1.05fr_1.35fr_1.1fr_1.05fr_.85fr_1fr_1.25fr] gap-3 border-b border-white/10 bg-surface-container/50 px-5 py-4 font-label-caps text-[10px] text-on-surface-variant"><div>Mission ID</div><div>Date</div><div>Duration</div><div>Distance</div><div>Max Alt</div><div>Pilot</div><div className="text-right">Status</div></div>
+                  <div className="flex-1 space-y-2 overflow-y-auto overflow-x-hidden py-4">
                     {missions.map((mission, index) => <MissionRow key={mission[0]} mission={mission} selected={index === 0} />)}
                   </div>
                 </div>
@@ -79,7 +79,7 @@ function FlightHistory({ onNavigate }) {
 function MissionRow({ mission, selected }) {
   const [id, date, duration, distance, altitude, pilot, status] = mission
   const success = status === 'Success'
-  return <div className={`grid min-w-[736px] grid-cols-7 items-center gap-4 rounded-lg border p-3 transition-colors hover:bg-surface-variant ${selected ? 'border-primary/30 bg-primary/5' : 'border-white/5 bg-surface-container-high'}`}><div className={`data-font text-[13px] ${selected ? 'text-primary' : 'text-on-surface'}`}>{id}</div><div className="text-xs">{date}</div><div className="data-font text-[13px]">{duration}</div><div className="data-font text-[13px]">{distance}</div><div className="data-font text-[13px]">{altitude}</div><div className="text-xs text-on-surface-variant">{pilot}</div><div className="flex justify-end"><span className={`inline-flex items-center gap-1 rounded border px-2 py-1 font-label-caps text-[10px] uppercase ${success ? 'border-secondary/30 bg-secondary/10 text-secondary' : 'border-error/30 bg-error/10 text-error'}`}><Icon className="text-[14px]">{success ? 'check_circle' : 'warning'}</Icon>{status}</span></div></div>
+  return <div className={`grid grid-cols-[1.05fr_1.35fr_1.1fr_1.05fr_.85fr_1fr_1.25fr] items-center gap-3 rounded-lg border px-5 py-3 transition-colors hover:bg-surface-variant ${selected ? 'border-primary/30 bg-primary/5' : 'border-white/5 bg-surface-container-high'}`}><div className={`min-w-0 data-font text-[13px] ${selected ? 'text-primary' : 'text-on-surface'}`}>{id}</div><div className="min-w-0 text-xs">{date}</div><div className="min-w-0 data-font text-[13px]">{duration}</div><div className="min-w-0 data-font text-[13px]">{distance}</div><div className="min-w-0 data-font text-[13px]">{altitude}</div><div className="min-w-0 truncate text-xs text-on-surface-variant">{pilot}</div><div className="min-w-0 justify-self-end"><span className={`inline-flex items-center gap-1 rounded border px-2 py-1 font-label-caps text-[10px] uppercase whitespace-nowrap ${success ? 'border-secondary/30 bg-secondary/10 text-secondary' : 'border-error/30 bg-error/10 text-error'}`}><Icon className="text-[14px]">{success ? 'check_circle' : 'warning'}</Icon>{status}</span></div></div>
 }
 
 function Summary({ label, value, unit, accent }) {

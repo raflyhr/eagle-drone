@@ -3,8 +3,7 @@ import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import useCamera from '../hooks/useCamera'
 import useObjectDetection from '../hooks/useObjectDetection'
-
-const logoUrl = 'https://lh3.googleusercontent.com/aida/AP1WRLtVE_7213Rt9fqz8YTDohCzOiDbD_uWKRr1kjImrtZsVtlxefE2AvOT_QVYo98G6t3Tu6uvn9AhHp3HygArhNKDpNBmmtuzLmw1OIoo2KKmc9LI4Y47XDZ8B9xtg0NBcOyn7cn5UkYrSARxPkqqgEpV8KPbZZ0MXnH0brQ0eRgbl6hwjd8kPJ4rUycWB6Uf8PsD1xZir08Xc4UVkwEsWUUnztCi1O24dbWvSdYznXA468dOiNeeznyKZQT5'
+import logoUrl from '../assets/logo-eagle.png'
 const navItems = [['dashboard', 'Mission Overview'], ['map', 'Map & Search Area'], ['target', 'Detection Events'], ['history', 'Flight History'], ['settings', 'System Settings']]
 const Icon = ({ children, className = '' }) => <span className={`material-symbols-outlined ${className}`}>{children}</span>
 
@@ -148,7 +147,7 @@ function MissionOverview({ onNavigate, telemetry }) {
   return <div className="flex h-screen justify-center overflow-hidden bg-[#0b0e14]">
     <div className="relative flex h-full w-full overflow-hidden bg-surface-container-lowest">
       <aside className="z-50 hidden h-full w-64 shrink-0 flex-col border-r border-white/10 bg-surface-container py-5 md:flex">
-        <div className="mb-8 flex items-center gap-3 px-6"><img alt="Eagle Drone Logo" className="h-10 w-10 rounded-md object-cover" src={logoUrl} /><div><h1 className="font-headline-md text-2xl font-bold tracking-tight text-primary">Eagle Drone</h1><p className="font-body-sm text-sm text-on-surface-variant">SAR Command Unit</p></div></div>
+        <div className="mb-8 flex items-center gap-3 px-6"><img alt="Eagle Drone Logo" className="h-10 w-24 rounded-md object-contain" src={logoUrl} /><div><h1 className="font-headline-md text-2xl font-bold tracking-tight text-primary">Eagle Drone</h1><p className="font-body-sm text-sm text-on-surface-variant">SAR Command Unit</p></div></div>
         <nav className="flex-1 space-y-2 px-4">{navItems.map(([icon, label], index) => <button key={label} onClick={() => index === 1 ? onNavigate('map') : index === 2 ? onNavigate('events') : index === 3 ? onNavigate('history') : index === 4 && onNavigate('settings')} className={`flex w-full items-center gap-3 rounded-lg px-4 py-3 text-left transition ${index === 0 ? 'border-r-2 border-primary bg-primary/5 font-bold text-primary' : 'font-medium text-on-surface-variant hover:bg-surface-variant/50 hover:text-on-surface'}`}><Icon className={index === 0 ? '[font-variation-settings:"FILL"_1]' : ''}>{icon}</Icon><span className="font-label-caps text-xs tracking-[.08em]">{label}</span></button>)}</nav>
       </aside>
       <main className="relative flex h-full min-w-0 flex-1 flex-col overflow-hidden">

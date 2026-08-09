@@ -1,4 +1,4 @@
-const logoUrl = 'https://lh3.googleusercontent.com/aida/AP1WRLtVE_7213Rt9fqz8YTDohCzOiDbD_uWKRr1kjImrtZsVtlxefE2AvOT_QVYo98G6t3Tu6uvn9AhHp3HygArhNKDpNBmmtuzLmw1OIoo2KKmc9LI4Y47XDZ8B9xtg0NBcOyn7cn5UkYrSARxPkqqgEpV8KPbZZ0MXnH0brQ0eRgbl6hwjd8kPJ4rUycWB6Uf8PsD1xZir08Xc4UVkwEsWUUnztCi1O24dbWvSdYznXA468dOiNeeznyKZQT5'
+import logoUrl from '../assets/logo-eagle.png'
 
 const eventImages = [
   'https://lh3.googleusercontent.com/aida-public/AB6AXuB590MnQLzhs_4-Re_LZ4zqVSwNoDTd46uxi8W_6ahf9pRDw_FyNaBPKaGn9yeydnGC-BZ84KlzViPlSg_YPuHuDJYzokO0P7TjaRmnd6tVCzXxEr7J0E97UW41QA4yqG3_Lafxs_po5vi66_e4uw2WQTpgulT5HPkiBwc4aPvlYZl9wruJP2xbP_ZTcEdPecgI7YidphxXEdh1sw00I7XrOuGkIBkcK6IeinA78U15ehVXMGrCFE7_Xw',
@@ -73,7 +73,7 @@ function DetectionEvents({ onNavigate }) {
       <div className="relative flex h-full w-full overflow-hidden bg-surface-container-lowest">
         <aside className="z-50 hidden h-full w-64 shrink-0 flex-col border-r border-white/10 bg-surface-container py-5 md:flex">
           <div className="mb-8 flex items-center gap-3 px-6">
-            <img alt="Eagle Drone Logo" className="h-10 w-10 rounded-md object-cover" src={logoUrl} />
+            <img alt="Eagle Drone Logo" className="h-10 w-24 rounded-md object-contain" src={logoUrl} />
             <div>
               <h1 className="font-headline-md text-2xl font-bold tracking-tight text-primary">Eagle Drone</h1>
               <p className="font-body-sm text-sm text-on-surface-variant">SAR Command Unit</p>
