@@ -40,8 +40,30 @@ function createTargetPinIcon() {
   })
 }
 
-export default function MapArea({ _onNavigate, telemetry, active, mapStyle = 'standard', onMapStyleChange }) {
-  const weather = useWeather()
+const defaultTelemetry = {
+  latitude: -7.5950,
+  longitude: 110.4485,
+  altitude: 450,
+  speed: 22,
+  heading: 0,
+  pitch: -2.5,
+  roll: -1.0,
+  yaw: 0,
+  battery: 88,
+  voltage: 16.1,
+  current: 14.2,
+  satellites: 18,
+  gpsFix: '3D Fix',
+  flightMode: 'AUTO',
+  sysId: 1,
+  compId: 1,
+  packetCount: 0,
+  signal: 98,
+}
+
+export default function MapArea({ onNavigate, telemetry: rawTelemetry, active, mapStyle = 'standard', onMapStyleChange }) {
+  const telemetry = { ...defaultTelemetry, ...(rawTelemetry || {}) }
+  const weather = useWeather(telemetry.latitude, telemetry.longitude)
   const droneRegionName = useDroneRegion(telemetry.latitude, telemetry.longitude)
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
   const [isLocked, setIsLocked] = useState(true)
@@ -286,7 +308,9 @@ export default function MapArea({ _onNavigate, telemetry, active, mapStyle = 'st
             <div className="flex items-center gap-2 rounded-md bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white border border-slate-800">
               <Icon className="text-sky-400 text-[16px]">near_me</Icon>
               <span className="text-slate-400 font-medium">UAV:</span>
-              <span className="data-font font-bold text-white">{telemetry.latitude.toFixed(5)}, {telemetry.longitude.toFixed(5)}</span>
+              <span className="data-font font-bold text-white">
+                {(telemetry.latitude ?? -7.5950).toFixed(5)}, {(telemetry.longitude ?? 110.4485).toFixed(5)}
+              </span>
             </div>
 
             <div className="flex items-center gap-2 rounded-md bg-white px-3 py-1.5 text-xs font-semibold text-slate-900 border border-slate-200">
@@ -446,25 +470,25 @@ export default function MapArea({ _onNavigate, telemetry, active, mapStyle = 'st
               <div className="bg-slate-50 rounded-md p-2 border border-slate-200/80">
                 <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">Coordinates</p>
                 <p className="font-bold text-slate-900 data-font truncate" title={`${telemetry.latitude}, ${telemetry.longitude}`}>
-                  {telemetry.latitude.toFixed(5)}, {telemetry.longitude.toFixed(5)}
+                  {(telemetry.latitude ?? -7.5950).toFixed(5)}, {(telemetry.longitude ?? 110.4485).toFixed(5)}
                 </p>
               </div>
               <div className="bg-slate-50 rounded-md p-2 border border-slate-200/80">
                 <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">Altitude (Alt)</p>
                 <p className="font-bold text-slate-900 data-font">
-                  {telemetry.altitude} m MSL
+                  {telemetry.altitude ?? 0} m MSL
                 </p>
               </div>
               <div className="bg-slate-50 rounded-md p-2 border border-slate-200/80">
                 <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">Ground Speed</p>
                 <p className="font-bold text-slate-900 data-font">
-                  {telemetry.speed} m/s ({(telemetry.speed * 3.6).toFixed(1)} km/h)
+                  {telemetry.speed ?? 0} m/s ({(((telemetry.speed ?? 0) * 3.6)).toFixed(1)} km/h)
                 </p>
               </div>
               <div className="bg-slate-50 rounded-md p-2 border border-slate-200/80">
                 <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">Heading</p>
                 <p className="font-bold text-slate-900 data-font">
-                  {telemetry.heading}°
+                  {telemetry.heading ?? 0}°
                 </p>
               </div>
             </div>
