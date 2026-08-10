@@ -256,21 +256,33 @@ export default function useTelemetry() {
     }
   }, [disconnect, handleMavlinkMessage])
 
-  // Local MAVLink Simulation Mode Engine (Dynamic SAR Search Exploration Flight)
+  // Local MAVLink Simulation Mode Engine (Structured Lawnmower SAR Search Grid Flight)
   const enableMavlinkSim = useCallback(async () => {
     await disconnect()
     setConnectionStatus('connected')
     setConnectionType('simulation')
 
+    // Structured SAR Lawnmower Grid Search Waypoints (~1km x 600m search area)
+    const gridWaypoints = [
+      { lat: -7.5950, lon: 110.4485 },
+      { lat: -7.5950, lon: 110.4550 },
+      { lat: -7.5935, lon: 110.4550 },
+      { lat: -7.5935, lon: 110.4420 },
+      { lat: -7.5920, lon: 110.4420 },
+      { lat: -7.5920, lon: 110.4550 },
+      { lat: -7.5905, lon: 110.4550 },
+      { lat: -7.5905, lon: 110.4420 },
+      { lat: -7.5950, lon: 110.4420 },
+      { lat: -7.5950, lon: 110.4485 },
+    ]
+
     simStateRef.current = {
-      lat: -7.5950,
-      lon: 110.4485,
-      heading: 45,
-      speed: 18,
-      phase: 0,
-      radius: 0.012,
-      centerLat: -7.5950,
-      centerLon: 110.4485,
+      lat: gridWaypoints[0].lat,
+      lon: gridWaypoints[0].lon,
+      heading: 90,
+      speed: 20,
+      wpIndex: 1,
+      gridWaypoints,
     }
 
     simTimerRef.current = setInterval(() => {
@@ -281,22 +293,27 @@ export default function useTelemetry() {
       const timeMs = Math.floor(performance.now())
 
       const st = simStateRef.current
-      st.phase += 0.015
+      const targetWp = st.gridWaypoints[st.wpIndex]
 
-      // Smooth search exploration curve
-      const offsetLat = Math.sin(st.phase * 0.7) * st.radius
-      const offsetLon = Math.cos(st.phase * 0.5) * st.radius * 1.2
-      const targetLat = st.centerLat + offsetLat
-      const targetLon = st.centerLon + offsetLon
+      // Distance to target waypoint
+      const dLat = (targetWp.lat - st.lat) * 111000
+      const dLon = (targetWp.lon - st.lon) * 111000 * Math.cos(st.lat * (Math.PI / 180))
+      const distMeters = Math.sqrt(dLat * dLat + dLon * dLon)
 
-      const dLat = (targetLat - st.lat) * 111000
-      const dLon = (targetLon - st.lon) * 111000 * Math.cos(st.lat * (Math.PI / 180))
+      // If reached waypoint (within 15m), transition to next waypoint in sequence
+      if (distMeters < 15) {
+        st.wpIndex = (st.wpIndex + 1) % st.gridWaypoints.length
+      }
 
-      let targetHeading = Math.atan2(dLon, dLat) * (180 / Math.PI)
+      const activeTargetWp = st.gridWaypoints[st.wpIndex]
+      const targetDLat = (activeTargetWp.lat - st.lat) * 111000
+      const targetDLon = (activeTargetWp.lon - st.lon) * 111000 * Math.cos(st.lat * (Math.PI / 180))
+
+      let targetHeading = Math.atan2(targetDLon, targetDLat) * (180 / Math.PI)
       if (targetHeading < 0) targetHeading += 360
 
       let diff = (targetHeading - st.heading + 540) % 360 - 180
-      const maxTurnRate = 4.0
+      const maxTurnRate = 5.0
       if (Math.abs(diff) > maxTurnRate) {
         st.heading = (st.heading + Math.sign(diff) * maxTurnRate + 360) % 360
       } else {

@@ -270,10 +270,21 @@ export default function MapArea({ onNavigate, telemetry: rawTelemetry, active, m
     }
 
     const lastPos = trailRef.current[trailRef.current.length - 1]
-    if (!lastPos || Math.abs(lastPos[0] - position[0]) > 0.00001 || Math.abs(lastPos[1] - position[1]) > 0.00001) {
-      trailRef.current.push(position)
-      if (trailRef.current.length > 2000) {
-        trailRef.current.splice(1, 1)
+    if (!lastPos) {
+      trailRef.current = [position]
+    } else {
+      const dLat = lastPos[0] - position[0]
+      const dLon = lastPos[1] - position[1]
+      const jumpDist = Math.sqrt(dLat * dLat + dLon * dLon)
+
+      if (jumpDist > 0.005) {
+        // Teleportation / Initial jump reset
+        trailRef.current = [position]
+      } else if (jumpDist > 0.00001) {
+        trailRef.current.push(position)
+        if (trailRef.current.length > 2000) {
+          trailRef.current.shift()
+        }
       }
     }
     if (pathRef.current) {

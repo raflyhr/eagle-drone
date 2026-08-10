@@ -33,8 +33,8 @@ function createDroneHeadingIcon(heading = 0, size = 28) {
 
 export default function MissionOverview({ onNavigate, telemetryState, mapStyle = 'standard', onMapStyleChange }) {
   const telemetry = telemetryState?.telemetry || {
-    latitude: -6.2,
-    longitude: 106.816666,
+    latitude: -7.5950,
+    longitude: 110.4485,
     altitude: 120,
     speed: 15,
     heading: 285,
@@ -360,10 +360,21 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
     leafletRef.current.panTo(newPos, { animate: true, duration: 0.8 })
 
     const lastPos = trailRef.current[trailRef.current.length - 1]
-    if (!lastPos || Math.abs(lastPos[0] - newPos[0]) > 0.00001 || Math.abs(lastPos[1] - newPos[1]) > 0.00001) {
-      trailRef.current.push(newPos)
-      if (trailRef.current.length > 2000) {
-        trailRef.current.splice(1, 1) // preserve index 0 (initial takeoff point)
+    if (!lastPos) {
+      trailRef.current = [newPos]
+    } else {
+      const dLat = lastPos[0] - newPos[0]
+      const dLon = lastPos[1] - newPos[1]
+      const jumpDist = Math.sqrt(dLat * dLat + dLon * dLon)
+
+      if (jumpDist > 0.005) {
+        // Teleportation / Initial jump reset
+        trailRef.current = [newPos]
+      } else if (jumpDist > 0.00001) {
+        trailRef.current.push(newPos)
+        if (trailRef.current.length > 2000) {
+          trailRef.current.shift()
+        }
       }
     }
     if (pathRef.current) {
