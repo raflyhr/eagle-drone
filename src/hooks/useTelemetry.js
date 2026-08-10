@@ -353,28 +353,34 @@ export default function useTelemetry() {
     }
   }, [disconnect, handleMavlinkMessage])
 
-  // Local MAVLink Simulation Mode Engine (Dynamic SAR Search Exploration Flight)
+  // Local MAVLink Simulation Mode Engine (Pure Dynamic Random Search Flight)
   const enableMavlinkSim = useCallback(async () => {
     await disconnect()
     setConnectionStatus('connected')
     setConnectionType('simulation')
 
-    missionStartRef.current = null
-    missionDistanceRef.current = 0
-    missionMaxAltitudeRef.current = 0
-    missionPositionRef.current = null
-    capturesRef.current = []
-    markedLocationsRef.current = []
+
+    const centerLat = -7.5950
+    const centerLon = 110.4485
+    const maxRadiusMeters = 800 // Bounding search area
+
+    const getRandomTarget = () => {
+      const angle = Math.random() * 2 * Math.PI
+      const dist = 200 + Math.random() * 550 // Random distance 200m - 750m
+      const targetLat = centerLat + (dist * Math.cos(angle)) / 111000
+      const targetLon = centerLon + (dist * Math.sin(angle)) / (111000 * Math.cos(centerLat * (Math.PI / 180)))
+      return { lat: targetLat, lon: targetLon }
+    }
 
     simStateRef.current = {
-      lat: -7.5950,
-      lon: 110.4485,
-      heading: 45,
-      speed: 18,
-      phase: 0,
-      radius: 0.012,
-      centerLat: -7.5950,
-      centerLon: 110.4485,
+      lat: centerLat,
+      lon: centerLon,
+      heading: Math.floor(Math.random() * 360),
+      speed: 20,
+      targetWp: getRandomTarget(),
+      centerLat,
+      centerLon,
+      maxRadiusMeters,
     }
 
     simTimerRef.current = setInterval(() => {
@@ -385,22 +391,29 @@ export default function useTelemetry() {
       const timeMs = Math.floor(performance.now())
 
       const st = simStateRef.current
-      st.phase += 0.015
 
-      // Smooth search exploration curve
-      const offsetLat = Math.sin(st.phase * 0.7) * st.radius
-      const offsetLon = Math.cos(st.phase * 0.5) * st.radius * 1.2
-      const targetLat = st.centerLat + offsetLat
-      const targetLon = st.centerLon + offsetLon
+      // Distance to current dynamic random target
+      const dLat = (st.targetWp.lat - st.lat) * 111000
+      const dLon = (st.targetWp.lon - st.lon) * 111000 * Math.cos(st.lat * (Math.PI / 180))
+      const distToTarget = Math.sqrt(dLat * dLat + dLon * dLon)
 
-      const dLat = (targetLat - st.lat) * 111000
-      const dLon = (targetLon - st.lon) * 111000 * Math.cos(st.lat * (Math.PI / 180))
+      // Distance from origin center
+      const distFromCenter = calculateDistanceMeters(st.lat, st.lon, st.centerLat, st.centerLon)
 
-      let targetHeading = Math.atan2(dLon, dLat) * (180 / Math.PI)
+      // If reached dynamic target (< 30m) or drifted past max radius, generate new random target
+      if (distToTarget < 30 || distFromCenter > st.maxRadiusMeters) {
+        st.targetWp = getRandomTarget()
+        st.speed = Number((16 + Math.random() * 8).toFixed(1))
+      }
+
+      const targetDLat = (st.targetWp.lat - st.lat) * 111000
+      const targetDLon = (st.targetWp.lon - st.lon) * 111000 * Math.cos(st.lat * (Math.PI / 180))
+
+      let targetHeading = Math.atan2(targetDLon, targetDLat) * (180 / Math.PI)
       if (targetHeading < 0) targetHeading += 360
 
       let diff = (targetHeading - st.heading + 540) % 360 - 180
-      const maxTurnRate = 4.0
+      const maxTurnRate = 4.5
       if (Math.abs(diff) > maxTurnRate) {
         st.heading = (st.heading + Math.sign(diff) * maxTurnRate + 360) % 360
       } else {
