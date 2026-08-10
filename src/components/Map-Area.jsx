@@ -174,7 +174,8 @@ export default function MapArea({ onNavigate, telemetry: rawTelemetry, active, m
       lineCap: 'round',
     }).addTo(map)
 
-    startMarkerRef.current = L.marker(initialPos, { icon: createStartPointIcon() }).addTo(map).bindPopup('Takeoff Point')
+    const startPos = trailRef.current[0] || initialPos
+    startMarkerRef.current = L.marker(startPos, { icon: createStartPointIcon() }).addTo(map).bindPopup('Takeoff Point')
 
     const customIcon = createDroneHeadingIcon(telemetry.heading || 0, 32)
 
@@ -299,6 +300,9 @@ export default function MapArea({ onNavigate, telemetry: rawTelemetry, active, m
       } else if (jumpDist > 0.00001) {
         trailRef.current.push(position)
       }
+    }
+    if (startMarkerRef.current && trailRef.current[0]) {
+      startMarkerRef.current.setLatLng(trailRef.current[0])
     }
     if (pathRef.current) {
       pathRef.current.setLatLngs(trailRef.current)
