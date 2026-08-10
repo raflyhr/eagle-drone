@@ -45,10 +45,31 @@ export default function FlightDetail({ mission, onBack, mapStyle = 'standard', o
     if (capturePage >= capturePageCount) setCapturePage(Math.max(0, capturePageCount - 1))
   }, [capturePage, capturePageCount])
 
+  const updateTileLayer = (map, style) => {
+    if (!map) return
+    if (baseLayerRef.current) {
+      map.removeLayer(baseLayerRef.current)
+      baseLayerRef.current = null
+    }
+    if (overlayLayerRef.current) {
+      map.removeLayer(overlayLayerRef.current)
+      overlayLayerRef.current = null
+    }
+
+    if (style === 'satellite') {
+      baseLayerRef.current = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution: '&copy; Esri Satellite', maxZoom: 19 }).addTo(map)
+      overlayLayerRef.current = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, opacity: 0.85 }).addTo(map)
+    } else if (style === 'terrain') {
+      baseLayerRef.current = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenTopoMap', maxZoom: 17 }).addTo(map)
+    } else {
+      baseLayerRef.current = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap', maxZoom: 19 }).addTo(map)
+    }
+  }
+
   useEffect(() => {
     if (!mapContainerRef.current || mapRef.current) return
     const map = L.map(mapContainerRef.current, { zoomControl: false })
-    baseLayerRef.current = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap contributors', maxZoom: 19 }).addTo(map)
+    updateTileLayer(map, mapStyle)
 
     const path = L.polyline(trackPoints, { color: '#0284c7', weight: 4, opacity: 0.9 }).addTo(map)
     L.circleMarker(startPoint, { radius: 7, color: '#ffffff', weight: 3, fillColor: '#16a34a', fillOpacity: 1 }).bindTooltip('Start').addTo(map)
@@ -75,18 +96,8 @@ export default function FlightDetail({ mission, onBack, mapStyle = 'standard', o
   }, [finishPoint, markedLocations, startPoint, trackPoints])
 
   useEffect(() => {
-    const map = mapRef.current
-    if (!map) return
-    if (baseLayerRef.current) map.removeLayer(baseLayerRef.current)
-    if (overlayLayerRef.current) map.removeLayer(overlayLayerRef.current)
-
-    if (mapStyle === 'satellite') {
-      baseLayerRef.current = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution: '&copy; Esri Satellite', maxZoom: 19 }).addTo(map)
-      overlayLayerRef.current = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, opacity: 0.85 }).addTo(map)
-    } else if (mapStyle === 'terrain') {
-      baseLayerRef.current = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenTopoMap', maxZoom: 17 }).addTo(map)
-    } else {
-      baseLayerRef.current = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap', maxZoom: 19 }).addTo(map)
+    if (mapRef.current) {
+      updateTileLayer(mapRef.current, mapStyle)
     }
   }, [mapStyle])
 
