@@ -497,17 +497,11 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
           <button
             type="button"
             onClick={() => setShowMavlinkModal(true)}
-            className="flex items-center gap-2.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 px-3 py-1.5 text-xs text-slate-700 shadow-xs transition cursor-pointer"
+            className="flex items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs text-slate-600 transition hover:bg-slate-100 cursor-pointer"
           >
-            <span
-              className={`h-2 w-2 rounded-full ${
-                connectionStatus === 'connected' ? 'bg-emerald-500' : 'bg-amber-500'
-              }`}
-            />
             <span className="font-medium">
-              MAVLink: <strong className="font-bold text-slate-900">{connectionStatus === 'connected' ? connectionType.toUpperCase() : 'Disconnected'}</strong>
+              MAVLink <span className="text-slate-400">/</span> <strong className="font-semibold text-slate-800">{connectionStatus === 'connected' ? connectionType.toUpperCase() : 'Disconnected'}</strong>
             </span>
-            <Icon className="text-[16px] text-slate-400 ml-0.5">settings_remote</Icon>
           </button>
         </div>
       </header>
