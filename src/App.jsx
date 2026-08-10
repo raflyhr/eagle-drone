@@ -47,6 +47,8 @@ function App() {
           <FlightHistory
             missionLogs={telemetryState.missionLogs}
             currentMission={telemetryState.currentMission}
+            onNavigate={setPage}
+            onClearLogs={telemetryState.clearMissionLogs}
             onOpenMission={(mission) => {
               setSelectedMission(mission)
               setPage('flight-detail')

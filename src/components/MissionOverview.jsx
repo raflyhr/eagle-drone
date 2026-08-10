@@ -818,29 +818,32 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
                           }`}
                           title="Capture current camera frame"
                         >
-                          <Icon className="text-[14px]">photo_camera</Icon>
+                          <Icon className="text-[16px]">photo_camera</Icon>
                           {isFullscreen && <span>{captureFeedback ? 'Photo saved' : 'Capture Photo'}</span>}
                         </button>
 
-                        {/* Mark Location Button (Only shown in fullscreen mode) */}
-                        {isFullscreen && (
-                          <button
-                            type="button"
-                            onClick={handleMarkLocation}
-                            className="flex items-center gap-1.5 rounded-md bg-amber-500 px-3 py-1.5 text-xs font-bold text-white transition hover:bg-amber-600 cursor-pointer"
-                            title="Mark current drone location"
-                          >
-                            <Icon className="text-[14px]">location_on</Icon>
-                            <span>{locationFeedback ? 'Location Marked' : 'Mark Location'}</span>
-                          </button>
-                        )}
+                        {/* Mark Location Button (Icon only when not in fullscreen, full text label in fullscreen) */}
+                        <button
+                          type="button"
+                          onClick={handleMarkLocation}
+                          className={`flex items-center justify-center gap-1.5 rounded-md bg-amber-500 text-xs font-bold text-white transition hover:bg-amber-600 cursor-pointer ${
+                            isFullscreen ? 'px-3 py-1.5' : 'px-2 py-1.5'
+                          }`}
+                          title="Mark current drone location"
+                        >
+                          <Icon className="text-[16px]">location_on</Icon>
+                          {isFullscreen && <span>{locationFeedback ? 'Location Marked' : 'Mark Location'}</span>}
+                        </button>
+                      </div>
 
-                        {/* Camera Switcher Selector */}
+                      {/* Right Controls: Camera Selector, Fullscreen Map Toggle & Fullscreen Button */}
+                      <div className="flex items-center gap-2 pointer-events-auto bg-slate-900 border border-slate-800 rounded-lg p-1.5 shadow-lg">
+                        {/* Camera Switcher Selector (Always shown on the right side) */}
                         <div className="flex items-center gap-1.5 bg-slate-800 border border-slate-700 rounded-md px-2.5 py-1 text-xs font-medium text-slate-200">
                           <select
                             value={selectedDeviceId}
                             onChange={(e) => selectCamera(e.target.value)}
-                            className="bg-slate-800 text-xs font-semibold text-white focus:outline-none cursor-pointer max-w-[160px] sm:max-w-[220px] truncate"
+                            className="bg-slate-800 text-xs font-semibold text-white focus:outline-none cursor-pointer max-w-[140px] sm:max-w-[200px] truncate"
                           >
                             {devices.length > 0 ? (
                               devices.map((dev, idx) => (
@@ -860,18 +863,9 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
                             className="text-slate-400 hover:text-white transition cursor-pointer"
                             title="Rescan camera devices"
                           >
-                            <Icon className="text-[13px]">refresh</Icon>
+                            <Icon className="text-[14px]">refresh</Icon>
                           </button>
                         </div>
-                      </div>
-
-                      {/* Right Controls: Resolution Specs, Fullscreen Map Toggle & Fullscreen */}
-                      <div className="flex items-center gap-2 pointer-events-auto bg-slate-900 border border-slate-800 rounded-lg p-1.5 shadow-lg">
-                        {activeCameraSpecs && (
-                          <div className="text-[11px] text-slate-300 font-medium font-mono hidden sm:block px-1.5">
-                            {activeCameraSpecs.width}x{activeCameraSpecs.height} @ {Math.round(activeCameraSpecs.frameRate)}fps
-                          </div>
-                        )}
 
                         {/* Toggle Fullscreen Mini-Map Button */}
                         {isFullscreen && (

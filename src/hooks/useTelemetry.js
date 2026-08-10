@@ -45,11 +45,24 @@ export default function useTelemetry() {
   const [connectionStatus, setConnectionStatus] = useState('disconnected') // 'disconnected' | 'connecting' | 'connected' | 'error'
   const [connectionType, setConnectionType] = useState('none') // 'none' | 'serial' | 'websocket' | 'simulation'
   const [errorMessage, setErrorMessage] = useState('')
-  const [missionLogs, setMissionLogs] = useState([
-    { id: 'SAR-4922', type: 'Thermal Search', date: 'Oct 24, 2026', duration: '02:14:33', distance: '18.4 km', maxAltitude: '120 m', status: 'Success' },
-    { id: 'DEL-4921', type: 'P3K Delivery', date: 'Oct 22, 2026', duration: '01:45:10', distance: '12.1 km', maxAltitude: '115 m', status: 'Success' },
-    { id: 'SAR-4920', type: 'SAR Automation', date: 'Oct 19, 2026', duration: '00:54:12', distance: '6.8 km', maxAltitude: '90 m', status: 'Aborted' },
-  ])
+  const [missionLogs, setMissionLogs] = useState(() => {
+    try {
+      const saved = localStorage.getItem('eagle_mission_logs')
+      return saved ? JSON.parse(saved) : []
+    } catch {
+      return []
+    }
+  })
+
+  // Persist real mission logs to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem('eagle_mission_logs', JSON.stringify(missionLogs))
+    } catch (err) {
+      console.warn('Failed to persist mission logs to localStorage:', err)
+    }
+  }, [missionLogs])
+
   const [currentMission, setCurrentMission] = useState(null)
 
   const serialPortRef = useRef(null)
@@ -194,18 +207,18 @@ export default function useTelemetry() {
 
   // Disconnect function
   const disconnect = useCallback(async () => {
-    if (missionStartRef.current && (capturesRef.current.length || markedLocationsRef.current.length)) {
+    if (missionStartRef.current && Date.now() - missionStartRef.current > 3000) {
       const finishedMission = {
-        id: `SIM-${Date.now().toString().slice(-6)}`,
-        type: 'SAR Automation',
+        id: `EGL-${Date.now().toString().slice(-6)}`,
+        type: latestTelemetryRef.current.flightMode === 'AUTO' ? 'SAR Automation' : 'Thermal Search',
         date: new Date(missionStartRef.current).toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' }),
         duration: new Date(Date.now() - missionStartRef.current).toISOString().slice(11, 19),
         distance: formatDistance(missionDistanceRef.current),
         maxAltitude: `${missionMaxAltitudeRef.current} m`,
         status: 'Success',
-        captures: capturesRef.current,
-        markedLocations: markedLocationsRef.current,
-        trackPoints: missionTrackRef.current,
+        captures: [...capturesRef.current],
+        markedLocations: [...markedLocationsRef.current],
+        trackPoints: [...missionTrackRef.current],
       }
       setMissionLogs((logs) => [finishedMission, ...logs])
     }
@@ -516,6 +529,15 @@ export default function useTelemetry() {
     }
   }, [enableMavlinkSim])
 
+  const clearMissionLogs = useCallback(() => {
+    setMissionLogs([])
+    try {
+      localStorage.removeItem('eagle_mission_logs')
+    } catch {
+      // fallback
+    }
+  }, [])
+
   return {
     telemetry,
     connectionStatus,
@@ -529,6 +551,7 @@ export default function useTelemetry() {
     connectWebSocket,
     enableMavlinkSim,
     disconnect,
+    clearMissionLogs,
   }
 }
 

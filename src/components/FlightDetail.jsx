@@ -16,18 +16,6 @@ const defaultTrack = [
   [-7.5931, 110.4468],
 ]
 
-const defaultMarkedLocations = [
-  { id: 'P-01', timestamp: '09:42:18', coordinate: [-7.5915, 110.4532], altitude: 118, captureId: null },
-  { id: 'P-02', timestamp: '10:05:44', coordinate: [-7.5878, 110.4488], altitude: 120, captureId: null },
-]
-
-const defaultCaptures = [
-  { id: 1, src: '/assets/forest_viewfinder.jpg', time: '09:42:18', label: 'Person detected', coordinate: '-7.59150, 110.45320', source: 'Thermal + RGB' },
-  { id: 2, src: '/assets/drone_preview.jpg', time: '09:48:31', label: 'Flight waypoint', coordinate: '-7.58940, 110.45160', source: 'RGB Camera' },
-  { id: 3, src: '/assets/forest_viewfinder.jpg', time: '10:05:44', label: 'Thermal signature', coordinate: '-7.58780, 110.44880', source: 'Thermal Camera' },
-  { id: 4, src: '/assets/drone_preview.jpg', time: '10:18:09', label: 'Search area overview', coordinate: '-7.59020, 110.44620', source: 'RGB Camera' },
-]
-
 export default function FlightDetail({ mission, onBack }) {
   const mapContainerRef = useRef(null)
   const mapPanelRef = useRef(null)
@@ -39,13 +27,15 @@ export default function FlightDetail({ mission, onBack }) {
   const [isMapFullscreen, setIsMapFullscreen] = useState(false)
   const [mapStyle, setMapStyle] = useState('standard')
   const [capturePage, setCapturePage] = useState(0)
-  const captures = useMemo(() => mission?.captures?.length ? mission.captures : defaultCaptures, [mission?.captures])
-  const markedLocations = useMemo(() => mission?.markedLocations?.length ? mission.markedLocations : defaultMarkedLocations, [mission?.markedLocations])
+
+  // Real recorded captures and marked locations from mission telemetry log
+  const captures = useMemo(() => mission?.captures || [], [mission?.captures])
+  const markedLocations = useMemo(() => mission?.markedLocations || [], [mission?.markedLocations])
   const trackPoints = useMemo(() => mission?.trackPoints?.length ? mission.trackPoints : defaultTrack, [mission?.trackPoints])
   const startPoint = trackPoints[0]
   const finishPoint = trackPoints.at(-1)
   const capturesPerPage = panelVisible ? 4 : 5
-  const capturePageCount = Math.ceil(captures.length / capturesPerPage)
+  const capturePageCount = Math.ceil(captures.length / capturesPerPage) || 1
   const visibleCaptures = captures.slice(capturePage * capturesPerPage, (capturePage + 1) * capturesPerPage)
 
   useEffect(() => {
@@ -72,7 +62,7 @@ export default function FlightDetail({ mission, onBack }) {
           iconSize: [30, 30],
           iconAnchor: [15, 15],
         }),
-      }).bindTooltip(`${location.id || `MK-${String(index + 1).padStart(2, '0')}`} · ${location.altitude} m`).addTo(map)
+      }).bindTooltip(`${location.id || `MK-${String(index + 1).padStart(2, '0')}`} · ${location.altitude || 0} m`).addTo(map)
     })
     map.fitBounds(path.getBounds(), { padding: [35, 35] })
     mapRef.current = map
@@ -139,7 +129,7 @@ export default function FlightDetail({ mission, onBack }) {
             <div ref={mapContainerRef} className="absolute inset-0" />
             <div className="pointer-events-none absolute left-3 top-3 z-[500] rounded-lg border border-slate-200 bg-white/95 px-3 py-2 shadow-sm">
               <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Recorded Flight Path</p>
-              <p className="mt-0.5 text-xs font-bold text-slate-800">{mission?.distance || '18.4 km'} · {mission?.duration || '02:14:33'}</p>
+              <p className="mt-0.5 text-xs font-bold text-slate-800">{mission?.distance || '0.0 km'} · {mission?.duration || '00:00:00'}</p>
             </div>
             <div className="absolute left-3 top-16 z-[500] flex flex-col overflow-hidden rounded-md border border-slate-200 bg-white shadow-md">
               <button onClick={() => mapRef.current?.zoomIn()} className="grid h-8 w-8 place-items-center border-b border-slate-200 text-slate-700 hover:bg-slate-100" title="Zoom in"><Icon className="text-[18px]">add</Icon></button>
@@ -177,19 +167,28 @@ export default function FlightDetail({ mission, onBack }) {
               </div>
               <span className="text-[11px] font-bold text-slate-500">{captures.length} photos</span>
             </div>
-            <div className={`grid min-h-0 flex-1 gap-3 p-2.5 ${panelVisible ? 'grid-cols-4' : 'grid-cols-5'}`}>
-              {visibleCaptures.map((capture) => (
-                <article key={capture.id} onClick={() => setSelectedCapture(capture)} className="min-w-0 min-h-0 cursor-pointer overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition hover:border-sky-300 hover:shadow-md flex flex-col">
-                  <div className="relative flex-1 min-h-0 w-full overflow-hidden bg-slate-900">
-                    <img src={capture.image || capture.src} alt={capture.label || 'Drone capture'} className="h-full w-full object-cover" />
-                  </div>
-                  <div className="p-1.5 px-2.5 flex items-center justify-end bg-slate-50 border-t border-slate-100 shrink-0">
-                    <span className="text-[11px] font-bold text-sky-700 font-mono">{capture.timestamp || capture.time}</span>
-                  </div>
-                </article>
-              ))}
-            </div>
-            {capturePageCount > 1 && (
+
+            {captures.length === 0 ? (
+              <div className="flex flex-1 flex-col items-center justify-center p-6 text-center">
+                <Icon className="text-[28px] text-slate-300 mb-1">photo_camera_back</Icon>
+                <p className="text-xs font-semibold text-slate-500">No photos captured during this flight mission.</p>
+              </div>
+            ) : (
+              <div className={`grid min-h-0 flex-1 gap-3 p-2.5 ${panelVisible ? 'grid-cols-4' : 'grid-cols-5'}`}>
+                {visibleCaptures.map((capture) => (
+                  <article key={capture.id} onClick={() => setSelectedCapture(capture)} className="min-w-0 min-h-0 cursor-pointer overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition hover:border-sky-300 hover:shadow-md flex flex-col">
+                    <div className="relative flex-1 min-h-0 w-full overflow-hidden bg-slate-900">
+                      <img src={capture.image || capture.src} alt={capture.label || 'Drone capture'} className="h-full w-full object-cover" />
+                    </div>
+                    <div className="p-1.5 px-2.5 flex items-center justify-end bg-slate-50 border-t border-slate-100 shrink-0">
+                      <span className="text-[11px] font-bold text-sky-700 font-mono">{capture.timestamp || capture.time}</span>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            )}
+
+            {capturePageCount > 1 && captures.length > 0 && (
               <div className="flex shrink-0 items-center justify-center gap-3 border-t border-slate-100 px-4 py-2">
                 <button disabled={capturePage === 0} onClick={() => setCapturePage((page) => page - 1)} className="rounded-lg border border-slate-200 px-3 py-1 text-xs font-bold text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40">Previous</button>
                 <span className="text-xs font-semibold text-slate-500">Page {capturePage + 1} of {capturePageCount}</span>
@@ -215,28 +214,32 @@ export default function FlightDetail({ mission, onBack }) {
             </section>
             <section className="space-y-2 border-t border-slate-100 pt-4">
               <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Flight Time</p>
-              <Info label="Date" value={mission?.date || 'Oct 24, 2026'} />
-              <Info label="Duration" value={mission?.duration || '02:14:33'} />
-              <Info label="Max Altitude" value={mission?.maxAltitude || '120 m'} />
+              <Info label="Date" value={mission?.date || '-'} />
+              <Info label="Duration" value={mission?.duration || '-'} />
+              <Info label="Max Altitude" value={mission?.maxAltitude || '-'} />
             </section>
             <section className="space-y-2 border-t border-slate-100 pt-4">
               <div className="flex items-center justify-between">
                 <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Marked Locations</p>
                 <span className="rounded-md bg-red-50 px-2 py-0.5 text-[10px] font-bold text-red-600">{markedLocations.length} points</span>
               </div>
-              {markedLocations.map((location, index) => {
-                const capture = captures.find((item) => item.id === location.captureId)
-                return (
-                  <button key={location.id} onClick={() => focusPerson(location)} className="w-full rounded-xl border border-slate-200 p-3 text-left transition hover:border-sky-300 hover:bg-sky-50/40">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-slate-800">{location.id || `MK-${String(index + 1).padStart(2, '0')}`}</span>
-                      <span className="text-[10px] font-bold text-slate-400">{location.altitude} m</span>
-                    </div>
-                    <p className="mt-1.5 font-mono text-[10px] text-slate-500">{location.coordinate.join(', ')}</p>
-                    <p className="mt-2 text-[10px] font-semibold text-sky-600">{capture ? `Photo ${capture.timestamp}` : 'No linked photo'}</p>
-                  </button>
-                )
-              })}
+              {markedLocations.length === 0 ? (
+                <p className="text-xs font-medium text-slate-400 italic py-1">No location markers dropped.</p>
+              ) : (
+                markedLocations.map((location, index) => {
+                  const capture = captures.find((item) => item.id === location.captureId)
+                  return (
+                    <button key={location.id} onClick={() => focusPerson(location)} className="w-full rounded-xl border border-slate-200 p-3 text-left transition hover:border-sky-300 hover:bg-sky-50/40">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-slate-800">{location.id || `MK-${String(index + 1).padStart(2, '0')}`}</span>
+                        <span className="text-[10px] font-bold text-slate-400">{location.altitude || 0} m</span>
+                      </div>
+                      <p className="mt-1.5 font-mono text-[10px] text-slate-500">{location.coordinate ? location.coordinate.join(', ') : '-'}</p>
+                      <p className="mt-2 text-[10px] font-semibold text-sky-600">{capture ? `Photo ${capture.timestamp}` : 'No linked photo'}</p>
+                    </button>
+                  )
+                })
+              )}
             </section>
           </div>
         </aside>}
