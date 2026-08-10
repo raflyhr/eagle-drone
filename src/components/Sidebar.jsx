@@ -8,7 +8,6 @@ export default function Sidebar({ activePage, onNavigate }) {
   const navItems = [
     { id: 'home', icon: 'home', title: 'Mission Overview', page: 'mission' },
     { id: 'control', icon: 'control_camera', title: 'Flight Controls & Map', page: 'map' },
-    { id: 'video', icon: 'videocam', title: 'Live Camera Feed', page: 'mission' },
     { id: 'settings', icon: 'settings', title: 'System Settings', page: 'settings' },
     { id: 'history', icon: 'history', title: 'Flight Archives', page: 'history' },
   ]
