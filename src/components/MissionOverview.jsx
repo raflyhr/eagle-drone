@@ -788,25 +788,31 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
                           <span>AI Detect {aiActive ? `(${detections.length})` : 'Off'}</span>
                         </button>
 
+                        {/* Capture Photo Button (Icon only when not in fullscreen, full text label in fullscreen) */}
                         <button
                           type="button"
                           onClick={handleCapturePhoto}
-                          className="flex items-center gap-1.5 rounded-md bg-sky-600 px-3 py-1.5 text-xs font-bold text-white transition hover:bg-sky-700"
+                          className={`flex items-center justify-center gap-1.5 rounded-md bg-sky-600 text-xs font-bold text-white transition hover:bg-sky-700 cursor-pointer ${
+                            isFullscreen ? 'px-3 py-1.5' : 'px-2 py-1.5'
+                          }`}
                           title="Capture current camera frame"
                         >
                           <Icon className="text-[14px]">photo_camera</Icon>
-                          <span>{captureFeedback ? 'Captured' : 'Capture Photo'}</span>
+                          {isFullscreen && <span>{captureFeedback ? 'Captured' : 'Capture Photo'}</span>}
                         </button>
 
-                        <button
-                          type="button"
-                          onClick={handleMarkLocation}
-                          className="flex items-center gap-1.5 rounded-md bg-amber-500 px-3 py-1.5 text-xs font-bold text-white transition hover:bg-amber-600"
-                          title="Mark current drone location"
-                        >
-                          <Icon className="text-[14px]">location_on</Icon>
-                          <span>{locationFeedback ? 'Location Marked' : 'Mark Location'}</span>
-                        </button>
+                        {/* Mark Location Button (Only shown in fullscreen mode) */}
+                        {isFullscreen && (
+                          <button
+                            type="button"
+                            onClick={handleMarkLocation}
+                            className="flex items-center gap-1.5 rounded-md bg-amber-500 px-3 py-1.5 text-xs font-bold text-white transition hover:bg-amber-600 cursor-pointer"
+                            title="Mark current drone location"
+                          >
+                            <Icon className="text-[14px]">location_on</Icon>
+                            <span>{locationFeedback ? 'Location Marked' : 'Mark Location'}</span>
+                          </button>
+                        )}
 
                         {/* Camera Switcher Selector */}
                         <div className="flex items-center gap-1.5 bg-slate-800 border border-slate-700 rounded-md px-2.5 py-1 text-xs font-medium text-slate-200">
