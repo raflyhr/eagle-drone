@@ -353,7 +353,7 @@ export default function useTelemetry() {
     }
   }, [disconnect, handleMavlinkMessage])
 
-  // Local MAVLink Simulation Mode Engine (Pure Dynamic Random Search Flight)
+  // Local MAVLink Simulation Mode Engine (Long-Range Dynamic Random Search Flight)
   const enableMavlinkSim = useCallback(async () => {
     await disconnect()
     setConnectionStatus('connected')
@@ -362,25 +362,44 @@ export default function useTelemetry() {
 
     const centerLat = -7.5950
     const centerLon = 110.4485
-    const maxRadiusMeters = 800 // Bounding search area
+    const maxRadiusMeters = 3500 // 3.5 km wide exploration region
 
-    const getRandomTarget = () => {
-      const angle = Math.random() * 2 * Math.PI
-      const dist = 200 + Math.random() * 550 // Random distance 200m - 750m
-      const targetLat = centerLat + (dist * Math.cos(angle)) / 111000
-      const targetLon = centerLon + (dist * Math.sin(angle)) / (111000 * Math.cos(centerLat * (Math.PI / 180)))
+    const getNextExploreTarget = (currentLat, currentLon, currentHeading) => {
+      // Pick a forward/diagonal angle within +/- 75 degrees of current heading
+      const angleDeviation = (Math.random() - 0.5) * (Math.PI * 0.83)
+      const currentHeadingRad = (currentHeading || 0) * (Math.PI / 180)
+      let targetAngle = currentHeadingRad + angleDeviation
+
+      // Calculate distance from center to contain flight within 3.5 km search region
+      const distFromCenter = calculateDistanceMeters(currentLat, currentLon, centerLat, centerLon)
+      if (distFromCenter > maxRadiusMeters * 0.75) {
+        // If near boundary, steer target back inward toward center region
+        const dLatCenter = (centerLat - currentLat) * 111000
+        const dLonCenter = (centerLon - currentLon) * 111000 * Math.cos(currentLat * (Math.PI / 180))
+        targetAngle = Math.atan2(dLonCenter, dLatCenter) + (Math.random() - 0.5) * 0.6
+      }
+
+      // Long-range leg distance: 800m - 1800m across the map
+      const legDist = 800 + Math.random() * 1000
+
+      const targetLat = currentLat + (legDist * Math.cos(targetAngle)) / 111000
+      const targetLon = currentLon + (legDist * Math.sin(targetAngle)) / (111000 * Math.cos(currentLat * (Math.PI / 180)))
+
       return { lat: targetLat, lon: targetLon }
     }
+
+    const initialTarget = getNextExploreTarget(centerLat, centerLon, 45)
 
     simStateRef.current = {
       lat: centerLat,
       lon: centerLon,
-      heading: Math.floor(Math.random() * 360),
-      speed: 20,
-      targetWp: getRandomTarget(),
+      heading: 45,
+      speed: 25,
+      targetWp: initialTarget,
       centerLat,
       centerLon,
       maxRadiusMeters,
+      getNextExploreTarget,
     }
 
     simTimerRef.current = setInterval(() => {
@@ -400,10 +419,10 @@ export default function useTelemetry() {
       // Distance from origin center
       const distFromCenter = calculateDistanceMeters(st.lat, st.lon, st.centerLat, st.centerLon)
 
-      // If reached dynamic target (< 30m) or drifted past max radius, generate new random target
-      if (distToTarget < 30 || distFromCenter > st.maxRadiusMeters) {
-        st.targetWp = getRandomTarget()
-        st.speed = Number((16 + Math.random() * 8).toFixed(1))
+      // If reached target (< 40m) or past max boundary, pick next long-range target in current direction
+      if (distToTarget < 40 || distFromCenter > st.maxRadiusMeters) {
+        st.targetWp = st.getNextExploreTarget(st.lat, st.lon, st.heading)
+        st.speed = Number((22 + Math.random() * 10).toFixed(1)) // Speed 22-32 m/s (80-115 km/h)
       }
 
       const targetDLat = (st.targetWp.lat - st.lat) * 111000
@@ -413,7 +432,7 @@ export default function useTelemetry() {
       if (targetHeading < 0) targetHeading += 360
 
       let diff = (targetHeading - st.heading + 540) % 360 - 180
-      const maxTurnRate = 4.5
+      const maxTurnRate = 3.8
       if (Math.abs(diff) > maxTurnRate) {
         st.heading = (st.heading + Math.sign(diff) * maxTurnRate + 360) % 360
       } else {
