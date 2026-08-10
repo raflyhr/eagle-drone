@@ -235,36 +235,23 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
           <h2 className="text-lg font-bold text-slate-900 tracking-tight">Eagle Drone</h2>
         </div>
 
-        {/* MAVLink Connection Badge Header */}
+        {/* MAVLink Connection Status Button */}
         <div className="flex items-center gap-3">
-          <div
+          <button
+            type="button"
             onClick={() => setShowMavlinkModal(true)}
-            className="flex items-center gap-2 rounded-xl bg-slate-100 hover:bg-slate-200 px-3 py-1.5 cursor-pointer border border-slate-200 transition"
+            className="flex items-center gap-2.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 px-3 py-1.5 text-xs text-slate-700 shadow-xs transition cursor-pointer"
           >
-            <div className="relative flex h-2.5 w-2.5">
-              <span
-                className={`absolute inline-flex h-full w-full animate-ping rounded-full ${
-                  connectionStatus === 'connected' ? 'bg-emerald-400 opacity-75' : 'bg-amber-400 opacity-75'
-                }`}
-              />
-              <span
-                className={`relative inline-flex h-2.5 w-2.5 rounded-full ${
-                  connectionStatus === 'connected' ? 'bg-emerald-500' : 'bg-amber-500'
-                }`}
-              />
-            </div>
-            <div className="flex flex-col text-left">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 leading-none">
-                MAVLINK TELEMETRY
-              </span>
-              <span className="text-xs font-bold text-slate-800 leading-tight">
-                {connectionStatus === 'connected'
-                  ? `Connected (${connectionType.toUpperCase()})`
-                  : 'Disconnected'}
-              </span>
-            </div>
-            <Icon className="text-[18px] text-slate-500 ml-1">settings_remote</Icon>
-          </div>
+            <span
+              className={`h-2 w-2 rounded-full ${
+                connectionStatus === 'connected' ? 'bg-emerald-500' : 'bg-amber-500'
+              }`}
+            />
+            <span className="font-medium">
+              MAVLink: <strong className="font-bold text-slate-900">{connectionStatus === 'connected' ? connectionType.toUpperCase() : 'Disconnected'}</strong>
+            </span>
+            <Icon className="text-[16px] text-slate-400 ml-0.5">settings_remote</Icon>
+          </button>
         </div>
       </header>
 

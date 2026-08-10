@@ -154,35 +154,31 @@ export default function MapArea({ _onNavigate, telemetry, active, mapStyle = 'st
           <div className="relative flex-1 min-h-[450px]">
             <div ref={mapRef} className="absolute inset-0" />
             
-            {/* Top Floating Telemetry Pills */}
-            <div className="absolute left-6 top-6 z-[400] flex flex-wrap gap-3">
-              <div className="flex items-center gap-2.5 rounded-xl bg-white/95 px-3.5 py-2 text-xs font-semibold text-slate-800 backdrop-blur-md shadow-[0_2px_8px_rgba(0,0,0,0.04)] border border-slate-200/80">
-                <Icon className="text-emerald-600 text-[18px]">near_me</Icon>
-                <div>
-                  <div className="text-[10px] text-slate-400 uppercase tracking-wider font-bold">UAV Location</div>
-                  <div className="data-font font-bold text-slate-900">{telemetry.latitude.toFixed(4)}, {telemetry.longitude.toFixed(4)}</div>
-                </div>
+            {/* Top Floating Telemetry Badges */}
+            <div className="absolute left-6 top-6 z-[400] flex flex-wrap gap-2.5">
+              <div className="flex items-center gap-2 rounded-lg bg-white/95 px-3 py-1.5 text-xs font-semibold text-slate-800 backdrop-blur-md shadow-xs border border-slate-200">
+                <Icon className="text-emerald-600 text-[16px]">near_me</Icon>
+                <span className="text-slate-500 font-medium">UAV:</span>
+                <span className="data-font font-bold text-slate-900">{telemetry.latitude.toFixed(4)}, {telemetry.longitude.toFixed(4)}</span>
               </div>
 
-              <div className="flex items-center gap-2.5 rounded-xl bg-white/95 px-3.5 py-2 text-xs font-semibold text-slate-800 backdrop-blur-md shadow-[0_2px_8px_rgba(0,0,0,0.04)] border border-slate-200/80">
-                <Icon className="text-indigo-600 text-[18px]">radar</Icon>
-                <div>
-                  <div className="text-[10px] text-slate-400 uppercase tracking-wider font-bold">Active Sector</div>
-                  <div className="font-bold text-slate-900 truncate max-w-[220px]">{weather.sector} ({weather.locationName})</div>
-                </div>
+              <div className="flex items-center gap-2 rounded-lg bg-white/95 px-3 py-1.5 text-xs font-semibold text-slate-800 backdrop-blur-md shadow-xs border border-slate-200">
+                <Icon className="text-indigo-600 text-[16px]">radar</Icon>
+                <span className="text-slate-500 font-medium">Sector:</span>
+                <span className="font-bold text-slate-900 truncate max-w-[220px]">{weather.sector} ({weather.locationName})</span>
               </div>
             </div>
 
             {/* Top Right Controls Container (Map Style Selector + Panel Data Button) */}
             <div className="absolute top-6 right-6 z-[400] flex items-center gap-2">
-              {/* Map Style Selector Pill */}
-              <div className="flex items-center rounded-xl bg-white/95 p-1 shadow-[0_4px_16px_rgba(0,0,0,0.08)] border border-slate-200/80 backdrop-blur-md">
+              {/* Map Style Selector */}
+              <div className="flex items-center rounded-lg bg-white/95 p-1 shadow-xs border border-slate-200 backdrop-blur-md">
                 <button
                   type="button"
                   onClick={() => onMapStyleChange?.('standard')}
-                  className={`rounded-lg px-3.5 py-1.5 text-xs font-bold transition cursor-pointer ${
+                  className={`rounded-md px-3 py-1 text-xs font-semibold transition cursor-pointer ${
                     mapStyle === 'standard'
-                      ? 'bg-slate-900 text-white shadow-sm'
+                      ? 'bg-slate-900 text-white shadow-xs font-bold'
                       : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
                   }`}
                   title="Peta Jalan Standard (OpenStreetMap)"
@@ -193,9 +189,9 @@ export default function MapArea({ _onNavigate, telemetry, active, mapStyle = 'st
                 <button
                   type="button"
                   onClick={() => onMapStyleChange?.('satellite')}
-                  className={`rounded-lg px-3.5 py-1.5 text-xs font-bold transition cursor-pointer ${
+                  className={`rounded-md px-3 py-1 text-xs font-semibold transition cursor-pointer ${
                     mapStyle === 'satellite'
-                      ? 'bg-slate-900 text-white shadow-sm'
+                      ? 'bg-slate-900 text-white shadow-xs font-bold'
                       : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
                   }`}
                   title="Peta Satelit Hybrid"
@@ -206,9 +202,9 @@ export default function MapArea({ _onNavigate, telemetry, active, mapStyle = 'st
                 <button
                   type="button"
                   onClick={() => onMapStyleChange?.('terrain')}
-                  className={`rounded-lg px-3.5 py-1.5 text-xs font-bold transition cursor-pointer ${
+                  className={`rounded-md px-3 py-1 text-xs font-semibold transition cursor-pointer ${
                     mapStyle === 'terrain'
-                      ? 'bg-slate-900 text-white shadow-sm'
+                      ? 'bg-slate-900 text-white shadow-xs font-bold'
                       : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
                   }`}
                   title="Peta Topografi & Kontur Altitude"
@@ -222,25 +218,25 @@ export default function MapArea({ _onNavigate, telemetry, active, mapStyle = 'st
                 <button
                   type="button"
                   onClick={() => setIsSidebarCollapsed(false)}
-                  className="flex items-center gap-1.5 rounded-xl bg-white/95 px-3.5 py-2 text-xs font-bold text-slate-800 backdrop-blur-md shadow-[0_4px_16px_rgba(0,0,0,0.08)] border border-slate-200/80 hover:bg-slate-900 hover:text-white transition cursor-pointer"
+                  className="flex items-center gap-1.5 rounded-lg bg-white/95 px-3 py-1.5 text-xs font-semibold text-slate-800 backdrop-blur-md shadow-xs border border-slate-200 hover:bg-slate-900 hover:text-white transition cursor-pointer"
                   title="Buka Panel Informasi"
                 >
-                  <Icon className="text-[18px]">chevron_left</Icon>
+                  <Icon className="text-[16px]">chevron_left</Icon>
                   <span>Panel Data</span>
                 </button>
               )}
             </div>
 
             {/* Map Source Info Badge */}
-            <div className="absolute bottom-6 left-6 z-[400] rounded-xl bg-white/95 px-4 py-2.5 text-xs text-slate-800 backdrop-blur-md shadow-[0_4px_12px_rgba(0,0,0,0.06)] border border-slate-200/80">
-              <p className="font-bold text-slate-900">
+            <div className="absolute bottom-6 left-6 z-[400] rounded-lg bg-white/95 px-3 py-1.5 text-xs text-slate-700 backdrop-blur-md shadow-xs border border-slate-200 font-medium">
+              <span className="text-slate-500">Peta: </span>
+              <span className="font-bold text-slate-900">
                 {mapStyle === 'satellite'
-                  ? 'Esri World Imagery · Satelit Hybrid'
+                  ? 'Esri Satelit Hybrid'
                   : mapStyle === 'terrain'
-                  ? 'OpenTopoMap · Topografi'
-                  : 'OpenStreetMap · Standard Street'}
-              </p>
-              <p className="text-[11px] text-slate-500">Live Mission Waypoints Overlay</p>
+                  ? 'OpenTopoMap'
+                  : 'OpenStreetMap'}
+              </span>
             </div>
           </div>
 
