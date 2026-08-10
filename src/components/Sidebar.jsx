@@ -8,7 +8,6 @@ export default function Sidebar({ activePage, onNavigate }) {
   const navItems = [
     { id: 'home', icon: 'home', title: 'Mission Overview', page: 'mission' },
     { id: 'control', icon: 'control_camera', title: 'Flight Controls & Map', page: 'map' },
-    { id: 'settings', icon: 'settings', title: 'System Settings', page: 'settings' },
     { id: 'history', icon: 'history', title: 'Flight Archives', page: 'history' },
   ]
 
@@ -23,13 +22,13 @@ export default function Sidebar({ activePage, onNavigate }) {
   return (
     <aside className="fixed inset-y-0 left-0 z-50 flex w-[72px] flex-col items-center justify-between border-r border-slate-200 bg-white py-5">
       {/* Top Logo */}
-      <div className="flex flex-col items-center gap-6">
+      <div className="flex flex-col items-center gap-2">
         <button
           onClick={() => onNavigate('mission')}
           className="flex items-center justify-center bg-transparent transition"
           title="Eagle Drone"
         >
-          <img src={logoUrl} alt="Eagle Drone" className="relative -top-4 h-18 w-18 object-contain object-center" />
+          <img src={logoUrl} alt="Eagle Drone" className="h-18 w-18 object-contain object-center" />
         </button>
 
         {/* Navigation Icons Stack */}
@@ -54,16 +53,17 @@ export default function Sidebar({ activePage, onNavigate }) {
         </nav>
       </div>
 
-      {/* Bottom Actions & User Profile */}
-      <div className="flex flex-col items-center gap-3">
-        <div className="relative group cursor-pointer">
-          <img
-            src="/assets/pilot_avatar.jpg"
-            alt="Pilot Profile"
-            className="h-10 w-10 rounded-xl object-cover ring-2 ring-slate-100 shadow-sm transition group-hover:ring-slate-300"
-          />
-        </div>
-      </div>
+      <button
+        onClick={() => onNavigate('settings')}
+        className={`flex h-10 w-10 items-center justify-center rounded-xl transition ${
+          activePage === 'settings'
+            ? 'bg-slate-100 text-slate-900 shadow-sm font-semibold'
+            : 'text-slate-400 hover:bg-slate-50 hover:text-slate-700'
+        }`}
+        title="System Settings"
+      >
+        <Icon className={activePage === 'settings' ? '[font-variation-settings:"FILL"_1]' : ''}>settings</Icon>
+      </button>
     </aside>
   )
 }
