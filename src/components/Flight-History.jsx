@@ -52,8 +52,8 @@ export default function FlightHistory({ missionLogs = missions, currentMission, 
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {logs.map(({ id, type, date, duration, distance, maxAltitude, status, captures, markedLocations }) => (
-                    <tr key={id} onClick={() => onOpenMission?.({ id, type, date, duration, distance, maxAltitude, status, captures, markedLocations })} className="cursor-pointer transition hover:bg-sky-50/50">
+                  {logs.map(({ id, type, date, duration, distance, maxAltitude, status, captures, markedLocations, trackPoints }) => (
+                    <tr key={id} onClick={() => onOpenMission?.({ id, type, date, duration, distance, maxAltitude, status, captures, markedLocations, trackPoints })} className="cursor-pointer transition hover:bg-sky-50/50">
                       <td className="data-font font-bold px-5 py-3.5 text-slate-900">{id}</td>
                       <td className="px-5 py-3.5 text-slate-600">{date}</td>
                       <td className="px-5 py-3.5 font-medium text-slate-700">{type}</td>
