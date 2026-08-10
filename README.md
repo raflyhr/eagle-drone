@@ -133,9 +133,9 @@ Halaman monitoring area pencarian. Berisi:
 - Informasi posisi UAV.
 - Active sector.
 - Marker drone simulasi.
-- Search area visual.
-- Active waypoints.
-- Progress pencarian.
+- Search area visual dengan zona radius sektor SAR.
+- Pantauan Wilayah & Sektor Operasi SAR real-time (otomatis terdeteksi saat drone berpindah wilayah).
+- Penandaan titik temuan/korban SAR secara manual.
 - Data lingkungan seperti wind speed, visibility, temperature, dan signal.
 
 ### 6.4 `Detection-Events.jsx`

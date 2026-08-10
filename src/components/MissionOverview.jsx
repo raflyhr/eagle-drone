@@ -4,6 +4,8 @@ import 'leaflet/dist/leaflet.css'
 import useCamera from '../hooks/useCamera'
 import useObjectDetection from '../hooks/useObjectDetection'
 import useWeather, { degreesToCardinal } from '../hooks/useWeather'
+import useDroneRegion from '../hooks/useDroneRegion'
+import useTelemetryState, { getDroneLocationName } from '../hooks/useTelemetry'
 
 function Icon({ children, className = '' }) {
   return <span className={`material-symbols-outlined ${className}`}>{children}</span>
@@ -61,6 +63,7 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
   } = telemetryState || {}
 
   const weather = useWeather(telemetry.latitude, telemetry.longitude)
+  const droneLocationName = useDroneRegion(telemetry.latitude, telemetry.longitude)
   
   // Real Camera Device Hook (No Dummy Data)
   const {
@@ -78,6 +81,10 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
 
   const [aiActive, setAiActive] = useState(true)
   const [showMavlinkModal, setShowMavlinkModal] = useState(false)
+  const [showLocationModal, setShowLocationModal] = useState(false)
+  const [locationQuery, setLocationQuery] = useState('')
+  const [searchResults, setSearchResults] = useState([])
+  const [isSearching, setIsSearching] = useState(false)
   const [wsUrlInput, setWsUrlInput] = useState('ws://localhost:8080')
   const [isCameraDropdownOpen, setIsCameraDropdownOpen] = useState(false)
   const [showControls, setShowControls] = useState(true)
@@ -87,6 +94,26 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
   const [isDraggingMap, setIsDraggingMap] = useState(false)
   const dragStartPos = useRef({ startX: 0, startY: 0, initialLeft: 0, initialTop: 0 })
   const hideTimerRef = useRef(null)
+
+  const handleSearchLocation = async (q) => {
+    setLocationQuery(q)
+    if (!q || q.length < 2) {
+      setSearchResults([])
+      return
+    }
+    setIsSearching(true)
+    try {
+      const res = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=6&language=en&format=json`)
+      if (res.ok) {
+        const data = await res.json()
+        setSearchResults(data.results || [])
+      }
+    } catch {
+      // fallback
+    } finally {
+      setIsSearching(false)
+    }
+  }
 
   const handleVideoMouseMove = () => {
     setShowControls(true)
@@ -545,7 +572,7 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
                                 ? 'bg-slate-900 text-white shadow-xs'
                                 : 'text-slate-700 hover:bg-slate-100'
                             }`}
-                            title="Peta Standard (OSM)"
+                            title="Standard Street Map (OSM)"
                           >
                             Standard
                           </button>
@@ -557,9 +584,9 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
                                 ? 'bg-slate-900 text-white shadow-xs'
                                 : 'text-slate-700 hover:bg-slate-100'
                             }`}
-                            title="Peta Satelit"
+                            title="Satellite Map"
                           >
-                            Satelit
+                            Satellite
                           </button>
                           <button
                             type="button"
@@ -569,9 +596,9 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
                                 ? 'bg-slate-900 text-white shadow-xs'
                                 : 'text-slate-700 hover:bg-slate-100'
                             }`}
-                            title="Peta Topografi"
+                            title="Topographic Altitude Map"
                           >
-                            Topografi
+                            Terrain
                           </button>
                         </div>
 
@@ -580,7 +607,7 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
                           type="button"
                           onClick={() => setShowFullscreenMap(false)}
                           className="pointer-events-auto flex h-6 w-6 items-center justify-center rounded-lg bg-slate-900/90 text-white shadow-md hover:bg-slate-800 transition border border-slate-700 cursor-pointer"
-                          title="Sembunyikan Mini Map"
+                          title="Hide Mini Map"
                         >
                           <Icon className="text-[14px]">close</Icon>
                         </button>
@@ -618,8 +645,8 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
                       >
                         <div className="min-w-0 flex-1 pr-2">
                           <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400 block mb-0.5">Drone Location</span>
-                          <p className="text-[11px] font-bold text-slate-900 truncate" title={weather.locationName}>
-                            {weather.locationName}
+                          <p className="text-[11px] font-bold text-slate-900 truncate" title={droneLocationName}>
+                            {droneLocationName}
                           </p>
                         </div>
                         <span className="text-[10px] font-semibold text-slate-500 data-font">{telemetry.satellites} Sats</span>
@@ -641,10 +668,10 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
                           type="button"
                           onClick={toggleCamera}
                           className="flex items-center gap-1.5 rounded-md bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 text-xs font-bold transition shrink-0 cursor-pointer shadow-xs"
-                          title="Putus Stream Kamera"
+                          title="Disconnect Camera Stream"
                         >
                           <Icon className="text-[14px]">videocam_off</Icon>
-                          <span>Putus Kamera</span>
+                          <span>Disconnect</span>
                         </button>
 
                         {/* AI Detection Toggle Button */}
@@ -676,7 +703,7 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
                               ))
                             ) : (
                               <option value="" className="bg-slate-900 text-white">
-                                {activeCameraSpecs?.label || 'Kamera Fisik Terdeteksi'}
+                                {activeCameraSpecs?.label || 'Hardware Camera Detected'}
                               </option>
                             )}
                           </select>
@@ -684,7 +711,7 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
                             type="button"
                             onClick={() => scanDevices(true)}
                             className="text-slate-400 hover:text-white transition cursor-pointer"
-                            title="Scan ulang kamera"
+                            title="Rescan camera devices"
                           >
                             <Icon className="text-[13px]">refresh</Icon>
                           </button>
@@ -709,10 +736,10 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
                                 ? 'bg-slate-800 text-slate-300 border border-slate-700 hover:bg-slate-700 hover:text-white'
                                 : 'bg-emerald-600 text-white shadow-xs'
                             }`}
-                            title={showFullscreenMap ? 'Sembunyikan Mini Map' : 'Tampilkan Mini Map'}
+                            title={showFullscreenMap ? 'Hide Mini Map' : 'Show Mini Map'}
                           >
                             <Icon className="text-[14px]">map</Icon>
-                            <span>{showFullscreenMap ? 'Sembunyikan Map' : 'Tampilkan Map'}</span>
+                            <span>{showFullscreenMap ? 'Hide Map' : 'Show Map'}</span>
                           </button>
                         )}
 
@@ -764,23 +791,23 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
                         {/* Camera Icon without background box */}
                         <Icon className="text-[40px] text-slate-800 mb-2">videocam</Icon>
 
-                        <h3 className="text-sm font-extrabold text-slate-900">Perangkat Kamera Terdeteksi</h3>
+                        <h3 className="text-sm font-extrabold text-slate-900">Hardware Camera Detected</h3>
                         <p className="text-xs text-slate-500 mt-1 mb-4">
                           {permissionState === 'denied'
-                            ? 'Akses kamera ditolak. Harap beri izin di browser.'
+                            ? 'Camera access denied. Please grant permission in your browser.'
                             : devices.length > 0
-                            ? `Terdeteksi ${devices.length} perangkat kamera fisik pada komputer Anda.`
-                            : 'Klik tombol di bawah untuk memindai & mengizinkan perangkat kamera.'}
+                            ? `Detected ${devices.length} physical camera devices on your system.`
+                            : 'Click the button below to scan & permit camera devices.'}
                         </p>
 
-                        {/* Custom White Camera Dropdown Selector (No dark background box, no checklist button) */}
+                        {/* Custom White Camera Dropdown Selector */}
                         {devices.length > 0 && (
                           <div className="w-full mb-4 text-left relative">
                             <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
-                              Pilih Kamera Fisik:
+                              Select Physical Camera:
                             </label>
                             
-                            {/* Trigger Button - White background matching screenshot style */}
+                            {/* Trigger Button */}
                             <div
                               onClick={() => setIsCameraDropdownOpen((v) => !v)}
                               className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 flex items-center justify-between text-xs font-semibold text-slate-800 shadow-sm cursor-pointer hover:border-slate-400 transition"
@@ -788,7 +815,7 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
                               <div className="flex items-center gap-2 min-w-0 pr-2">
                                 <Icon className="text-[18px] text-slate-600 shrink-0">videocam</Icon>
                                 <span className="truncate">
-                                  {devices.find((d) => d.deviceId === selectedDeviceId)?.label || 'Pilih Perangkat Kamera'}
+                                  {devices.find((d) => d.deviceId === selectedDeviceId)?.label || 'Select Camera Device'}
                                 </span>
                               </div>
                               <Icon className={`text-[18px] text-slate-400 shrink-0 transition-transform ${isCameraDropdownOpen ? 'rotate-180' : ''}`}>
@@ -827,13 +854,13 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
                             onClick={toggleCamera}
                             className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-xs font-bold text-white shadow-md hover:bg-slate-800 transition cursor-pointer"
                           >
-                            <span>Hubungkan Kamera</span>
+                            <span>Connect Camera</span>
                           </button>
 
                           <button
                             onClick={() => scanDevices(true)}
                             className="flex items-center justify-center h-9 w-9 rounded-xl border border-slate-300 bg-slate-100 hover:bg-slate-200 text-slate-700 transition cursor-pointer shrink-0"
-                            title="Refresh daftar perangkat hardware"
+                            title="Rescan hardware devices"
                           >
                             <Icon className="text-[18px]">refresh</Icon>
                           </button>
@@ -859,8 +886,17 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
             <div className="col-span-12 lg:col-span-3 h-full min-h-0 flex flex-col">
               <div className="bento-card flex flex-1 h-full min-h-0 flex-col justify-between p-3.5 sm:p-4 gap-2 rounded-2xl">
                 <div className="flex items-center justify-between pb-1.5 border-b border-slate-100 shrink-0">
-                  <span className="text-xs font-bold text-slate-600 tracking-wider uppercase">TODAY'S WEATHER</span>
-                  <span className="text-xs font-bold text-slate-400 data-font">{weather.sector}</span>
+                  <span className="text-xs font-bold text-slate-600 tracking-wider uppercase">TODAY&apos;S WEATHER</span>
+                  <button
+                    type="button"
+                    onClick={() => setShowLocationModal(true)}
+                    className="group inline-flex items-center justify-end max-w-[170px] transition cursor-pointer text-right"
+                    title="Click to change location"
+                  >
+                    <span className="text-xs font-bold text-slate-700 group-hover:text-slate-950 truncate border-b border-slate-700 group-hover:border-slate-950 pb-[1px]">
+                      {weather.locationName}
+                    </span>
+                  </button>
                 </div>
 
                 <div className="flex flex-col items-center justify-center text-center my-auto py-1">
@@ -932,7 +968,7 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
                           ? 'bg-slate-900 text-white shadow-xs'
                           : 'text-slate-700 hover:bg-slate-100'
                       }`}
-                      title="Peta Standard (OSM)"
+                      title="Standard Street Map (OSM)"
                     >
                       Standard
                     </button>
@@ -944,9 +980,9 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
                           ? 'bg-slate-900 text-white shadow-xs'
                           : 'text-slate-700 hover:bg-slate-100'
                       }`}
-                      title="Peta Satelit"
+                      title="Satellite Map"
                     >
-                      Satelit
+                      Satellite
                     </button>
                     <button
                       type="button"
@@ -956,9 +992,9 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
                           ? 'bg-slate-900 text-white shadow-xs'
                           : 'text-slate-700 hover:bg-slate-100'
                       }`}
-                      title="Peta Topografi"
+                      title="Topographic Map"
                     >
-                      Topografi
+                      Terrain
                     </button>
                   </div>
 
@@ -967,7 +1003,7 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
                     type="button"
                     onClick={() => onNavigate('map')}
                     className="pointer-events-auto flex h-7 w-7 items-center justify-center rounded-lg bg-white text-slate-700 shadow-md hover:bg-slate-900 hover:text-white transition border border-slate-200 cursor-pointer"
-                    title="Buka Map Lengkap"
+                    title="Open Full Map"
                   >
                     <Icon className="text-[16px]">open_in_new</Icon>
                   </button>
@@ -996,8 +1032,8 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
                 <div className="absolute bottom-2.5 inset-x-2.5 z-20 rounded-lg bg-white p-2.5 shadow-md border border-slate-200 flex items-center justify-between">
                   <div className="min-w-0 flex-1 pr-2">
                     <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400 block mb-0.5">Drone Location</span>
-                    <p className="text-xs font-bold text-slate-900 truncate" title={weather.locationName}>
-                      {weather.locationName}
+                    <p className="text-xs font-bold text-slate-900 truncate" title={droneLocationName}>
+                      {droneLocationName}
                     </p>
                   </div>
                   <span className="text-[11px] font-semibold text-slate-500 data-font">{telemetry.satellites} Sats</span>
@@ -1155,8 +1191,8 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
             {/* Modal Header */}
             <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 bg-slate-50/50">
               <div>
-                <h3 className="text-sm font-bold text-slate-900">Koneksi Telemetri MAVLink</h3>
-                <p className="text-xs text-slate-500 mt-0.5">Pilih metode koneksi ke perangkat hardware atau simulator</p>
+                <h3 className="text-sm font-bold text-slate-900">MAVLink Telemetry Connection</h3>
+                <p className="text-xs text-slate-500 mt-0.5">Select connection method for hardware devices or flight simulator</p>
               </div>
               <button
                 type="button"
@@ -1172,8 +1208,8 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
               {/* Option 1: Stream Telemetri Simulasi */}
               <div className="flex items-center justify-between p-3.5 rounded-lg border border-slate-200 hover:border-slate-300 bg-slate-50/30 transition">
                 <div className="pr-3">
-                  <h4 className="text-xs font-bold text-slate-900">1. Stream Telemetri Simulasi</h4>
-                  <p className="text-[11px] text-slate-500 mt-0.5">Generator data real-time MAVLink v2 (Heartbeat, Gyro, GPS)</p>
+                  <h4 className="text-xs font-bold text-slate-900">1. Simulated Telemetry Stream</h4>
+                  <p className="text-[11px] text-slate-500 mt-0.5">Real-time MAVLink v2 generator (Heartbeat, Gyro, GPS)</p>
                 </div>
                 <button
                   type="button"
@@ -1183,7 +1219,7 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
                   }}
                   className="shrink-0 rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-800 transition cursor-pointer"
                 >
-                  Gunakan Stream
+                  Use Stream
                 </button>
               </div>
 
@@ -1191,7 +1227,7 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
               <div className="flex items-center justify-between p-3.5 rounded-lg border border-slate-200 hover:border-slate-300 bg-slate-50/30 transition">
                 <div className="pr-3">
                   <h4 className="text-xs font-bold text-slate-900">2. USB Serial / Pixhawk (WebSerial)</h4>
-                  <p className="text-[11px] text-slate-500 mt-0.5">Koneksi langsung ke SiK Telemetry Radio atau kabel USB Pixhawk</p>
+                  <p className="text-[11px] text-slate-500 mt-0.5">Direct connection to SiK Telemetry Radio or Pixhawk USB cable</p>
                 </div>
                 <button
                   type="button"
@@ -1201,7 +1237,7 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
                   }}
                   className="shrink-0 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition cursor-pointer"
                 >
-                  Hubungkan USB
+                  Connect USB
                 </button>
               </div>
 
@@ -1209,7 +1245,7 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
               <div className="p-3.5 rounded-lg border border-slate-200 hover:border-slate-300 bg-slate-50/30 transition space-y-2.5">
                 <div>
                   <h4 className="text-xs font-bold text-slate-900">3. WebSocket MAVLink Server</h4>
-                  <p className="text-[11px] text-slate-500 mt-0.5">Koneksi ke WebSocket MAVLink bridge (e.g. localhost:8080)</p>
+                  <p className="text-[11px] text-slate-500 mt-0.5">Connect to MAVLink WebSocket bridge (e.g. ws://localhost:8080)</p>
                 </div>
                 <div className="flex items-center gap-2">
                   <input
@@ -1227,7 +1263,7 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
                     }}
                     className="shrink-0 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition cursor-pointer"
                   >
-                    Sambungkan
+                    Connect
                   </button>
                 </div>
               </div>
@@ -1244,10 +1280,161 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
                   }}
                   className="rounded-lg bg-red-50 text-red-600 border border-red-200 px-3 py-1.5 text-xs font-semibold hover:bg-red-100 transition cursor-pointer"
                 >
-                  Putus Koneksi
-                </button>
+                  Disconnect
+                  </button>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Weather Location Selector Modal */}
+      {showLocationModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4">
+          <div className="w-full max-w-md rounded-xl bg-white shadow-xl border border-slate-200 overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 bg-slate-50/50">
+              <div>
+                <h3 className="text-sm font-bold text-slate-900">Set Weather Location</h3>
+                <p className="text-xs text-slate-500 mt-0.5">Auto-detect GPS or search your exact city/area</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowLocationModal(false)}
+                className="rounded-lg p-1 text-slate-400 hover:bg-slate-200/60 hover:text-slate-700 transition cursor-pointer"
+              >
+                <Icon className="text-[18px]">close</Icon>
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4">
+              {/* Option 1: Laptop Device GPS (Dashboard Ground Station) */}
+              <div className="space-y-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    weather.syncWithDeviceGps?.()
+                    setShowLocationModal(false)
+                  }}
+                  className={`w-full flex items-center justify-between p-3 rounded-xl border transition text-left cursor-pointer ${
+                    weather.locationMode === 'device'
+                      ? 'bg-emerald-50/80 border-emerald-300 ring-2 ring-emerald-500/20'
+                      : 'bg-slate-50 border-slate-200 hover:bg-slate-100/80 hover:border-slate-300'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={`flex items-center justify-center w-8 h-8 rounded-lg ${
+                      weather.locationMode === 'device' ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-700'
+                    }`}>
+                      <Icon className="text-[18px]">laptop_mac</Icon>
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-slate-900">Dashboard Device GPS (Laptop)</span>
+                        {weather.locationMode === 'device' && (
+                          <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-emerald-600 text-white uppercase tracking-wider">Active</span>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-slate-500 mt-0.5">
+                        {weather.gpsAccuracy ? `High-accuracy Wi-Fi/GPS (±${weather.gpsAccuracy}m)` : 'Real-time ground station position'}
+                      </p>
+                    </div>
+                  </div>
+                  <Icon className={`text-[18px] ${weather.locationMode === 'device' ? 'text-emerald-600' : 'text-slate-400'}`}>
+                    {weather.locationMode === 'device' ? 'check_circle' : 'chevron_right'}
+                  </Icon>
+                </button>
+
+                {/* Option 2: Drone Live Coordinates Sync */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    weather.syncWithDroneGps?.(telemetry.latitude, telemetry.longitude)
+                    setShowLocationModal(false)
+                  }}
+                  className={`w-full flex items-center justify-between p-3 rounded-xl border transition text-left cursor-pointer ${
+                    weather.locationMode === 'drone'
+                      ? 'bg-sky-50/80 border-sky-300 ring-2 ring-sky-500/20'
+                      : 'bg-slate-50 border-slate-200 hover:bg-slate-100/80 hover:border-slate-300'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={`flex items-center justify-center w-8 h-8 rounded-lg ${
+                      weather.locationMode === 'drone' ? 'bg-sky-600 text-white' : 'bg-slate-200 text-slate-700'
+                    }`}>
+                      <Icon className="text-[18px]">near_me</Icon>
+                    </div>
+                    <div className="min-w-0 pr-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-slate-900">Sync with Drone Telemetry GPS</span>
+                        {weather.locationMode === 'drone' && (
+                          <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-sky-600 text-white uppercase tracking-wider">Active</span>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-slate-500 truncate mt-0.5">
+                        {telemetry.latitude.toFixed(4)}, {telemetry.longitude.toFixed(4)} • {droneLocationName}
+                      </p>
+                    </div>
+                  </div>
+                  <Icon className={`text-[18px] ${weather.locationMode === 'drone' ? 'text-sky-600' : 'text-slate-400'}`}>
+                    {weather.locationMode === 'drone' ? 'check_circle' : 'chevron_right'}
+                  </Icon>
+                </button>
+              </div>
+
+              {/* Search Box */}
+              <div>
+                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1.5">
+                  Search Location (City, District, Area):
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={locationQuery}
+                    onChange={(e) => handleSearchLocation(e.target.value)}
+                    placeholder="e.g. Yogyakarta, Sleman, Jakarta..."
+                    className="w-full rounded-lg border border-slate-300 bg-white pl-8 pr-3 py-2 text-xs text-slate-800 focus:outline-none focus:border-slate-500"
+                  />
+                  <Icon className="absolute left-2.5 top-2.5 text-[16px] text-slate-400 pointer-events-none">search</Icon>
+                </div>
+              </div>
+
+              {/* Search Results */}
+              {isSearching && (
+                <p className="text-xs text-slate-400 text-center py-2">Searching locations...</p>
+              )}
+
+              {searchResults.length > 0 && (
+                <div className="max-h-48 overflow-y-auto border border-slate-200 rounded-lg divide-y divide-slate-100">
+                  {searchResults.map((res) => (
+                    <button
+                      key={`${res.id || res.latitude}-${res.longitude}`}
+                      type="button"
+                      onClick={() => {
+                        const name = [res.name, res.admin1, res.country].filter(Boolean).slice(0, 2).join(', ')
+                        weather.setCustomLocation?.(name, res.latitude, res.longitude)
+                        setShowLocationModal(false)
+                      }}
+                      className="w-full text-left p-2.5 hover:bg-slate-50 transition flex items-center justify-between text-xs cursor-pointer"
+                    >
+                      <div className="min-w-0 pr-2">
+                        <p className="font-bold text-slate-900 truncate">{res.name}</p>
+                        <p className="text-[11px] text-slate-500 truncate">{[res.admin1, res.country].filter(Boolean).join(', ')}</p>
+                      </div>
+                      <span className="text-[10px] text-slate-400 font-mono shrink-0">
+                        {res.latitude.toFixed(2)}, {res.longitude.toFixed(2)}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* Empty Search Prompt */}
+              {!isSearching && searchResults.length === 0 && (
+                <p className="text-[11px] text-slate-400 text-center py-1">
+                  Type your city, district, or street above to search and select live coordinates.
+                </p>
+              )}
+            </div>
           </div>
         </div>
       )}

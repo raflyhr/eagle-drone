@@ -36,7 +36,7 @@ export default function useCamera() {
       // Clean device list - ONLY real devices
       const cleanList = videoDevices.map((dev, index) => ({
         deviceId: dev.deviceId,
-        label: dev.label || `Kamera Hardware #${index + 1}`,
+        label: dev.label || `Hardware Camera #${index + 1}`,
         groupId: dev.groupId,
       }))
 
@@ -49,7 +49,7 @@ export default function useCamera() {
 
       return cleanList
     } catch (err) {
-      console.warn('Gagal membaca daftar perangkat kamera:', err)
+      console.warn('Failed to enumerate camera devices:', err)
       return []
     }
   }, [selectedDeviceId])
@@ -95,7 +95,7 @@ export default function useCamera() {
         if (videoTrack) {
           const settings = videoTrack.getSettings()
           setActiveCameraSpecs({
-            label: videoTrack.label || 'Kamera Aktif',
+            label: videoTrack.label || 'Active Camera',
             width: settings.width || 1280,
             height: settings.height || 720,
             frameRate: settings.frameRate || 30,
@@ -110,10 +110,10 @@ export default function useCamera() {
         if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
           setPermissionState('denied')
           setCameraStatus('permission_denied')
-          setErrorMessage('Izin akses kamera ditolak oleh browser/pengguna.')
+          setErrorMessage('Camera access was denied by browser/user.')
         } else {
           setCameraStatus('error')
-          setErrorMessage(err.message || 'Gagal menghubungkan ke perangkat kamera.')
+          setErrorMessage(err.message || 'Failed to connect to camera device.')
         }
       }
     },
@@ -153,7 +153,7 @@ export default function useCamera() {
       console.error('Permission check failed:', err)
       setPermissionState('denied')
       setCameraStatus('permission_denied')
-      setErrorMessage('Akses kamera ditolak. Harap izinkan kamera pada browser Anda.')
+      setErrorMessage('Camera access denied. Please grant permission in your browser.')
     }
   }, [scanDevices, startCamera])
 
