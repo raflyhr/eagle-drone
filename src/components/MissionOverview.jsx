@@ -59,6 +59,9 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
     connectSerial,
     connectWebSocket,
     enableMavlinkSim,
+    capturePhoto,
+    markLocation,
+    currentMission,
     disconnect: disconnectMavlink,
   } = telemetryState || {}
 
@@ -92,6 +95,8 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
   const [showFullscreenMap, setShowFullscreenMap] = useState(true)
   const [miniMapPos, setMiniMapPos] = useState({ x: null, y: null })
   const [isDraggingMap, setIsDraggingMap] = useState(false)
+  const [captureFeedback, setCaptureFeedback] = useState(false)
+  const [locationFeedback, setLocationFeedback] = useState(false)
   const dragStartPos = useRef({ startX: 0, startY: 0, initialLeft: 0, initialTop: 0 })
   const hideTimerRef = useRef(null)
 
@@ -215,6 +220,7 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
   const pathRef = useRef(null)
   const baseLayerRef = useRef(null)
   const overlayLayerRef = useRef(null)
+  const markedMarkersRef = useRef([])
 
   const fullscreenMapRef = useRef(null)
   const fullscreenLeafletRef = useRef(null)
@@ -222,8 +228,29 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
   const fullscreenPathRef = useRef(null)
   const fullscreenBaseLayerRef = useRef(null)
   const fullscreenOverlayLayerRef = useRef(null)
+  const fullscreenMarkedMarkersRef = useRef([])
 
   const [overlayVersion, setOverlayVersion] = useState(0)
+
+  const handleCapturePhoto = () => {
+    const video = videoRef.current
+    if (!video || cameraStatus !== 'connected' || !video.videoWidth) return
+    const canvas = document.createElement('canvas')
+    canvas.width = video.videoWidth
+    canvas.height = video.videoHeight
+    canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height)
+    if (capturePhoto?.(canvas.toDataURL('image/jpeg', 0.85))) {
+      setCaptureFeedback(true)
+      setTimeout(() => setCaptureFeedback(false), 900)
+    }
+  }
+
+  const handleMarkLocation = () => {
+    if (markLocation?.()) {
+      setLocationFeedback(true)
+      setTimeout(() => setLocationFeedback(false), 1200)
+    }
+  }
 
   // Observer for video canvas scaling
   useEffect(() => {
@@ -350,6 +377,23 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
       }).addTo(map)
     }
   }, [mapStyle])
+
+  useEffect(() => {
+    if (!leafletRef.current) return
+    markedMarkersRef.current.forEach((marker) => marker.remove())
+    markedMarkersRef.current = (currentMission?.markedLocations || []).map((location) => L.marker(location.coordinate, {
+      icon: L.divIcon({
+        className: '',
+        html: '<div style="width:25px;height:25px;border-radius:50%;background:#f59e0b;border:3px solid white;box-shadow:0 2px 8px #0f172a55;color:white;display:grid;place-items:center"><span class="material-symbols-outlined" style="font-size:15px">location_on</span></div>',
+        iconSize: [25, 25],
+        iconAnchor: [12.5, 12.5],
+      }),
+    }).addTo(leafletRef.current))
+    return () => {
+      markedMarkersRef.current.forEach((marker) => marker.remove())
+      markedMarkersRef.current = []
+    }
+  }, [currentMission?.markedLocations])
 
   // Update map marker position & heading
   useEffect(() => {
@@ -483,6 +527,22 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
     }
   }, [mapStyle, isFullscreen, showFullscreenMap])
 
+  useEffect(() => {
+    if (!fullscreenLeafletRef.current) return
+    fullscreenMarkedMarkersRef.current.forEach((marker) => marker.remove())
+    fullscreenMarkedMarkersRef.current = (currentMission?.markedLocations || []).map((location) => L.circleMarker(location.coordinate, {
+      radius: 7,
+      color: '#ffffff',
+      weight: 2,
+      fillColor: '#f59e0b',
+      fillOpacity: 1,
+    }).addTo(fullscreenLeafletRef.current))
+    return () => {
+      fullscreenMarkedMarkersRef.current.forEach((marker) => marker.remove())
+      fullscreenMarkedMarkersRef.current = []
+    }
+  }, [currentMission?.markedLocations, isFullscreen, showFullscreenMap])
+
   // Update fullscreen map position & heading
   useEffect(() => {
     if (!fullscreenLeafletRef.current || !fullscreenMarkerRef.current || !telemetry.latitude || !telemetry.longitude) return
@@ -544,6 +604,16 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
                   />
                   {cameraStatus === 'connected' && (
                     <canvas className="pointer-events-none absolute inset-0 z-20" />
+                  )}
+                  {captureFeedback && (
+                    <div className="pointer-events-none absolute inset-0 z-50 grid place-items-center bg-white/75 text-slate-900 transition">
+                      <div className="rounded-full bg-slate-950/80 px-5 py-2 text-sm font-black text-white shadow-xl">cekrek · Photo Captured</div>
+                    </div>
+                  )}
+                  {locationFeedback && (
+                    <div className="pointer-events-none absolute left-1/2 top-6 z-50 -translate-x-1/2 rounded-full bg-amber-500 px-4 py-2 text-xs font-black text-white shadow-xl">
+                      Location marked on map
+                    </div>
                   )}
 
                   {/* Fullscreen Movable Pure Mini Map Overlay */}
@@ -691,6 +761,26 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
                         >
                           <Icon className="text-[14px]">center_focus_strong</Icon>
                           <span>AI Detect {aiActive ? `(${detections.length})` : 'Off'}</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={handleCapturePhoto}
+                          className="flex items-center gap-1.5 rounded-md bg-sky-600 px-3 py-1.5 text-xs font-bold text-white transition hover:bg-sky-700"
+                          title="Capture current camera frame"
+                        >
+                          <Icon className="text-[14px]">photo_camera</Icon>
+                          <span>{captureFeedback ? 'Captured' : 'Capture Photo'}</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={handleMarkLocation}
+                          className="flex items-center gap-1.5 rounded-md bg-amber-500 px-3 py-1.5 text-xs font-bold text-white transition hover:bg-amber-600"
+                          title="Mark current drone location"
+                        >
+                          <Icon className="text-[14px]">location_on</Icon>
+                          <span>{locationFeedback ? 'Location Marked' : 'Mark Location'}</span>
                         </button>
 
                         {/* Camera Switcher Selector */}
