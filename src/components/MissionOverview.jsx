@@ -434,7 +434,7 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
       } else if (jumpDist > 0.00001) {
         trailRef.current.push(newPos)
         if (trailRef.current.length > 2000) {
-          trailRef.current.shift()
+          trailRef.current.splice(1, 1)
         }
       }
     }

@@ -299,7 +299,7 @@ export default function MapArea({ onNavigate, telemetry: rawTelemetry, active, m
       } else if (jumpDist > 0.00001) {
         trailRef.current.push(position)
         if (trailRef.current.length > 2000) {
-          trailRef.current.shift()
+          trailRef.current.splice(1, 1)
         }
       }
     }
