@@ -3,10 +3,10 @@ function Icon({ children, className = '' }) {
 }
 
 const missions = [
-  ['OP-4922', 'Oct 24, 2026', '02:14:33', '18.4 km', '120m', 'David P.', 'Success'],
-  ['OP-4921', 'Oct 22, 2026', '01:45:10', '12.1 km', '115m', 'A. Chen', 'Success'],
-  ['OP-4920', 'Oct 19, 2026', '00:54:12', '6.8 km', '90m', 'David P.', 'Aborted'],
-  ['OP-4919', 'Oct 15, 2026', '03:10:05', '24.2 km', '140m', 'M. Vance', 'Success'],
+  ['OP-4922', 'Oct 24, 2026', '02:14:33', '18.4 km', '120m', 'Success'],
+  ['OP-4921', 'Oct 22, 2026', '01:45:10', '12.1 km', '115m', 'Success'],
+  ['OP-4920', 'Oct 19, 2026', '00:54:12', '6.8 km', '90m', 'Aborted'],
+  ['OP-4919', 'Oct 15, 2026', '03:10:05', '24.2 km', '140m', 'Success'],
 ]
 
 export default function FlightHistory() {
@@ -38,19 +38,17 @@ export default function FlightHistory() {
                     <th className="px-5 py-3">Duration</th>
                     <th className="px-5 py-3">Distance</th>
                     <th className="px-5 py-3">Max Altitude</th>
-                    <th className="px-5 py-3">Pilot</th>
                     <th className="px-5 py-3 text-right">Status</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {missions.map(([id, date, duration, dist, alt, pilot, status]) => (
+                  {missions.map(([id, date, duration, dist, alt, status]) => (
                     <tr key={id} className="hover:bg-slate-50 transition">
                       <td className="data-font font-bold px-5 py-3.5 text-slate-900">{id}</td>
                       <td className="px-5 py-3.5 text-slate-600">{date}</td>
                       <td className="data-font px-5 py-3.5 text-slate-600">{duration}</td>
                       <td className="data-font px-5 py-3.5 text-slate-600">{dist}</td>
                       <td className="data-font px-5 py-3.5 text-slate-600">{alt}</td>
-                      <td className="px-5 py-3.5 font-medium text-slate-700">{pilot}</td>
                       <td className="px-5 py-3.5 text-right">
                         <span className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-bold ${
                           status === 'Success'
