@@ -453,6 +453,9 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
         trailRef.current.push(newPos)
       }
     }
+    if (startMarkerRef.current && trailRef.current[0]) {
+      startMarkerRef.current.setLatLng(trailRef.current[0])
+    }
     if (pathRef.current) {
       pathRef.current.setLatLngs(trailRef.current)
     }
@@ -478,13 +481,14 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
       return
     }
 
-    const initialPos = [telemetry.latitude || -7.5950, telemetry.longitude || 110.4485]
+    const currentPos = [telemetry.latitude || -7.5950, telemetry.longitude || 110.4485]
+    const startPos = trailRef.current[0] || currentPos
     const map = L.map(fullscreenMapRef.current, {
       zoomControl: false,
       attributionControl: false,
       dragging: false,
       scrollWheelZoom: false,
-    }).setView(initialPos, 14)
+    }).setView(currentPos, 14)
 
     if (mapStyle === 'satellite') {
       fullscreenBaseLayerRef.current = L.tileLayer(
@@ -507,8 +511,8 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
 
     const customIcon = createDroneHeadingIcon(telemetry.heading || 0, 28)
 
-    fullscreenMarkerRef.current = L.marker(initialPos, { icon: customIcon }).addTo(map)
-    fullscreenStartMarkerRef.current = L.marker(initialPos, { icon: createStartPointIcon() }).addTo(map)
+    fullscreenMarkerRef.current = L.marker(currentPos, { icon: customIcon }).addTo(map)
+    fullscreenStartMarkerRef.current = L.marker(startPos, { icon: createStartPointIcon() }).addTo(map)
     fullscreenPathRef.current = L.polyline(trailRef.current, {
       color: '#0284c7',
       weight: 3.5,
@@ -586,6 +590,9 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
     fullscreenMarkerRef.current.setLatLng(newPos)
     fullscreenMarkerRef.current.setIcon(createDroneHeadingIcon(telemetry.heading || 0, 28))
     fullscreenLeafletRef.current.panTo(newPos, { animate: true, duration: 0.8 })
+    if (fullscreenStartMarkerRef.current && trailRef.current[0]) {
+      fullscreenStartMarkerRef.current.setLatLng(trailRef.current[0])
+    }
     if (fullscreenPathRef.current && trailRef.current.length > 0) {
       fullscreenPathRef.current.setLatLngs(trailRef.current)
     }
