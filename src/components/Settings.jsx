@@ -1,13 +1,77 @@
-const logoUrl = 'https://lh3.googleusercontent.com/aida/AP1WRLtVE_7213Rt9fqz8YTDohCzOiDbD_uWKRr1kjImrtZsVtlxefE2AvOT_QVYo98G6t3Tu6uvn9AhHp3HygArhNKDpNBmmtuzLmw1OIoo2KKmc9LI4Y47XDZ8B9xtg0NBcOyn7cn5UkYrSARxPkqqgEpV8KPbZZ0MXnH0brQ0eRgbl6hwjd8kPJ4rUycWB6Uf8PsD1xZir08Xc4UVkwEsWUUnztCi1O24dbWvSdYznXA468dOiNeeznyKZQT5'
-const navItems = [['dashboard', 'Mission Overview', 'mission'], ['map', 'Map & Search Area', 'map'], ['target', 'Detection Events', 'events'], ['history', 'Flight History', 'history'], ['settings', 'System Settings', 'settings']]
-
-function Icon({ children, className = '' }) { return <span className={`material-symbols-outlined ${className}`}>{children}</span> }
-function Settings({ onNavigate }) {
-  return <div className="flex h-screen justify-center overflow-hidden bg-[#0b0e14] text-[#e1e2eb]"><div className="flex h-full w-full overflow-hidden bg-surface-container-lowest"><aside className="hidden w-64 shrink-0 flex-col border-r border-white/10 bg-surface-container py-5 md:flex"><div className="mb-8 flex items-center gap-3 px-6"><img alt="Eagle Drone Logo" className="h-10 w-10 rounded-md object-cover" src={logoUrl} /><div><h1 className="font-headline-md text-2xl font-bold tracking-tight text-primary">Eagle Drone</h1><p className="font-body-sm text-sm text-on-surface-variant">SAR Command Unit</p></div></div><nav className="flex-1 space-y-2 px-4">{navItems.map(([icon, label, page]) => <button key={label} onClick={() => onNavigate(page)} className={`flex w-full items-center gap-3 rounded-lg px-4 py-3 text-left transition ${page === 'settings' ? 'border-r-2 border-primary bg-primary/5 font-bold text-primary' : 'font-medium text-on-surface-variant hover:bg-surface-variant/50 hover:text-on-surface'}`}><Icon className={page === 'settings' ? '[font-variation-settings:"FILL"_1]' : ''}>{icon}</Icon><span className="font-label-caps text-xs tracking-[.08em]">{label}</span></button>)}</nav></aside><main className="relative flex min-w-0 flex-1 flex-col overflow-hidden"><header className="flex h-16 shrink-0 items-center border-b border-white/5 bg-surface px-4 md:px-6"><h2 className="font-headline-sm text-lg font-bold tracking-tight">System Settings</h2></header><div className="flex-1 overflow-y-auto p-4 md:p-6"><div className="mx-auto max-w-6xl space-y-6"><Preferences /><Hardware /><div className="flex justify-end gap-3 pt-4"><button className="rounded-lg border border-white/10 bg-surface-container px-6 py-2.5 font-headline-sm hover:bg-surface-container-high">Discard Changes</button><button className="rounded-lg bg-primary px-6 py-2.5 font-headline-sm text-on-primary hover:bg-primary/90">Save Configuration</button></div></div></div></main></div></div>
+function Icon({ children, className = '' }) {
+  return <span className={`material-symbols-outlined ${className}`}>{children}</span>
 }
-function Preferences() { return <section className="glass-panel rounded-2xl p-5"><div className="mb-6 flex items-center gap-2 border-b border-white/10 pb-4"><Icon>tune</Icon><h3 className="font-headline-sm text-lg">User Preferences</h3></div><div className="grid grid-cols-1 gap-6 md:grid-cols-3"><SettingBox title="Measurement System"><div className="flex gap-2"><Choice active>Metric</Choice><Choice>Imperial</Choice></div></SettingBox><SettingBox title="Interface Theme"><div className="flex gap-2"><Choice active icon="dark_mode">Dark</Choice><Choice icon="visibility">NVG</Choice></div></SettingBox><SettingBox title="Alert Volume"><div className="flex items-center gap-3"><Icon className="text-on-surface-variant">volume_down</Icon><input className="h-2 flex-1 accent-primary" max="100" min="0" type="range" defaultValue="70" /><Icon className="text-on-surface-variant">volume_up</Icon></div></SettingBox></div></section> }
-function Hardware() { return <section className="glass-panel rounded-2xl p-5"><div className="mb-6 flex items-center gap-2 border-b border-white/10 pb-4"><Icon className="text-secondary">memory</Icon><h3 className="font-headline-sm text-lg">Hardware Status</h3></div><div className="space-y-4"><div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-white/5 bg-surface-container-lowest p-3"><span className="text-sm text-on-surface-variant">Motor Health (M1-M4)</span><div className="flex gap-2">{['98%', '99%', '97%', '99%'].map((value) => <span key={value} className="rounded border border-secondary/30 bg-secondary/10 px-2 py-1 font-data-md text-secondary">{value}</span>)}</div></div><Row label="Battery Cycles" value="42 / 500" /><Row label="Signal Encryption" value="AES-256 ACTIVE" active /></div></section> }
-function SettingBox({ title, children }) { return <div className="rounded-lg border border-white/5 bg-surface-container-lowest p-4"><span className="mb-3 block text-sm text-on-surface-variant">{title}</span>{children}</div> }
-function Choice({ children, active, icon }) { return <button className={`flex flex-1 items-center justify-center gap-2 rounded-lg border py-2 font-data-md text-sm ${active ? 'border-primary/50 bg-primary/20 text-primary' : 'border-white/10 bg-surface-variant text-on-surface-variant'}`}>{icon && <Icon className="text-sm">{icon}</Icon>}{children}</button> }
-function Row({ label, value, active }) { return <div className="flex items-center justify-between rounded-lg border border-white/5 bg-surface-container-lowest p-3"><span className="text-sm text-on-surface-variant">{label}</span>{active ? <span className="flex items-center gap-2 font-data-md text-secondary"><span className="h-2 w-2 rounded-full bg-secondary" />{value}</span> : <span className="font-data-md">{value}</span>}</div> }
-export default Settings
+
+export default function Settings() {
+  return (
+    <main className="ml-[72px] flex-1 flex flex-col min-h-screen bg-[#f5f7fa] text-[#0f172a]">
+      <header className="flex h-16 shrink-0 items-center justify-between border-b border-[#eef2f6] bg-white px-6">
+        <h2 className="text-lg font-bold text-slate-900 tracking-tight">System Settings</h2>
+      </header>
+
+      <div className="flex-1 p-6 max-w-[1000px] flex flex-col gap-6">
+          {/* General Preferences */}
+          <div className="bento-card p-6">
+            <h3 className="text-base font-bold text-slate-900 mb-4 pb-2 border-b border-slate-100 flex items-center gap-2">
+              <Icon className="text-slate-500">tune</Icon>
+              Flight & Interface Preferences
+            </h3>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <div>
+                <label className="text-xs font-semibold text-slate-500 block mb-2">Measurement Unit</label>
+                <div className="flex gap-2">
+                  <button className="flex-1 rounded-lg bg-slate-900 text-white py-2 text-xs font-semibold shadow-sm">
+                    Metric (m/s, m)
+                  </button>
+                  <button className="flex-1 rounded-lg border border-slate-200 bg-white text-slate-700 py-2 text-xs font-semibold hover:bg-slate-50">
+                    Imperial (ft/s, ft)
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-slate-500 block mb-2">Theme Mode</label>
+                <div className="flex gap-2">
+                  <button className="flex-1 rounded-lg bg-slate-900 text-white py-2 text-xs font-semibold shadow-sm flex items-center justify-center gap-1.5">
+                    <Icon className="text-[16px]">light_mode</Icon>
+                    Light White
+                  </button>
+                  <button className="flex-1 rounded-lg border border-slate-200 bg-white text-slate-700 py-2 text-xs font-semibold hover:bg-slate-50 flex items-center justify-center gap-1.5">
+                    <Icon className="text-[16px]">dark_mode</Icon>
+                    Dark (HUD)
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Drone Hardware Status */}
+          <div className="bento-card p-6">
+            <h3 className="text-base font-bold text-slate-900 mb-4 pb-2 border-b border-slate-100 flex items-center gap-2">
+              <Icon className="text-slate-500">memory</Icon>
+              Hardware & Motor Health
+            </h3>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+              {['M1 (Front L): 99%', 'M2 (Front R): 98%', 'M3 (Rear L): 99%', 'M4 (Rear R): 97%'].map((motor) => (
+                <div key={motor} className="bento-subcard p-3 text-center">
+                  <span className="text-[11px] font-semibold text-slate-400 block mb-1">Motor Status</span>
+                  <span className="data-font text-xs font-bold text-emerald-600">{motor}</span>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex items-center justify-between py-2.5 border-t border-slate-100 text-xs">
+              <span className="font-medium text-slate-600">Battery Cycles</span>
+              <span className="data-font font-bold text-slate-900">42 / 500</span>
+            </div>
+            <div className="flex items-center justify-between py-2.5 border-t border-slate-100 text-xs">
+              <span className="font-medium text-slate-600">Telemetry Encryption</span>
+              <span className="data-font font-bold text-emerald-600">AES-256 GCM</span>
+            </div>
+          </div>
+        </div>
+      </main>
+    )
+}

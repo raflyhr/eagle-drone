@@ -1,100 +1,197 @@
 import { useEffect, useRef } from 'react'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
-
-const logoUrl = 'https://lh3.googleusercontent.com/aida/AP1WRLtVE_7213Rt9fqz8YTDohCzOiDbD_uWKRr1kjImrtZsVtlxefE2AvOT_QVYo98G6t3Tu6uvn9AhHp3HygArhNKDpNBmmtuzLmw1OIoo2KKmc9LI4Y47XDZ8B9xtg0NBcOyn7cn5UkYrSARxPkqqgEpV8KPbZZ0MXnH0brQ0eRgbl6hwjd8kPJ4rUycWB6Uf8PsD1xZir08Xc4UVkwEsWUUnztCi1O24dbWvSdYznXA468dOiNeeznyKZQT5'
-const navigationItems = [['dashboard', 'Mission Overview', 'mission'], ['map', 'Map & Search Area', 'map'], ['target', 'Detection Events', 'events'], ['history', 'Flight History', 'history'], ['settings', 'System Settings', 'settings']]
-const initialPosition = [-6.2, 106.816666]
+import useWeather from '../hooks/useWeather'
 
 function Icon({ children, className = '' }) {
   return <span className={`material-symbols-outlined ${className}`}>{children}</span>
 }
 
-function MapArea({ onNavigate, telemetry, active }) {
+const initialPosition = [47.0142, 8.0467]
+
+export default function MapArea({ onNavigate, telemetry, active }) {
+  const weather = useWeather(telemetry.latitude, telemetry.longitude)
   const mapRef = useRef(null)
   const leafletRef = useRef(null)
   const markerRef = useRef(null)
+  const pathRef = useRef(null)
+  const trailRef = useRef([])
 
   useEffect(() => {
     if (!mapRef.current || leafletRef.current) return
-    leafletRef.current = L.map(mapRef.current, { zoomControl: false }).setView(initialPosition, 15)
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap' }).addTo(leafletRef.current)
-    markerRef.current = L.marker(initialPosition).addTo(leafletRef.current).bindPopup('EGL-01')
+    const initialPos = [telemetry.latitude || -6.2, telemetry.longitude || 106.816666]
+    const map = L.map(mapRef.current, { zoomControl: false }).setView(initialPos, 14)
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+      attribution: '&copy; OpenStreetMap & CartoDB',
+      maxZoom: 19,
+    }).addTo(map)
+
+    trailRef.current = [initialPos]
+    pathRef.current = L.polyline(trailRef.current, {
+      color: '#0f172a',
+      weight: 2.5,
+      dashArray: '4, 6',
+      opacity: 0.8,
+    }).addTo(map)
+
+    const customIcon = L.divIcon({
+      className: 'custom-drone-marker',
+      html: `
+        <div style="position: relative; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;">
+          <div style="position: absolute; width: 30px; height: 30px; border-radius: 50%; background: rgba(16, 185, 129, 0.25); animation: ping 2s cubic-bezier(0,0,0.2,1) infinite;"></div>
+          <div style="width: 16px; height: 16px; border-radius: 50%; background: #0f172a; border: 2px solid #ffffff; box-shadow: 0 2px 8px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center;">
+            <div style="width: 5px; height: 5px; border-radius: 50%; background: #10b981;"></div>
+          </div>
+        </div>
+      `,
+      iconSize: [32, 32],
+      iconAnchor: [16, 16],
+    })
+
+    markerRef.current = L.marker(initialPos, { icon: customIcon }).addTo(map).bindPopup('Eagle Drone - EGL-01')
+    leafletRef.current = map
+
+    setTimeout(() => map.invalidateSize(), 50)
+    setTimeout(() => map.invalidateSize(), 200)
+
+    const ro = new ResizeObserver(() => {
+      map.invalidateSize()
+    })
+    ro.observe(mapRef.current)
+
     return () => {
-      leafletRef.current?.remove()
+      ro.disconnect()
+      map.remove()
       leafletRef.current = null
       markerRef.current = null
+      pathRef.current = null
     }
   }, [])
 
   useEffect(() => {
     if (!leafletRef.current || !markerRef.current) return
     const position = [telemetry.latitude, telemetry.longitude]
-    markerRef.current.setLatLng(position).bindPopup(`EGL-01 · ALT: ${telemetry.altitude}m`)
+    markerRef.current.setLatLng(position)
     leafletRef.current.panTo(position, { animate: true })
-  }, [telemetry.latitude, telemetry.longitude, telemetry.altitude])
+
+    trailRef.current.push(position)
+    if (trailRef.current.length > 30) trailRef.current.shift()
+    if (pathRef.current) {
+      pathRef.current.setLatLngs(trailRef.current)
+    }
+  }, [telemetry.latitude, telemetry.longitude])
 
   useEffect(() => {
     if (active && leafletRef.current) {
       setTimeout(() => leafletRef.current?.invalidateSize(), 0)
+      setTimeout(() => leafletRef.current?.invalidateSize(), 150)
     }
   }, [active])
 
   return (
-    <div className="flex h-screen justify-center overflow-hidden bg-[#0b0e14]">
-      <div className="relative flex h-full w-full overflow-hidden bg-surface-container-lowest">
-        <aside className="z-50 hidden h-full w-64 shrink-0 flex-col border-r border-white/10 bg-surface-container py-5 md:flex">
-          <div className="mb-8 flex items-center gap-3 px-6">
-            <img alt="Eagle Drone Logo" className="h-10 w-10 rounded-md object-cover" src={logoUrl} />
-            <div><h1 className="font-headline-md text-2xl font-bold tracking-tight text-primary">Eagle Drone</h1><p className="font-body-sm text-sm text-on-surface-variant">SAR Command Unit</p></div>
+    <main className="ml-[72px] flex-1 flex flex-col min-h-screen bg-[#f5f7fa] text-[#0f172a]">
+      <header className="flex h-16 shrink-0 items-center justify-between border-b border-[#eef2f6] bg-white px-6">
+        <h2 className="text-lg font-bold text-slate-900 tracking-tight">Map & Search Area</h2>
+      </header>
+
+      <div className="flex flex-1 flex-col lg:flex-row min-h-0">
+          {/* Map Area */}
+          <div className="relative flex-1 min-h-[450px]">
+            <div ref={mapRef} className="absolute inset-0" />
+            
+            {/* Top Floating Telemetry Pills */}
+            <div className="absolute left-6 top-6 z-[400] flex flex-wrap gap-3">
+              <div className="flex items-center gap-2.5 rounded-xl bg-white/95 px-3.5 py-2 text-xs font-semibold text-slate-800 backdrop-blur-md shadow-[0_2px_8px_rgba(0,0,0,0.04)] border border-slate-200/80">
+                <Icon className="text-emerald-600 text-[18px]">near_me</Icon>
+                <div>
+                  <div className="text-[10px] text-slate-400 uppercase tracking-wider font-bold">UAV Location</div>
+                  <div className="data-font font-bold text-slate-900">{telemetry.latitude.toFixed(4)}, {telemetry.longitude.toFixed(4)}</div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2.5 rounded-xl bg-white/95 px-3.5 py-2 text-xs font-semibold text-slate-800 backdrop-blur-md shadow-[0_2px_8px_rgba(0,0,0,0.04)] border border-slate-200/80">
+                <Icon className="text-indigo-600 text-[18px]">radar</Icon>
+                <div>
+                  <div className="text-[10px] text-slate-400 uppercase tracking-wider font-bold">Active Sector</div>
+                  <div className="font-bold text-slate-900 truncate max-w-[220px]">{weather.sector} ({weather.locationName})</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Bottom Map Badge */}
+            <div className="absolute bottom-6 left-6 z-[400] rounded-xl bg-white/95 px-4 py-2.5 text-xs text-slate-800 backdrop-blur-md shadow-[0_4px_12px_rgba(0,0,0,0.06)] border border-slate-200/80">
+              <p className="font-bold text-slate-900">CartoDB Voyager · OpenStreetMap</p>
+              <p className="text-[11px] text-slate-500">Live Mission Waypoints Overlay</p>
+            </div>
           </div>
-          <nav className="flex-1 space-y-2 px-4">
-            {navigationItems.map(([icon, label, page]) => (
-              <button key={label} onClick={() => page && onNavigate(page)} className={`flex w-full items-center gap-3 rounded-lg px-4 py-3 text-left transition ${page === 'map' ? 'border-r-2 border-primary bg-primary/5 font-bold text-primary' : 'font-medium text-on-surface-variant hover:bg-surface-variant/50 hover:text-on-surface'}`}>
-                <Icon className={page === 'map' ? '[font-variation-settings:"FILL"_1]' : ''}>{icon}</Icon>
-                <span className="font-label-caps text-xs tracking-[.08em]">{label}</span>
-              </button>
-            ))}
-          </nav>
-        </aside>
 
-        <main className="relative flex h-full min-w-0 flex-1 flex-col overflow-hidden">
-          <header className="z-40 flex h-16 w-full shrink-0 items-center justify-between border-b border-white/5 bg-surface px-4 md:px-6">
-            <div className="flex items-center gap-4"><h2 className="font-headline-sm text-lg font-bold text-on-surface">Map & Search Area</h2><div className="flex items-center gap-2 rounded-full border border-white/10 bg-surface-container-high px-3 py-1"><Icon className="text-[16px] text-secondary">emergency</Icon><span className="font-data-md text-sm text-secondary">SAR-2026-041</span><span className="ml-1 h-1.5 w-1.5 animate-pulse rounded-full bg-error" /><span className="font-label-caps text-xs text-error">Active</span></div></div>
-            <div className="flex items-center gap-3"><button className="relative text-on-surface-variant hover:text-primary"><Icon>notifications</Icon><span className="absolute right-0 top-0 h-2 w-2 rounded-full border border-surface bg-error" /></button><div className="grid h-8 w-8 place-items-center overflow-hidden rounded-full border border-primary/30 bg-surface-variant"><Icon className="text-on-surface-variant">person</Icon></div></div>
-          </header>
-
-          <div className="flex min-h-0 flex-1 flex-col overflow-y-auto lg:flex-row lg:overflow-hidden">
-            <section className="relative min-h-[520px] flex-1 overflow-hidden bg-surface-container-low">
-              <div ref={mapRef} className="absolute inset-0" />
-              <div className="map-overlay pointer-events-none absolute inset-0" />
-              <div className="absolute left-4 top-4 z-[500] flex flex-wrap gap-3 md:left-6 md:top-6"><Info icon="my_location" label="UAV Pos" value={`${telemetry.latitude.toFixed(3)}, ${telemetry.longitude.toFixed(3)}`} variant="secondary" /><Info icon="radar" label="Active Sector" value="C-4 (Alpine Ridge)" variant="primary" /></div>
-              <div className="absolute bottom-6 left-6 z-[500] rounded-lg border border-white/10 bg-surface-container/90 p-3 backdrop-blur-sm"><p className="font-label-caps text-[10px] text-on-surface-variant">MAP LAYER</p><p className="data-font mt-1 text-xs text-on-surface">OPENSTREETMAP · LIVE GPS</p></div>
+          {/* Right Sidebar: Waypoints & Environment */}
+          <aside className="w-full lg:w-96 border-t lg:border-t-0 lg:border-l border-[#eef2f6] bg-white p-6 flex flex-col gap-6 overflow-y-auto">
+            <section>
+              <h3 className="mb-4 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-slate-400">
+                <Icon className="text-slate-600">route</Icon>
+                Active Waypoints
+              </h3>
+              <div className="space-y-2.5">
+                {[
+                  { no: '1', title: 'Alpha Ridge Base', meta: 'Cleared - 14:02', done: true },
+                  { no: '2', title: 'Sector Center Target', meta: 'En Route - ETA 2m', active: true },
+                  { no: '3', title: 'Ravine Echo', meta: 'Pending', pending: true },
+                ].map((wp) => (
+                  <div
+                    key={wp.no}
+                    className={`flex items-center gap-3.5 rounded-xl p-3 border transition ${
+                      wp.active
+                        ? 'border-indigo-100 bg-indigo-50/50 shadow-sm'
+                        : 'border-slate-100 bg-[#f8fafc]'
+                    }`}
+                  >
+                    <div
+                      className={`flex h-8 w-8 items-center justify-center rounded-lg text-xs font-bold ${
+                        wp.active
+                          ? 'bg-indigo-600 text-white'
+                          : wp.done
+                          ? 'bg-emerald-100 text-emerald-700'
+                          : 'bg-slate-200 text-slate-600'
+                      }`}
+                    >
+                      {wp.no}
+                    </div>
+                    <div className="flex-1">
+                      <p className={`text-xs font-bold ${wp.active ? 'text-indigo-900' : 'text-slate-800'}`}>
+                        {wp.title}
+                      </p>
+                      <p className="text-[11px] text-slate-400">{wp.meta}</p>
+                    </div>
+                    <Icon className={`text-[18px] ${wp.done ? 'text-emerald-600' : wp.active ? 'animate-spin text-indigo-600' : 'text-slate-300'}`}>
+                      {wp.done ? 'check_circle' : wp.active ? 'sync' : 'schedule'}
+                    </Icon>
+                  </div>
+                ))}
+              </div>
             </section>
 
-            <aside className="z-30 flex w-full shrink-0 flex-col border-l border-white/10 bg-surface-container lg:w-96">
-              <div className="flex-1 space-y-6 overflow-y-auto p-6"><section><h3 className="mb-4 flex items-center gap-2 font-headline-sm text-lg text-on-surface"><Icon>route</Icon>Active Waypoints</h3><div className="space-y-3"><Waypoint no="1" title="Alpha Ridge Base" meta="Cleared - 14:02" icon="check_circle" done /><Waypoint no="2" title="Sector C-4 Center" meta="En Route - ETA 2m" icon="sync" active /><Waypoint no="3" title="Ravine Echo" meta="Pending" icon="schedule" faded /></div></section><section><h3 className="mb-4 flex items-center gap-2 font-headline-sm text-lg text-on-surface"><Icon>analytics</Icon>Environment</h3><div className="grid grid-cols-2 gap-3">{[['Wind SPD', `${telemetry.speed} m/s`], ['Visibility', '12 km'], ['Temp', '-4 °C'], ['Signal', `${telemetry.signal}%`]].map(([label, value]) => <div className="rounded-lg border border-white/5 bg-surface-container-low p-3" key={label}><p className="mb-1 font-label-caps text-xs text-on-surface-variant">{label}</p><p className={`font-data-lg text-lg ${label === 'Temp' ? 'text-secondary' : 'text-on-surface'}`}>{value}</p></div>)}</div></section></div>
-            </aside>
-          </div>
-
-          <footer className="z-40 flex h-8 shrink-0 items-center justify-between border-t border-white/5 bg-surface-container-lowest px-4"><div className="flex gap-3 md:gap-6"><Status color="bg-secondary-fixed" label="Receiver: OK" /><Status color="bg-secondary-fixed" label="Telemetry: LNK" /><Status color="bg-primary" label="AI: RDY" /></div><span className="font-label-caps text-[10px] text-on-surface-variant opacity-50">v4.2.0-PRO</span></footer>
-        </main>
-      </div>
-    </div>
+            <section>
+              <h3 className="mb-4 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-slate-400">
+                <Icon className="text-slate-600">analytics</Icon>
+                Environment
+              </h3>
+              <div className="grid grid-cols-2 gap-3">
+                {[
+                  ['Wind Speed', `${weather.windSpeed} m/s`],
+                  ['Humidity', `${weather.humidity}%`],
+                  ['Temp', `${weather.temperature} °C`],
+                  ['Signal Link', `${telemetry.signal}%`],
+                ].map(([label, value]) => (
+                  <div key={label} className="bento-subcard p-3">
+                    <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">{label}</p>
+                    <p className="data-font text-base font-bold text-slate-900">{value}</p>
+                  </div>
+                ))}
+              </div>
+            </section>
+          </aside>
+        </div>
+      </main>
   )
 }
-
-function Info({ icon, label, value, variant }) {
-  const styles = variant === 'secondary' ? 'border-secondary/30 text-secondary' : 'border-primary/30 text-primary'
-  return <div className={`flex items-center gap-3 rounded-lg border bg-surface-container/90 px-4 py-2 backdrop-blur-sm ${styles}`}><Icon>{icon}</Icon><div><p className="font-label-caps text-xs text-on-surface-variant">{label}</p><p className="font-data-md text-sm">{value}</p></div></div>
-}
-
-function Waypoint({ no, title, meta, icon, active, done, faded }) {
-  return <div className={`flex items-center gap-4 rounded-lg border p-4 ${active ? 'border-primary/30 bg-primary/5' : 'border-white/5 bg-surface-container-low'} ${faded ? 'opacity-50' : ''}`}><div className={`flex h-8 w-8 items-center justify-center rounded-full font-data-md text-sm ${active ? 'bg-primary text-on-primary' : 'bg-surface-variant text-on-surface'}`}>{no}</div><div className="flex-1"><p className={`font-body-sm text-sm ${active ? 'text-primary' : 'text-on-surface'}`}>{title}</p><p className="font-data-md text-sm text-on-surface-variant">{meta}</p></div><Icon className={done ? 'text-green-400' : active ? 'animate-spin text-primary' : 'text-on-surface-variant'}>{icon}</Icon></div>
-}
-
-function Status({ color, label }) {
-  return <span className="data-font flex items-center gap-1 text-[11px] text-outline"><span className={`h-1.5 w-1.5 rounded-full ${color}`} />{label}</span>
-}
-
-export default MapArea
