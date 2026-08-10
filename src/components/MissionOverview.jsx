@@ -4,16 +4,207 @@ import 'leaflet/dist/leaflet.css'
 import useCamera from '../hooks/useCamera'
 import useObjectDetection from '../hooks/useObjectDetection'
 import useWeather, { degreesToCardinal } from '../hooks/useWeather'
+import useDroneRegion from '../hooks/useDroneRegion'
+import useTelemetryState, { getDroneLocationName } from '../hooks/useTelemetry'
 
 function Icon({ children, className = '' }) {
   return <span className={`material-symbols-outlined ${className}`}>{children}</span>
 }
 
-export default function MissionOverview({ onNavigate, telemetry }) {
+function createDroneHeadingIcon(heading = 0, size = 28) {
+  const rotation = typeof heading === 'number' ? heading : 0
+  const innerSize = Math.round(size * 0.7)
+  return L.divIcon({
+    className: 'custom-drone-heading-marker',
+    html: `
+      <div style="position: relative; width: ${size}px; height: ${size}px; display: flex; align-items: center; justify-content: center;">
+        <div style="position: absolute; width: ${size}px; height: ${size}px; border-radius: 50%; background: rgba(16, 185, 129, 0.2); animation: ping 2s cubic-bezier(0,0,0.2,1) infinite;"></div>
+        <div style="position: relative; width: ${innerSize}px; height: ${innerSize}px; display: flex; align-items: center; justify-content: center; transform: rotate(${rotation}deg); transition: transform 0.3s ease-out; transform-origin: center;">
+          <svg viewBox="0 0 24 24" width="${innerSize}" height="${innerSize}" style="filter: drop-shadow(0px 2px 4px rgba(0,0,0,0.5));">
+            <path d="M12 2L3 21L12 16.5L21 21L12 2Z" fill="#10b981" stroke="#0f172a" stroke-width="1.8" stroke-linejoin="round"/>
+          </svg>
+        </div>
+      </div>
+    `,
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
+  })
+}
+
+export default function MissionOverview({ onNavigate, telemetryState, mapStyle = 'standard', onMapStyleChange }) {
+  const telemetry = telemetryState?.telemetry || {
+    latitude: -6.2,
+    longitude: 106.816666,
+    altitude: 120,
+    speed: 15,
+    heading: 285,
+    pitch: 2.4,
+    roll: -1.2,
+    yaw: 285,
+    battery: 74,
+    voltage: 15.2,
+    current: 12.5,
+    satellites: 14,
+    gpsFix: '3D Fix',
+    flightMode: 'AUTO',
+    sysId: 1,
+    compId: 1,
+    packetCount: 142,
+    lastHeartbeat: Date.now(),
+  }
+
+  const {
+    connectionStatus = 'connected',
+    connectionType = 'simulation',
+    connectSerial,
+    connectWebSocket,
+    enableMavlinkSim,
+    disconnect: disconnectMavlink,
+  } = telemetryState || {}
+
   const weather = useWeather(telemetry.latitude, telemetry.longitude)
-  const { videoRef, cameraStatus, toggleCamera } = useCamera()
-  const [aiActive, setAiActive] = useState(false)
-  const [recordingSeconds, setRecordingSeconds] = useState(1929) // 00:32:09 default start
+  const droneLocationName = useDroneRegion(telemetry.latitude, telemetry.longitude)
+  
+  // Real Camera Device Hook (No Dummy Data)
+  const {
+    videoRef,
+    devices,
+    selectedDeviceId,
+    cameraStatus,
+    permissionState,
+    activeCameraSpecs,
+    errorMessage: cameraError,
+    selectCamera,
+    toggleCamera,
+    scanDevices,
+  } = useCamera()
+
+  const [aiActive, setAiActive] = useState(true)
+  const [showMavlinkModal, setShowMavlinkModal] = useState(false)
+  const [showLocationModal, setShowLocationModal] = useState(false)
+  const [locationQuery, setLocationQuery] = useState('')
+  const [searchResults, setSearchResults] = useState([])
+  const [isSearching, setIsSearching] = useState(false)
+  const [wsUrlInput, setWsUrlInput] = useState('ws://localhost:8080')
+  const [isCameraDropdownOpen, setIsCameraDropdownOpen] = useState(false)
+  const [showControls, setShowControls] = useState(true)
+  const [isFullscreen, setIsFullscreen] = useState(false)
+  const [showFullscreenMap, setShowFullscreenMap] = useState(true)
+  const [miniMapPos, setMiniMapPos] = useState({ x: null, y: null })
+  const [isDraggingMap, setIsDraggingMap] = useState(false)
+  const dragStartPos = useRef({ startX: 0, startY: 0, initialLeft: 0, initialTop: 0 })
+  const hideTimerRef = useRef(null)
+
+  const handleSearchLocation = async (q) => {
+    setLocationQuery(q)
+    if (!q || q.length < 2) {
+      setSearchResults([])
+      return
+    }
+    setIsSearching(true)
+    try {
+      const res = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=6&language=en&format=json`)
+      if (res.ok) {
+        const data = await res.json()
+        setSearchResults(data.results || [])
+      }
+    } catch {
+      // fallback
+    } finally {
+      setIsSearching(false)
+    }
+  }
+
+  const handleVideoMouseMove = () => {
+    setShowControls(true)
+    if (hideTimerRef.current) clearTimeout(hideTimerRef.current)
+    hideTimerRef.current = setTimeout(() => {
+      setShowControls(false)
+    }, 2500)
+  }
+
+  const handleVideoMouseLeave = () => {
+    if (hideTimerRef.current) clearTimeout(hideTimerRef.current)
+    hideTimerRef.current = setTimeout(() => {
+      setShowControls(false)
+    }, 800)
+  }
+
+  // Fullscreen change listener
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement)
+    }
+    document.addEventListener('fullscreenchange', handleFullscreenChange)
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange)
+  }, [])
+
+  // Drag-and-drop handler for Fullscreen Mini Map
+  const handleMiniMapDragStart = (e) => {
+    if (e.target.closest('button') || e.target.closest('select') || e.target.closest('input')) return
+
+    const clientX = e.clientX || (e.touches && e.touches[0] ? e.touches[0].clientX : null)
+    const clientY = e.clientY || (e.touches && e.touches[0] ? e.touches[0].clientY : null)
+    if (clientX === null || clientY === null) return
+
+    const container = videoPanelRef.current?.getBoundingClientRect()
+    const mapElement = e.currentTarget.getBoundingClientRect()
+
+    const currentLeft = miniMapPos.x !== null ? miniMapPos.x : (mapElement.left - (container?.left || 0))
+    const currentTop = miniMapPos.y !== null ? miniMapPos.y : (mapElement.top - (container?.top || 0))
+
+    dragStartPos.current = {
+      startX: clientX,
+      startY: clientY,
+      initialLeft: currentLeft,
+      initialTop: currentTop,
+    }
+    setIsDraggingMap(true)
+  }
+
+  useEffect(() => {
+    if (!isDraggingMap) return
+
+    const handlePointerMove = (e) => {
+      const clientX = e.clientX || (e.touches && e.touches[0] ? e.touches[0].clientX : null)
+      const clientY = e.clientY || (e.touches && e.touches[0] ? e.touches[0].clientY : null)
+      if (clientX === null || clientY === null) return
+
+      const deltaX = clientX - dragStartPos.current.startX
+      const deltaY = clientY - dragStartPos.current.startY
+
+      const container = videoPanelRef.current?.getBoundingClientRect()
+      const containerWidth = container?.width || window.innerWidth
+      const containerHeight = container?.height || window.innerHeight
+
+      const mapWidth = 288
+      const mapHeight = 208
+
+      let newLeft = dragStartPos.current.initialLeft + deltaX
+      let newTop = dragStartPos.current.initialTop + deltaY
+
+      newLeft = Math.max(12, Math.min(newLeft, containerWidth - mapWidth - 12))
+      newTop = Math.max(12, Math.min(newTop, containerHeight - mapHeight - 12))
+
+      setMiniMapPos({ x: newLeft, y: newTop })
+    }
+
+    const handlePointerUp = () => {
+      setIsDraggingMap(false)
+    }
+
+    window.addEventListener('mousemove', handlePointerMove)
+    window.addEventListener('mouseup', handlePointerUp)
+    window.addEventListener('touchmove', handlePointerMove)
+    window.addEventListener('touchend', handlePointerUp)
+
+    return () => {
+      window.removeEventListener('mousemove', handlePointerMove)
+      window.removeEventListener('mouseup', handlePointerUp)
+      window.removeEventListener('touchmove', handlePointerMove)
+      window.removeEventListener('touchend', handlePointerUp)
+    }
+  }, [isDraggingMap])
 
   const { detections } = useObjectDetection(videoRef, aiActive && cameraStatus === 'connected')
   const videoPanelRef = useRef(null)
@@ -22,30 +213,17 @@ export default function MissionOverview({ onNavigate, telemetry }) {
   const leafletRef = useRef(null)
   const markerRef = useRef(null)
   const pathRef = useRef(null)
+  const baseLayerRef = useRef(null)
+  const overlayLayerRef = useRef(null)
+
+  const fullscreenMapRef = useRef(null)
+  const fullscreenLeafletRef = useRef(null)
+  const fullscreenMarkerRef = useRef(null)
+  const fullscreenPathRef = useRef(null)
+  const fullscreenBaseLayerRef = useRef(null)
+  const fullscreenOverlayLayerRef = useRef(null)
+
   const [overlayVersion, setOverlayVersion] = useState(0)
-  const [activeNav, setActiveNav] = useState('home')
-
-  // Timer simulation
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setRecordingSeconds((prev) => prev + 1)
-    }, 1000)
-    return () => clearInterval(interval)
-  }, [])
-
-  const formatTimer = (seconds) => {
-    const hrs = Math.floor(seconds / 3600).toString().padStart(2, '0')
-    const mins = Math.floor((seconds % 3600) / 60).toString().padStart(2, '0')
-    const secs = (seconds % 60).toString().padStart(2, '0')
-    return `${hrs}:${mins}:${secs}`
-  }
-
-  // Format flight time (mm:ss)
-  const flightTimeFormatted = () => {
-    const mins = Math.floor((recordingSeconds % 3600) / 60).toString().padStart(2, '0')
-    const secs = (recordingSeconds % 60).toString().padStart(2, '0')
-    return `${mins}:${secs}`
-  }
 
   // Observer for video canvas scaling
   useEffect(() => {
@@ -70,10 +248,8 @@ export default function MissionOverview({ onNavigate, telemetry }) {
     const sourceHeight = video.videoHeight
     if (!sourceWidth || !sourceHeight) return
     const ratio = Math.max(rect.width / sourceWidth, rect.height / sourceHeight)
-    const renderedWidth = sourceWidth * ratio
-    const renderedHeight = sourceHeight * ratio
-    const offsetX = (rect.width - renderedWidth) / 2
-    const offsetY = (rect.height - renderedHeight) / 2
+    const offsetX = (rect.width - sourceWidth * ratio) / 2
+    const offsetY = (rect.height - sourceHeight * ratio) / 2
     const dpr = window.devicePixelRatio || 1
     canvas.width = Math.round(rect.width * dpr)
     canvas.height = Math.round(rect.height * dpr)
@@ -109,7 +285,7 @@ export default function MissionOverview({ onNavigate, telemetry }) {
   useEffect(() => {
     if (!mapRef.current || leafletRef.current) return
 
-    const initialPos = [telemetry.latitude || -6.2, telemetry.longitude || 106.816666]
+    const initialPos = [telemetry.latitude || -7.5950, telemetry.longitude || 110.4485]
     const map = L.map(mapRef.current, {
       zoomControl: false,
       attributionControl: false,
@@ -117,97 +293,242 @@ export default function MissionOverview({ onNavigate, telemetry }) {
       scrollWheelZoom: false,
     }).setView(initialPos, 14)
 
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-      maxZoom: 19,
-      subdomains: 'abcd',
-    }).addTo(map)
-
-    // Initial breadcrumb trail
     trailRef.current = [initialPos]
     pathRef.current = L.polyline(trailRef.current, {
-      color: '#0f172a',
-      weight: 2.5,
-      dashArray: '4, 6',
-      opacity: 0.8,
+      color: '#38bdf8',
+      weight: 3,
+      dashArray: '5, 5',
+      opacity: 0.95,
     }).addTo(map)
 
-    // Custom marker icon with radar ping
-    const customIcon = L.divIcon({
-      className: 'custom-drone-marker',
-      html: `
-        <div style="position: relative; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;">
-          <div style="position: absolute; width: 26px; height: 26px; border-radius: 50%; background: rgba(16, 185, 129, 0.25); animation: ping 2s cubic-bezier(0,0,0.2,1) infinite;"></div>
-          <div style="width: 14px; height: 14px; border-radius: 50%; background: #0f172a; border: 2px solid #ffffff; box-shadow: 0 2px 6px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center;">
-            <div style="width: 4px; height: 4px; border-radius: 50%; background: #10b981;"></div>
-          </div>
-        </div>
-      `,
-      iconSize: [28, 28],
-      iconAnchor: [14, 14],
-    })
+    const customIcon = createDroneHeadingIcon(telemetry.heading || 0, 28)
 
     markerRef.current = L.marker(initialPos, { icon: customIcon }).addTo(map)
     leafletRef.current = map
 
-    // Fix tile rendering on mount
-    setTimeout(() => map.invalidateSize(), 50)
-    setTimeout(() => map.invalidateSize(), 200)
-    setTimeout(() => map.invalidateSize(), 600)
-
-    const ro = new ResizeObserver(() => {
-      map.invalidateSize()
-    })
-    ro.observe(mapRef.current)
-
     return () => {
-      ro.disconnect()
       map.remove()
       leafletRef.current = null
       markerRef.current = null
       pathRef.current = null
+      baseLayerRef.current = null
+      overlayLayerRef.current = null
     }
   }, [])
 
-  // Update map marker and smooth pan to follow drone location
+  // Dynamic Tile Layer for Mini-Map
   useEffect(() => {
-    if (!leafletRef.current || !markerRef.current) return
-    const pos = [telemetry.latitude, telemetry.longitude]
-    markerRef.current.setLatLng(pos)
-    leafletRef.current.panTo(pos, { animate: true })
+    if (!leafletRef.current) return
+    const map = leafletRef.current
 
-    trailRef.current.push(pos)
-    if (trailRef.current.length > 30) trailRef.current.shift()
+    if (baseLayerRef.current) {
+      map.removeLayer(baseLayerRef.current)
+      baseLayerRef.current = null
+    }
+    if (overlayLayerRef.current) {
+      map.removeLayer(overlayLayerRef.current)
+      overlayLayerRef.current = null
+    }
+
+    if (mapStyle === 'satellite') {
+      baseLayerRef.current = L.tileLayer(
+        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+        { maxZoom: 19 }
+      ).addTo(map)
+
+      overlayLayerRef.current = L.tileLayer(
+        'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
+        { maxZoom: 19, opacity: 0.85 }
+      ).addTo(map)
+    } else if (mapStyle === 'terrain') {
+      baseLayerRef.current = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+        maxZoom: 17,
+      }).addTo(map)
+    } else {
+      baseLayerRef.current = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+      }).addTo(map)
+    }
+  }, [mapStyle])
+
+  // Update map marker position & heading
+  useEffect(() => {
+    if (!leafletRef.current || !markerRef.current || !telemetry.latitude || !telemetry.longitude) return
+    const newPos = [telemetry.latitude, telemetry.longitude]
+    markerRef.current.setLatLng(newPos)
+    markerRef.current.setIcon(createDroneHeadingIcon(telemetry.heading || 0, 28))
+    leafletRef.current.panTo(newPos, { animate: true, duration: 0.8 })
+
+    const lastPos = trailRef.current[trailRef.current.length - 1]
+    if (!lastPos || Math.abs(lastPos[0] - newPos[0]) > 0.00001 || Math.abs(lastPos[1] - newPos[1]) > 0.00001) {
+      trailRef.current.push(newPos)
+      if (trailRef.current.length > 2000) {
+        trailRef.current.splice(1, 1) // preserve index 0 (initial takeoff point)
+      }
+    }
     if (pathRef.current) {
       pathRef.current.setLatLngs(trailRef.current)
     }
-  }, [telemetry.latitude, telemetry.longitude])
+  }, [telemetry.latitude, telemetry.longitude, telemetry.heading])
 
+  // Initialize & Update Fullscreen Top-Right Mini Map
+  useEffect(() => {
+    if (!isFullscreen || !showFullscreenMap || !fullscreenMapRef.current) {
+      if (fullscreenLeafletRef.current) {
+        fullscreenLeafletRef.current.remove()
+        fullscreenLeafletRef.current = null
+        fullscreenMarkerRef.current = null
+        fullscreenPathRef.current = null
+        fullscreenBaseLayerRef.current = null
+        fullscreenOverlayLayerRef.current = null
+      }
+      return
+    }
 
+    if (fullscreenLeafletRef.current) {
+      setTimeout(() => fullscreenLeafletRef.current?.invalidateSize(), 100)
+      return
+    }
+
+    const initialPos = [telemetry.latitude || -7.5950, telemetry.longitude || 110.4485]
+    const map = L.map(fullscreenMapRef.current, {
+      zoomControl: false,
+      attributionControl: false,
+      dragging: false,
+      scrollWheelZoom: false,
+    }).setView(initialPos, 14)
+
+    if (mapStyle === 'satellite') {
+      fullscreenBaseLayerRef.current = L.tileLayer(
+        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+        { maxZoom: 19 }
+      ).addTo(map)
+      fullscreenOverlayLayerRef.current = L.tileLayer(
+        'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
+        { maxZoom: 19, opacity: 0.85 }
+      ).addTo(map)
+    } else if (mapStyle === 'terrain') {
+      fullscreenBaseLayerRef.current = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+        maxZoom: 17,
+      }).addTo(map)
+    } else {
+      fullscreenBaseLayerRef.current = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+      }).addTo(map)
+    }
+
+    const customIcon = createDroneHeadingIcon(telemetry.heading || 0, 28)
+
+    fullscreenMarkerRef.current = L.marker(initialPos, { icon: customIcon }).addTo(map)
+    fullscreenPathRef.current = L.polyline(trailRef.current, {
+      color: '#38bdf8',
+      weight: 3,
+      dashArray: '5, 5',
+      opacity: 0.95,
+    }).addTo(map)
+
+    fullscreenLeafletRef.current = map
+    setTimeout(() => map.invalidateSize(), 150)
+
+    return () => {
+      map.remove()
+      fullscreenLeafletRef.current = null
+      fullscreenMarkerRef.current = null
+      fullscreenPathRef.current = null
+      fullscreenBaseLayerRef.current = null
+      fullscreenOverlayLayerRef.current = null
+    }
+  }, [isFullscreen, showFullscreenMap])
+
+  // Tile layer update for Fullscreen Map
+  useEffect(() => {
+    if (!fullscreenLeafletRef.current) return
+    const map = fullscreenLeafletRef.current
+    if (fullscreenBaseLayerRef.current) {
+      map.removeLayer(fullscreenBaseLayerRef.current)
+      fullscreenBaseLayerRef.current = null
+    }
+    if (fullscreenOverlayLayerRef.current) {
+      map.removeLayer(fullscreenOverlayLayerRef.current)
+      fullscreenOverlayLayerRef.current = null
+    }
+    if (mapStyle === 'satellite') {
+      fullscreenBaseLayerRef.current = L.tileLayer(
+        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+        { maxZoom: 19 }
+      ).addTo(map)
+      fullscreenOverlayLayerRef.current = L.tileLayer(
+        'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
+        { maxZoom: 19, opacity: 0.85 }
+      ).addTo(map)
+    } else if (mapStyle === 'terrain') {
+      fullscreenBaseLayerRef.current = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+        maxZoom: 17,
+      }).addTo(map)
+    } else {
+      fullscreenBaseLayerRef.current = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+      }).addTo(map)
+    }
+  }, [mapStyle, isFullscreen, showFullscreenMap])
+
+  // Update fullscreen map position & heading
+  useEffect(() => {
+    if (!fullscreenLeafletRef.current || !fullscreenMarkerRef.current || !telemetry.latitude || !telemetry.longitude) return
+    const newPos = [telemetry.latitude, telemetry.longitude]
+    fullscreenMarkerRef.current.setLatLng(newPos)
+    fullscreenMarkerRef.current.setIcon(createDroneHeadingIcon(telemetry.heading || 0, 28))
+    fullscreenLeafletRef.current.panTo(newPos, { animate: true, duration: 0.8 })
+    if (fullscreenPathRef.current && trailRef.current.length > 0) {
+      fullscreenPathRef.current.setLatLngs(trailRef.current)
+    }
+  }, [telemetry.latitude, telemetry.longitude, telemetry.heading, isFullscreen, showFullscreenMap])
 
   return (
     <main className="ml-[72px] flex-1 flex flex-col h-screen overflow-hidden bg-[#f5f7fa] text-[#0f172a]">
       {/* Top Header Bar */}
       <header className="flex h-16 shrink-0 items-center justify-between border-b border-[#eef2f6] bg-white px-6">
-        <h2 className="text-lg font-bold text-slate-900 tracking-tight">Mission Overview</h2>
+        <div className="flex items-center gap-3">
+          <h2 className="text-lg font-bold text-slate-900 tracking-tight">Eagle Drone</h2>
+        </div>
+
+        {/* MAVLink Connection Status Button */}
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => setShowMavlinkModal(true)}
+            className="flex items-center gap-2.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 px-3 py-1.5 text-xs text-slate-700 shadow-xs transition cursor-pointer"
+          >
+            <span
+              className={`h-2 w-2 rounded-full ${
+                connectionStatus === 'connected' ? 'bg-emerald-500' : 'bg-amber-500'
+              }`}
+            />
+            <span className="font-medium">
+              MAVLink: <strong className="font-bold text-slate-900">{connectionStatus === 'connected' ? connectionType.toUpperCase() : 'Disconnected'}</strong>
+            </span>
+            <Icon className="text-[16px] text-slate-400 ml-0.5">settings_remote</Icon>
+          </button>
+        </div>
       </header>
 
       {/* Main Bento Grid Canvas */}
       <div className="flex-1 min-h-0 overflow-hidden p-3.5 md:p-4 lg:p-5">
-          <div className="dashboard-grid-container mx-auto max-w-[1700px] gap-3 lg:gap-3.5">
-            
-            {/* TOP ROW: Dominant & Tall (Camera Col 9 + Weather Col 3) */}
-            <div className="grid grid-cols-12 gap-3 lg:gap-3.5 h-full min-h-0">
-            
-            {/* TOP-LEFT: Main Drone Camera Viewfinder Feed (col-span-12 lg:col-span-9) */}
+        <div className="dashboard-grid-container mx-auto max-w-[1700px] gap-3 lg:gap-3.5">
+          {/* TOP ROW: Dominant & Tall (Camera Col 9 + Weather Col 3) */}
+          <div className="grid grid-cols-12 gap-3 lg:gap-3.5 h-full min-h-0">
+            {/* TOP-LEFT: Main Drone Camera Viewfinder Feed */}
             <div className="col-span-12 lg:col-span-9 h-full min-h-0 flex flex-col">
               <div
                 ref={videoPanelRef}
+                onMouseMove={handleVideoMouseMove}
+                onMouseLeave={handleVideoMouseLeave}
                 className={`group relative flex flex-1 h-full min-h-0 flex-col overflow-hidden rounded-2xl ${
                   cameraStatus === 'connected' ? 'bg-slate-950' : 'bg-slate-100/90'
                 } shadow-sm border border-slate-200/80 [&:fullscreen]:h-screen [&:fullscreen]:w-screen [&:fullscreen]:rounded-none`}
               >
                 {/* Video Frame Container */}
-                <div ref={videoFrameRef} className="relative flex-1 overflow-hidden w-full h-full">
+                <div ref={videoFrameRef} className="relative flex-1 h-full min-h-0 w-full bg-slate-950 overflow-hidden">
                   {/* Live WebCam Stream */}
                   <video
                     ref={videoRef}
@@ -220,10 +541,232 @@ export default function MissionOverview({ onNavigate, telemetry }) {
                     <canvas className="pointer-events-none absolute inset-0 z-20" />
                   )}
 
-                  {/* Clean Light-Slate Camera Standby View (No black background, no shooter crosshairs) */}
+                  {/* Fullscreen Movable Pure Mini Map Overlay */}
+                  {isFullscreen && showFullscreenMap && (
+                    <div
+                      onMouseDown={handleMiniMapDragStart}
+                      onTouchStart={handleMiniMapDragStart}
+                      style={
+                        miniMapPos.x !== null && miniMapPos.y !== null
+                          ? { left: `${miniMapPos.x}px`, top: `${miniMapPos.y}px` }
+                          : { top: '16px', right: '16px' }
+                      }
+                      className={`absolute z-40 w-64 h-48 sm:w-72 sm:h-52 rounded-xl bg-slate-900 border border-slate-700 shadow-2xl overflow-hidden pointer-events-auto flex flex-col transition-shadow ${
+                        isDraggingMap ? 'cursor-grabbing shadow-inner ring-2 ring-emerald-500/50' : 'cursor-grab hover:border-slate-500'
+                      }`}
+                    >
+                      <div ref={fullscreenMapRef} className="absolute inset-0 z-0 h-full w-full" />
+
+                      {/* Top Controls: Map Style Selector + Hide Button (Auto-hides on idle) */}
+                      <div
+                        className={`absolute top-2 inset-x-2 z-20 flex items-center justify-between pointer-events-none transition-opacity duration-300 ${
+                          showControls ? 'opacity-100' : 'opacity-0'
+                        }`}
+                      >
+                        <div className="pointer-events-auto flex items-center gap-0.5 rounded-lg bg-white p-1 shadow-md border border-slate-200">
+                          <button
+                            type="button"
+                            onClick={() => onMapStyleChange?.('standard')}
+                            className={`rounded-md px-2 py-0.5 text-[10px] font-bold transition cursor-pointer ${
+                              mapStyle === 'standard'
+                                ? 'bg-slate-900 text-white shadow-xs'
+                                : 'text-slate-700 hover:bg-slate-100'
+                            }`}
+                            title="Standard Street Map (OSM)"
+                          >
+                            Standard
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => onMapStyleChange?.('satellite')}
+                            className={`rounded-md px-2 py-0.5 text-[10px] font-bold transition cursor-pointer ${
+                              mapStyle === 'satellite'
+                                ? 'bg-slate-900 text-white shadow-xs'
+                                : 'text-slate-700 hover:bg-slate-100'
+                            }`}
+                            title="Satellite Map"
+                          >
+                            Satellite
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => onMapStyleChange?.('terrain')}
+                            className={`rounded-md px-2 py-0.5 text-[10px] font-bold transition cursor-pointer ${
+                              mapStyle === 'terrain'
+                                ? 'bg-slate-900 text-white shadow-xs'
+                                : 'text-slate-700 hover:bg-slate-100'
+                            }`}
+                            title="Topographic Altitude Map"
+                          >
+                            Terrain
+                          </button>
+                        </div>
+
+                        {/* Hide Mini Map Button */}
+                        <button
+                          type="button"
+                          onClick={() => setShowFullscreenMap(false)}
+                          className="pointer-events-auto flex h-6 w-6 items-center justify-center rounded-lg bg-slate-900/90 text-white shadow-md hover:bg-slate-800 transition border border-slate-700 cursor-pointer"
+                          title="Hide Mini Map"
+                        >
+                          <Icon className="text-[14px]">close</Icon>
+                        </button>
+                      </div>
+
+                      {/* Fullscreen Mini-Map Zoom In / Zoom Out Controls (Auto-hides on idle) */}
+                      <div
+                        className={`absolute right-2 top-11 z-20 flex flex-col rounded-lg bg-white shadow-md border border-slate-200 overflow-hidden transition-opacity duration-300 ${
+                          showControls ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+                        }`}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => fullscreenLeafletRef.current?.zoomIn()}
+                          className="flex items-center justify-center w-6 h-6 text-slate-700 hover:bg-slate-900 hover:text-white border-b border-slate-200 transition cursor-pointer active:scale-95"
+                          title="Zoom In (+)"
+                        >
+                          <Icon className="text-[15px]">add</Icon>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => fullscreenLeafletRef.current?.zoomOut()}
+                          className="flex items-center justify-center w-6 h-6 text-slate-700 hover:bg-slate-900 hover:text-white transition cursor-pointer active:scale-95"
+                          title="Zoom Out (-)"
+                        >
+                          <Icon className="text-[15px]">remove</Icon>
+                        </button>
+                      </div>
+
+                      {/* Bottom Overlay Info (Auto-hides on idle) */}
+                      <div
+                        className={`absolute bottom-2 inset-x-2 z-20 rounded-lg bg-white p-2 shadow-md border border-slate-200 flex items-center justify-between pointer-events-auto transition-opacity duration-300 ${
+                          showControls ? 'opacity-100' : 'opacity-0 pointer-events-none'
+                        }`}
+                      >
+                        <div className="min-w-0 flex-1 pr-2">
+                          <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400 block mb-0.5">Drone Location</span>
+                          <p className="text-[11px] font-bold text-slate-900 truncate" title={droneLocationName}>
+                            {droneLocationName}
+                          </p>
+                        </div>
+                        <span className="text-[10px] font-semibold text-slate-500 data-font">{telemetry.satellites} Sats</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Floating Video Control Bar (Auto-hides on idle) */}
+                  {cameraStatus === 'connected' && (
+                    <div
+                      className={`absolute bottom-3 inset-x-3 z-30 flex items-center justify-between transition-all duration-300 ${
+                        showControls ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2 pointer-events-none'
+                      }`}
+                    >
+                      {/* Left Controls: Stop Camera, AI Detect, Camera Selector */}
+                      <div className="flex items-center gap-2 pointer-events-auto bg-slate-900 border border-slate-800 rounded-lg p-1.5 shadow-lg">
+                        {/* Stop Camera Button */}
+                        <button
+                          type="button"
+                          onClick={toggleCamera}
+                          className="flex items-center gap-1.5 rounded-md bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 text-xs font-bold transition shrink-0 cursor-pointer shadow-xs"
+                          title="Disconnect Camera Stream"
+                        >
+                          <Icon className="text-[14px]">videocam_off</Icon>
+                          <span>Disconnect</span>
+                        </button>
+
+                        {/* AI Detection Toggle Button */}
+                        <button
+                          type="button"
+                          onClick={() => setAiActive((v) => !v)}
+                          className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-bold transition shrink-0 cursor-pointer ${
+                            aiActive
+                              ? 'bg-emerald-600 text-white shadow-xs'
+                              : 'bg-slate-800 text-slate-300 border border-slate-700 hover:bg-slate-700 hover:text-white'
+                          }`}
+                        >
+                          <Icon className="text-[14px]">center_focus_strong</Icon>
+                          <span>AI Detect {aiActive ? `(${detections.length})` : 'Off'}</span>
+                        </button>
+
+                        {/* Camera Switcher Selector */}
+                        <div className="flex items-center gap-1.5 bg-slate-800 border border-slate-700 rounded-md px-2.5 py-1 text-xs font-medium text-slate-200">
+                          <select
+                            value={selectedDeviceId}
+                            onChange={(e) => selectCamera(e.target.value)}
+                            className="bg-slate-800 text-xs font-semibold text-white focus:outline-none cursor-pointer max-w-[160px] sm:max-w-[220px] truncate"
+                          >
+                            {devices.length > 0 ? (
+                              devices.map((dev, idx) => (
+                                <option key={dev.deviceId || idx} value={dev.deviceId} className="bg-slate-900 text-white">
+                                  {dev.label}
+                                </option>
+                              ))
+                            ) : (
+                              <option value="" className="bg-slate-900 text-white">
+                                {activeCameraSpecs?.label || 'Hardware Camera Detected'}
+                              </option>
+                            )}
+                          </select>
+                          <button
+                            type="button"
+                            onClick={() => scanDevices(true)}
+                            className="text-slate-400 hover:text-white transition cursor-pointer"
+                            title="Rescan camera devices"
+                          >
+                            <Icon className="text-[13px]">refresh</Icon>
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Right Controls: Resolution Specs, Fullscreen Map Toggle & Fullscreen */}
+                      <div className="flex items-center gap-2 pointer-events-auto bg-slate-900 border border-slate-800 rounded-lg p-1.5 shadow-lg">
+                        {activeCameraSpecs && (
+                          <div className="text-[11px] text-slate-300 font-medium font-mono hidden sm:block px-1.5">
+                            {activeCameraSpecs.width}x{activeCameraSpecs.height} @ {Math.round(activeCameraSpecs.frameRate)}fps
+                          </div>
+                        )}
+
+                        {/* Toggle Fullscreen Mini-Map Button */}
+                        {isFullscreen && (
+                          <button
+                            type="button"
+                            onClick={() => setShowFullscreenMap((v) => !v)}
+                            className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-bold transition shrink-0 cursor-pointer ${
+                              showFullscreenMap
+                                ? 'bg-slate-800 text-slate-300 border border-slate-700 hover:bg-slate-700 hover:text-white'
+                                : 'bg-emerald-600 text-white shadow-xs'
+                            }`}
+                            title={showFullscreenMap ? 'Hide Mini Map' : 'Show Mini Map'}
+                          >
+                            <Icon className="text-[14px]">map</Icon>
+                            <span>{showFullscreenMap ? 'Hide Map' : 'Show Map'}</span>
+                          </button>
+                        )}
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (!videoPanelRef.current) return
+                            if (!document.fullscreenElement) {
+                              videoPanelRef.current.requestFullscreen().catch((err) => console.warn(err))
+                            } else {
+                              document.exitFullscreen().catch((err) => console.warn(err))
+                            }
+                          }}
+                          className="flex items-center gap-1.5 rounded-md bg-slate-800 hover:bg-slate-700 border border-slate-700 px-3 py-1.5 text-xs font-bold text-slate-200 hover:text-white transition cursor-pointer"
+                          title="Toggle Fullscreen"
+                        >
+                          <Icon className="text-[15px]">fullscreen</Icon>
+                          <span className="hidden sm:inline">Fullscreen</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Camera Offline / Selection Standby View */}
                   {cameraStatus !== 'connected' && (
-                    <div className="relative flex h-full w-full items-center justify-center bg-[#f8fafc] border border-slate-200/80 rounded-2xl overflow-hidden">
-                      {/* Subtle 4-Corner Viewfinder Framing Brackets */}
+                    <div className="relative flex h-full w-full flex-col items-center justify-center bg-[#f8fafc] border border-slate-200/80 rounded-2xl p-6 overflow-hidden">
+                      {/* Corner Framing Brackets */}
                       <div className="pointer-events-none absolute inset-4 sm:inset-6 flex flex-col justify-between">
                         <div className="flex justify-between">
                           <div className="h-5 w-5 border-t-2 border-l-2 border-slate-300" />
@@ -235,191 +778,142 @@ export default function MissionOverview({ onNavigate, telemetry }) {
                         </div>
                       </div>
 
-                      {/* Top Viewport Header */}
+                      {/* Top Header */}
                       <div className="absolute top-4 inset-x-6 flex items-center justify-between text-[11px] font-semibold text-slate-500 data-font pointer-events-none">
                         <span className="text-slate-700 tracking-wider font-bold">DRONE CAMERA FEED</span>
                         <span className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">
-                          OPTICAL SENSOR STANDBY
+                          REAL HARDWARE INPUT ONLY
                         </span>
                       </div>
 
-                      {/* Prominent Center Action Button */}
-                      <div className="relative z-10 flex flex-col items-center">
-                        <button
-                          onClick={toggleCamera}
-                          className="flex items-center gap-2.5 rounded-xl bg-slate-900 px-6 py-3 text-xs sm:text-sm font-bold text-white shadow-md hover:bg-slate-800 active:scale-95 transition"
-                        >
-                          <Icon className="text-[20px] text-white">videocam</Icon>
-                          <span>Start Live Camera</span>
-                        </button>
+                      {/* Hardware Device Selection Box */}
+                      <div className="relative z-10 flex flex-col items-center max-w-xs sm:max-w-[340px] w-full text-center bg-white/95 backdrop-blur-md p-5 sm:p-6 rounded-2xl border border-slate-200 shadow-md">
+                        {/* Camera Icon without background box */}
+                        <Icon className="text-[40px] text-slate-800 mb-2">videocam</Icon>
+
+                        <h3 className="text-sm font-extrabold text-slate-900">Hardware Camera Detected</h3>
+                        <p className="text-xs text-slate-500 mt-1 mb-4">
+                          {permissionState === 'denied'
+                            ? 'Camera access denied. Please grant permission in your browser.'
+                            : devices.length > 0
+                            ? `Detected ${devices.length} physical camera devices on your system.`
+                            : 'Click the button below to scan & permit camera devices.'}
+                        </p>
+
+                        {/* Custom White Camera Dropdown Selector */}
+                        {devices.length > 0 && (
+                          <div className="w-full mb-4 text-left relative">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                              Select Physical Camera:
+                            </label>
+                            
+                            {/* Trigger Button */}
+                            <div
+                              onClick={() => setIsCameraDropdownOpen((v) => !v)}
+                              className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 flex items-center justify-between text-xs font-semibold text-slate-800 shadow-sm cursor-pointer hover:border-slate-400 transition"
+                            >
+                              <div className="flex items-center gap-2 min-w-0 pr-2">
+                                <Icon className="text-[18px] text-slate-600 shrink-0">videocam</Icon>
+                                <span className="truncate">
+                                  {devices.find((d) => d.deviceId === selectedDeviceId)?.label || 'Select Camera Device'}
+                                </span>
+                              </div>
+                              <Icon className={`text-[18px] text-slate-400 shrink-0 transition-transform ${isCameraDropdownOpen ? 'rotate-180' : ''}`}>
+                                expand_more
+                              </Icon>
+                            </div>
+
+                            {/* Dropdown Options Popover */}
+                            {isCameraDropdownOpen && (
+                              <div className="absolute top-full inset-x-0 mt-1 z-50 bg-white rounded-xl border border-slate-200 shadow-lg py-1 max-h-48 overflow-y-auto">
+                                {devices.map((dev, idx) => (
+                                  <div
+                                    key={dev.deviceId || idx}
+                                    onClick={() => {
+                                      selectCamera(dev.deviceId)
+                                      setIsCameraDropdownOpen(false)
+                                    }}
+                                    className={`flex items-center gap-2 px-3.5 py-2 text-xs font-semibold cursor-pointer transition ${
+                                      dev.deviceId === selectedDeviceId
+                                        ? 'bg-slate-100 text-slate-900 font-bold'
+                                        : 'text-slate-700 hover:bg-slate-50'
+                                    }`}
+                                  >
+                                    <Icon className="text-[16px] text-slate-500 shrink-0">videocam</Icon>
+                                    <span className="truncate">{dev.label}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Control Buttons */}
+                        <div className="flex items-center justify-center gap-2 w-full">
+                          <button
+                            onClick={toggleCamera}
+                            className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-xs font-bold text-white shadow-md hover:bg-slate-800 transition cursor-pointer"
+                          >
+                            <span>Connect Camera</span>
+                          </button>
+
+                          <button
+                            onClick={() => scanDevices(true)}
+                            className="flex items-center justify-center h-9 w-9 rounded-xl border border-slate-300 bg-slate-100 hover:bg-slate-200 text-slate-700 transition cursor-pointer shrink-0"
+                            title="Rescan hardware devices"
+                          >
+                            <Icon className="text-[18px]">refresh</Icon>
+                          </button>
+                        </div>
+
+                        {cameraError && (
+                          <p className="text-[11px] font-semibold text-red-600 mt-3">{cameraError}</p>
+                        )}
                       </div>
 
-                      {/* Bottom Viewport Info */}
+                      {/* Bottom Info */}
                       <div className="absolute bottom-4 inset-x-6 flex items-center justify-between text-[11px] font-semibold text-slate-400 data-font pointer-events-none">
-                        <span>1080P 60FPS HD</span>
-                        <span>16:9 VIEWPORT</span>
+                        <span>{activeCameraSpecs ? `${activeCameraSpecs.width}x${activeCameraSpecs.height}` : 'HD CAMERA'}</span>
+                        <span>STATUS: {cameraStatus.toUpperCase()}</span>
                       </div>
                     </div>
                   )}
-
-                  {/* Top-Right Pill (Active only when camera connected) */}
-                  {cameraStatus === 'connected' && (
-                    <div className="absolute top-3 right-3 z-30 flex items-center gap-2">
-                      <div className="flex items-center gap-1.5 rounded-xl bg-black/50 backdrop-blur-md px-3 py-1.5 text-xs font-semibold text-white shadow-md border border-white/10">
-                        <span className="data-font tracking-wider font-bold">REC {formatTimer(recordingSeconds)}</span>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Bottom Quick Control Bar (Active only when camera connected) */}
-                  {cameraStatus === 'connected' && (
-                    <div className="absolute bottom-3 inset-x-3 z-30 flex items-center justify-between rounded-xl bg-black/50 backdrop-blur-md px-3.5 py-2 text-white border border-white/10 shadow-lg">
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={toggleCamera}
-                          className="flex items-center gap-1.5 rounded-lg bg-red-500/90 hover:bg-red-600 px-3 py-1.5 text-xs font-bold text-white transition shadow-sm"
-                          title="Stop Live Camera Stream"
-                        >
-                          <Icon className="text-[16px]">videocam_off</Icon>
-                          <span>Stop Camera</span>
-                        </button>
-
-                        <button
-                          onClick={() => setAiActive((v) => !v)}
-                          className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
-                            aiActive
-                              ? 'bg-emerald-500 text-white shadow-sm'
-                              : 'bg-white/20 text-white hover:bg-white/30'
-                          }`}
-                          title="Toggle AI Object Detection"
-                        >
-                          <Icon className="text-[16px]">psychology</Icon>
-                          <span>AI Detect {aiActive ? `(${detections.length})` : 'Off'}</span>
-                        </button>
-                      </div>
-
-                      <div className="flex items-center gap-3 text-xs text-white/80">
-                        <span className="hidden sm:inline data-font text-[11px]">LIVE 1080P · COCO-SSD</span>
-                        <button
-                          onClick={() => {
-                            if (document.fullscreenElement) {
-                              document.exitFullscreen()
-                            } else {
-                              videoPanelRef.current?.requestFullscreen()
-                            }
-                          }}
-                          className="rounded-lg p-1.5 hover:bg-white/20 text-white transition"
-                          title="Toggle Fullscreen"
-                        >
-                          <Icon className="text-[18px]">fullscreen</Icon>
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
               </div>
             </div>
+          </div>
 
-            {/* TOP-RIGHT: Elegant Weather Card (col-span-12 lg:col-span-3) */}
+          {/* TOP-RIGHT: Weather Card */}
             <div className="col-span-12 lg:col-span-3 h-full min-h-0 flex flex-col">
               <div className="bento-card flex flex-1 h-full min-h-0 flex-col justify-between p-3.5 sm:p-4 gap-2 rounded-2xl">
-                
-                {/* Header Titles */}
                 <div className="flex items-center justify-between pb-1.5 border-b border-slate-100 shrink-0">
-                  <span className="text-xs font-bold text-slate-600 tracking-wider uppercase">
-                    TODAY'S WEATHER
-                  </span>
-                  <span className="text-xs font-bold text-slate-400 data-font">
-                    {weather.sector}
-                  </span>
+                  <span className="text-xs font-bold text-slate-600 tracking-wider uppercase">TODAY&apos;S WEATHER</span>
+                  <button
+                    type="button"
+                    onClick={() => setShowLocationModal(true)}
+                    className="group inline-flex items-center justify-end max-w-[170px] transition cursor-pointer text-right"
+                    title="Click to change location"
+                  >
+                    <span className="text-xs font-bold text-slate-700 group-hover:text-slate-950 truncate border-b border-slate-700 group-hover:border-slate-950 pb-[1px]">
+                      {weather.locationName}
+                    </span>
+                  </button>
                 </div>
 
-                {/* HERO: Large Dynamic Weather Graphic + Temperature Display */}
                 <div className="flex flex-col items-center justify-center text-center my-auto py-1">
-                  {/* Dynamic Weather SVG Graphic */}
                   <div className="relative mb-1 flex items-center justify-center">
-                    {weather.weatherType === 'clear' && (
-                      <svg className="w-32 h-26 sm:w-36 sm:h-28 drop-shadow-md transition-transform hover:scale-105 duration-300" viewBox="0 0 120 100" fill="none">
-                        <circle cx="60" cy="50" r="24" fill="url(#sunOnlyGrad)" />
-                        <circle cx="60" cy="50" r="32" stroke="#fbbf24" strokeWidth="2" strokeDasharray="3 6" opacity="0.8" />
-                        <defs>
-                          <linearGradient id="sunOnlyGrad" x1="36" y1="26" x2="84" y2="74" gradientUnits="userSpaceOnUse">
-                            <stop stopColor="#fde047" />
-                            <stop offset="0.6" stopColor="#f59e0b" />
-                            <stop offset="1" stopColor="#ea580c" />
-                          </linearGradient>
-                        </defs>
-                      </svg>
-                    )}
-
-                    {weather.weatherType === 'rain' && (
-                      <svg className="w-32 h-26 sm:w-36 sm:h-28 drop-shadow-md transition-transform hover:scale-105 duration-300" viewBox="0 0 120 100" fill="none">
-                        <g filter="url(#rainCloudShadow)">
-                          <path
-                            d="M32 58C24.268 58 18 51.732 18 44C18 36.8412 23.364 31.0068 30.3478 30.1167C32.1465 17.8159 42.6644 8 55.5 8C67.0988 8 76.8837 16.0152 79.5936 26.7513C81.3323 26.2586 83.1818 26 85.0909 26C93.8772 26 101 33.1634 101 42C101 50.8366 93.8772 58 85.0909 58H32Z"
-                            fill="url(#rainCloudGrad)"
-                          />
-                        </g>
-                        {/* Raindrops */}
-                        <line x1="38" y1="66" x2="32" y2="80" stroke="#38bdf8" strokeWidth="3" strokeLinecap="round" />
-                        <line x1="56" y1="66" x2="50" y2="80" stroke="#38bdf8" strokeWidth="3" strokeLinecap="round" />
-                        <line x1="74" y1="66" x2="68" y2="80" stroke="#38bdf8" strokeWidth="3" strokeLinecap="round" />
-                        <line x1="90" y1="66" x2="84" y2="80" stroke="#38bdf8" strokeWidth="3" strokeLinecap="round" />
-                        <defs>
-                          <linearGradient id="rainCloudGrad" x1="18" y1="8" x2="101" y2="58" gradientUnits="userSpaceOnUse">
-                            <stop stopColor="#94a3b8" />
-                            <stop offset="0.7" stopColor="#64748b" />
-                            <stop offset="1" stopColor="#475569" />
-                          </linearGradient>
-                          <filter id="rainCloudShadow" x="12" y="6" width="95" height="56" filterUnits="userSpaceOnUse" colorInterpolationFilters="sRGB">
-                            <feDropShadow dx="0" dy="3" stdDeviation="2" floodColor="#334155" floodOpacity="0.2" />
-                          </filter>
-                        </defs>
-                      </svg>
-                    )}
-
-                    {weather.weatherType === 'thunderstorm' && (
-                      <svg className="w-32 h-26 sm:w-36 sm:h-28 drop-shadow-md transition-transform hover:scale-105 duration-300" viewBox="0 0 120 100" fill="none">
-                        <path
-                          d="M32 54C24.268 54 18 47.732 18 40C18 32.8412 23.364 27.0068 30.3478 26.1167C32.1465 13.8159 42.6644 4 55.5 4C67.0988 4 76.8837 12.0152 79.5936 22.7513C81.3323 22.2586 83.1818 22 85.0909 22C93.8772 22 101 29.1634 101 38C101 46.8366 93.8772 54 85.0909 54H32Z"
-                          fill="#334155"
-                        />
-                        <polygon points="58,52 46,68 56,68 50,84 70,64 60,64 66,52" fill="#fbbf24" stroke="#f59e0b" strokeWidth="1" />
-                      </svg>
-                    )}
-
-                    {(weather.weatherType !== 'clear' && weather.weatherType !== 'rain' && weather.weatherType !== 'thunderstorm') && (
-                      <svg className="w-32 h-26 sm:w-36 sm:h-28 drop-shadow-md transition-transform hover:scale-105 duration-300" viewBox="0 0 120 100" fill="none">
-                        <circle cx="78" cy="40" r="22" fill="url(#sunGradient)" />
-                        <circle cx="78" cy="40" r="26" stroke="#fbbf24" strokeWidth="2" strokeDasharray="3 6" opacity="0.6" />
-                        
-                        <g filter="url(#cloudShadow)">
-                          <path
-                            d="M32 72C24.268 72 18 65.732 18 58C18 50.8412 23.364 45.0068 30.3478 44.1167C32.1465 31.8159 42.6644 22 55.5 22C67.0988 22 76.8837 30.0152 79.5936 40.7513C81.3323 40.2586 83.1818 40 85.0909 40C93.8772 40 101 47.1634 101 56C101 64.8366 93.8772 72 85.0909 72H32Z"
-                            fill="url(#cloudGradient)"
-                          />
-                        </g>
-
-                        <defs>
-                          <linearGradient id="sunGradient" x1="56" y1="18" x2="100" y2="62" gradientUnits="userSpaceOnUse">
-                            <stop stopColor="#fde047" />
-                            <stop offset="0.6" stopColor="#f59e0b" />
-                            <stop offset="1" stopColor="#ea580c" />
-                          </linearGradient>
-                          <linearGradient id="cloudGradient" x1="18" y1="22" x2="101" y2="72" gradientUnits="userSpaceOnUse">
-                            <stop stopColor="#ffffff" />
-                            <stop offset="0.7" stopColor="#f0f9ff" />
-                            <stop offset="1" stopColor="#bae6fd" />
-                          </linearGradient>
-                          <filter id="cloudShadow" x="12" y="18" width="95" height="60" filterUnits="userSpaceOnUse" colorInterpolationFilters="sRGB">
-                            <feDropShadow dx="0" dy="3" stdDeviation="2" floodColor="#0284c7" floodOpacity="0.15" />
-                          </filter>
-                        </defs>
-                      </svg>
-                    )}
+                    <svg className="w-32 h-26 sm:w-36 sm:h-28 drop-shadow-md" viewBox="0 0 120 100" fill="none">
+                      <circle cx="60" cy="50" r="24" fill="url(#sunOnlyGrad)" />
+                      <circle cx="60" cy="50" r="32" stroke="#fbbf24" strokeWidth="2" strokeDasharray="3 6" opacity="0.8" />
+                      <defs>
+                        <linearGradient id="sunOnlyGrad" x1="36" y1="26" x2="84" y2="74" gradientUnits="userSpaceOnUse">
+                          <stop stopColor="#fde047" />
+                          <stop offset="0.6" stopColor="#f59e0b" />
+                          <stop offset="1" stopColor="#ea580c" />
+                        </linearGradient>
+                      </defs>
+                    </svg>
                   </div>
 
-                  {/* Temperature and Condition */}
                   <div className="flex items-baseline justify-center gap-1">
                     <span className="data-font text-5xl sm:text-6xl font-black text-slate-900 tracking-tight leading-none">
                       {weather.temperature}
@@ -427,15 +921,9 @@ export default function MissionOverview({ onNavigate, telemetry }) {
                     <span className="text-2xl font-bold text-slate-400">°C</span>
                   </div>
                   <p className="mt-1 text-sm sm:text-base font-extrabold text-slate-800">{weather.condition}</p>
-                  <p className="text-xs text-slate-500 font-medium mt-0.5">
-                    Precipitation {weather.precipitation}% · Humidity {weather.humidity}%
-                  </p>
                 </div>
 
-                {/* BOTTOM SECTION: Wind Speed & Drone Location */}
                 <div className="flex flex-col gap-1.5 pt-1.5 border-t border-slate-100 shrink-0">
-                  
-                  {/* Row 1: Wind Speed */}
                   <div className="bento-subcard p-2 sm:p-2.5 flex items-center justify-between">
                     <div className="flex items-center gap-2.5">
                       <Icon className="text-[18px] text-slate-500 shrink-0">air</Icon>
@@ -445,7 +933,6 @@ export default function MissionOverview({ onNavigate, telemetry }) {
                         </span>
                         <div className="flex items-baseline gap-1.5 mt-0.5">
                           <span className="data-font text-xs sm:text-sm font-bold text-slate-900">{weather.windSpeed} m/s</span>
-                          <span className="text-[10px] text-slate-400 font-medium">({weather.windSpeedKmH} km/h)</span>
                         </div>
                       </div>
                     </div>
@@ -455,251 +942,227 @@ export default function MissionOverview({ onNavigate, telemetry }) {
                       <span>{weather.windDirection}° {weather.windCardinal}</span>
                     </div>
                   </div>
-
-                  {/* Row 2: Drone Location */}
-                  <div className="bento-subcard p-2 sm:p-2.5 flex items-center justify-between">
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <Icon className="text-[18px] text-slate-500 shrink-0">location_on</Icon>
-                      <div className="min-w-0">
-                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block leading-none">
-                          DRONE LOCATION
-                        </span>
-                        <p className="text-xs sm:text-sm font-bold text-slate-900 truncate mt-0.5" title={weather.locationName}>
-                          {weather.locationName}
-                        </p>
-                        <p className="data-font text-[10px] text-slate-400 truncate" title={weather.dmsLocation}>
-                          {weather.dmsLocation}
-                        </p>
-                      </div>
-                    </div>
-
-                    <span className="shrink-0 text-[11px] font-bold text-slate-500 data-font">
-                      {weather.satellites} Sats
-                    </span>
-                  </div>
-
                 </div>
-
               </div>
             </div>
-
           </div>
 
-          {/* BOTTOM ROW: Compact & Clean (Map Col 3 + Telemetry Col 6 + Compass Col 3) */}
+          {/* BOTTOM ROW: Compact & Clean (Map Col 3 + Telemetry Console Col 6 + Heading Col 3) */}
           <div className="grid grid-cols-12 gap-3 lg:gap-3.5 h-full min-h-0">
-            
-            {/* BOTTOM-LEFT: Mini Map Card (col-span-12 md:col-span-4 lg:col-span-3) */}
+            {/* BOTTOM-LEFT: Mini Map Card */}
             <div className="col-span-12 md:col-span-4 lg:col-span-3 h-full min-h-0 flex flex-col">
               <div
-                onClick={() => onNavigate('map')}
-                className="bento-card relative flex flex-1 h-full min-h-0 flex-col overflow-hidden rounded-2xl cursor-pointer group hover:border-slate-300 transition"
-                title="Click to open Full Map & Flight Controls"
+                className="bento-card relative flex flex-1 h-full min-h-0 flex-col overflow-hidden rounded-2xl group transition"
               >
-                {/* Embedded Leaflet Map Container */}
                 <div ref={mapRef} className="absolute inset-0 z-0 h-full w-full" />
                 
-                {/* Top-Right Quick Expand Icon */}
-                <div className="absolute top-2.5 right-2.5 z-20 flex h-7 w-7 items-center justify-center rounded-lg bg-white/95 text-slate-700 shadow-sm backdrop-blur-md transition group-hover:bg-white group-hover:scale-105 border border-slate-200/80">
-                  <Icon className="text-[16px] text-slate-600">open_in_new</Icon>
+                {/* Top Controls Overlay: Clean Map Style Selector & Expand Button */}
+                <div className="absolute top-2.5 inset-x-2.5 z-20 flex items-center justify-between pointer-events-none">
+                  {/* Clean Style Selector (Solid White) */}
+                  <div className="pointer-events-auto flex items-center gap-0.5 rounded-lg bg-white p-1 shadow-md border border-slate-200">
+                    <button
+                      type="button"
+                      onClick={() => onMapStyleChange?.('standard')}
+                      className={`rounded-md px-2 py-1 text-[11px] font-bold transition cursor-pointer ${
+                        mapStyle === 'standard'
+                          ? 'bg-slate-900 text-white shadow-xs'
+                          : 'text-slate-700 hover:bg-slate-100'
+                      }`}
+                      title="Standard Street Map (OSM)"
+                    >
+                      Standard
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onMapStyleChange?.('satellite')}
+                      className={`rounded-md px-2 py-1 text-[11px] font-bold transition cursor-pointer ${
+                        mapStyle === 'satellite'
+                          ? 'bg-slate-900 text-white shadow-xs'
+                          : 'text-slate-700 hover:bg-slate-100'
+                      }`}
+                      title="Satellite Map"
+                    >
+                      Satellite
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onMapStyleChange?.('terrain')}
+                      className={`rounded-md px-2 py-1 text-[11px] font-bold transition cursor-pointer ${
+                        mapStyle === 'terrain'
+                          ? 'bg-slate-900 text-white shadow-xs'
+                          : 'text-slate-700 hover:bg-slate-100'
+                      }`}
+                      title="Topographic Map"
+                    >
+                      Terrain
+                    </button>
+                  </div>
+
+                  {/* Top-Right Quick Expand Button (Navigates to full map) */}
+                  <button
+                    type="button"
+                    onClick={() => onNavigate('map')}
+                    className="pointer-events-auto flex h-7 w-7 items-center justify-center rounded-lg bg-white text-slate-700 shadow-md hover:bg-slate-900 hover:text-white transition border border-slate-200 cursor-pointer"
+                    title="Open Full Map"
+                  >
+                    <Icon className="text-[16px]">open_in_new</Icon>
+                  </button>
                 </div>
 
-                {/* Floating Bottom Frosted Glass Location Card */}
-                <div className="absolute bottom-2.5 inset-x-2.5 z-20 rounded-xl bg-white/95 backdrop-blur-md p-2.5 shadow-[0_4px_14px_rgba(0,0,0,0.06)] border border-slate-200/80 flex items-center justify-between transition group-hover:border-slate-300">
+                {/* Dashboard Mini-Map Zoom In / Zoom Out Controls */}
+                <div className="pointer-events-auto absolute right-2.5 top-12 z-20 flex flex-col rounded-lg bg-white shadow-md border border-slate-200 overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => leafletRef.current?.zoomIn()}
+                    className="flex items-center justify-center w-7 h-7 text-slate-700 hover:bg-slate-900 hover:text-white border-b border-slate-200 transition cursor-pointer active:scale-95"
+                    title="Zoom In (+)"
+                  >
+                    <Icon className="text-[16px]">add</Icon>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => leafletRef.current?.zoomOut()}
+                    className="flex items-center justify-center w-7 h-7 text-slate-700 hover:bg-slate-900 hover:text-white transition cursor-pointer active:scale-95"
+                    title="Zoom Out (-)"
+                  >
+                    <Icon className="text-[16px]">remove</Icon>
+                  </button>
+                </div>
+
+                <div className="absolute bottom-2.5 inset-x-2.5 z-20 rounded-lg bg-white p-2.5 shadow-md border border-slate-200 flex items-center justify-between">
                   <div className="min-w-0 flex-1 pr-2">
                     <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400 block mb-0.5">Drone Location</span>
-                    <p className="text-xs font-bold text-slate-900 truncate" title={weather.locationName}>
-                      {weather.locationName}
+                    <p className="text-xs font-bold text-slate-900 truncate" title={droneLocationName}>
+                      {droneLocationName}
                     </p>
                   </div>
-                  <div className="flex items-center gap-1 text-[11px] font-semibold text-slate-500 data-font">
-                    <Icon className="text-[14px] text-slate-400">satellite_alt</Icon>
-                    <span>{weather.satellites || 18} sats</span>
-                  </div>
+                  <span className="text-[11px] font-semibold text-slate-500 data-font">{telemetry.satellites} Sats</span>
                 </div>
               </div>
             </div>
 
-            {/* BOTTOM-CENTER: Flight Dynamics & Telemetry Console (col-span-12 md:col-span-8 lg:col-span-6) */}
+            {/* BOTTOM-CENTER: Flight Dynamics & MAVLink Telemetry Console */}
             <div className="col-span-12 md:col-span-8 lg:col-span-6 h-full min-h-0 flex flex-col">
               <div className="bento-card flex flex-1 h-full min-h-0 flex-col justify-between p-3.5 sm:p-4 gap-2.5 rounded-2xl">
-                
-                {/* Top Row: Battery Status & Radio Signal Link */}
+                {/* Top Header: Battery + MAVLink Mode & Heartbeat */}
                 <div className="flex items-center justify-between gap-3 pb-2 border-b border-slate-100 shrink-0">
-                  {/* Battery Widget */}
+                  {/* Horizontal Battery Gauge */}
                   <div className="flex items-center gap-2.5">
                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">BATTERY</span>
-                    <div className="flex items-center gap-1.5">
-                      <div className="flex items-center gap-1 text-xs font-bold text-slate-900 data-font">
-                        <Icon className="text-[17px] text-emerald-600">battery_5_bar</Icon>
-                        <span>{telemetry.battery}%</span>
-                      </div>
-                      <span className="data-font text-xs font-medium text-slate-400">
-                        ({Math.round(4563 * telemetry.battery / 100)} / 4563 mAh)
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Signal Link Widget */}
-                  <div className="flex items-center gap-2.5">
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">SIGNAL</span>
-                    <div className="flex items-center gap-1.5">
-                      <div className="flex items-center gap-1 text-xs font-bold text-slate-900 data-font">
-                        <Icon className="text-[17px] text-slate-700">signal_cellular_alt</Icon>
-                        <span>{telemetry.signal}%</span>
-                      </div>
-                      <span className="text-[11px] font-medium text-slate-400 data-font">
-                        5.8 GHz
-                      </span>
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-slate-900 data-font">
+                      <svg className="w-5 h-3 text-emerald-600 shrink-0" viewBox="0 0 24 14" fill="currentColor">
+                        <rect x="1" y="1" width="19" height="12" rx="2" fill="none" stroke="currentColor" strokeWidth="2" />
+                        <rect x="3" y="3" width={Math.max(2, (15 * (telemetry.battery || 74)) / 100)} height="8" rx="1" fill="currentColor" />
+                        <path d="M21 4.5V9.5C21.8 9.5 22.5 8.8 22.5 8V6C22.5 5.2 21.8 4.5 21 4.5Z" fill="currentColor" />
+                      </svg>
+                      <span>{telemetry.battery}%</span>
+                      <span className="text-[11px] text-slate-400 font-medium">({telemetry.voltage}V)</span>
                     </div>
                   </div>
                 </div>
 
-                {/* 4 Telemetry Metrics Bento Subcards (2x2 Grid) */}
+                {/* 4 Telemetry Metrics Grid */}
                 <div className="grid grid-cols-2 gap-2.5 flex-1 min-h-0 items-stretch">
-                  
                   {/* Metric 1: Altitude */}
                   <div className="bento-subcard p-2.5 sm:p-3 flex flex-col justify-between">
                     <div className="flex items-center justify-between">
-                      <span className="text-[9px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                        ALTITUDE (AGL)
-                      </span>
+                      <span className="text-[9px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-wider">ALTITUDE</span>
                       <Icon className="text-[18px] text-slate-400">height</Icon>
                     </div>
                     <div className="flex items-baseline gap-1 my-0.5">
-                      <span className="data-font text-2xl sm:text-3xl font-black text-slate-900 leading-none">
-                        {telemetry.altitude}
-                      </span>
+                      <span className="data-font text-2xl sm:text-3xl font-black text-slate-900 leading-none">{telemetry.altitude}</span>
                       <span className="text-xs sm:text-sm font-bold text-slate-400">m</span>
                     </div>
-                    <div className="flex items-center justify-between text-[10px] font-semibold text-slate-400 pt-1 border-t border-slate-100/80">
-                      <span>Max 150m</span>
-                      <span className="text-slate-600 font-medium">Stable Level</span>
+                    <div className="flex items-center justify-between text-[10px] font-semibold text-slate-400 pt-1 border-t border-slate-100">
+                      <span>MAVLink Global Position</span>
+                      <span className="text-slate-600 font-medium">Relative</span>
                     </div>
                   </div>
 
                   {/* Metric 2: Ground Speed */}
                   <div className="bento-subcard p-2.5 sm:p-3 flex flex-col justify-between">
                     <div className="flex items-center justify-between">
-                      <span className="text-[9px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                        GROUND SPEED
-                      </span>
+                      <span className="text-[9px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-wider">GROUND SPEED</span>
                       <Icon className="text-[18px] text-slate-400">speed</Icon>
                     </div>
                     <div className="flex items-baseline gap-1 my-0.5">
-                      <span className="data-font text-2xl sm:text-3xl font-black text-slate-900 leading-none">
-                        {telemetry.speed}
-                      </span>
+                      <span className="data-font text-2xl sm:text-3xl font-black text-slate-900 leading-none">{telemetry.speed}</span>
                       <span className="text-xs sm:text-sm font-bold text-slate-400">m/s</span>
                     </div>
-                    <div className="flex items-center justify-between text-[10px] font-semibold text-slate-400 pt-1 border-t border-slate-100/80">
+                    <div className="flex items-center justify-between text-[10px] font-semibold text-slate-400 pt-1 border-t border-slate-100">
                       <span className="data-font font-bold text-slate-700">{(telemetry.speed * 3.6).toFixed(1)} km/h</span>
-                      <span className="text-slate-600 font-medium">Cruise</span>
+                      <span className="text-slate-600 font-medium">VFR HUD</span>
                     </div>
                   </div>
 
-                  {/* Metric 3: GPS Coordinates */}
+                  {/* Metric 3: Attitude Pitch & Roll */}
                   <div className="bento-subcard p-2.5 sm:p-3 flex flex-col justify-between">
                     <div className="flex items-center justify-between">
-                      <span className="text-[9px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                        GPS POSITION
-                      </span>
-                      <Icon className="text-[18px] text-slate-400">near_me</Icon>
+                      <span className="text-[9px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-wider">ATTITUDE</span>
+                      <Icon className="text-[18px] text-slate-400">screen_rotation</Icon>
+                    </div>
+                    <div className="flex items-center justify-between my-0.5">
+                      <div className="text-center">
+                        <span className="text-[9px] font-bold text-slate-400 block">PITCH</span>
+                        <span className="data-font text-base sm:text-lg font-black text-slate-900">{telemetry.pitch}°</span>
+                      </div>
+                      <div className="h-6 w-px bg-slate-200" />
+                      <div className="text-center">
+                        <span className="text-[9px] font-bold text-slate-400 block">ROLL</span>
+                        <span className="data-font text-base sm:text-lg font-black text-slate-900">{telemetry.roll}°</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between text-[10px] font-semibold text-slate-400 pt-1 border-t border-slate-100">
+                      <span>MAVLink #30 ATTITUDE</span>
+                      <span className="text-slate-600 font-medium">3D Gyro</span>
+                    </div>
+                  </div>
+
+                  {/* Metric 4: GPS Coordinates */}
+                  <div className="bento-subcard p-2.5 sm:p-3 flex flex-col justify-between">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[9px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-wider">GPS FIX & SATS</span>
+                      <Icon className="text-[18px] text-slate-400">satellite_alt</Icon>
                     </div>
                     <div className="my-0.5">
                       <p className="data-font text-xs sm:text-sm font-black text-slate-900 truncate">
                         {telemetry.latitude.toFixed(5)}, {telemetry.longitude.toFixed(5)}
                       </p>
                     </div>
-                    <div className="flex items-center justify-between text-[10px] font-semibold text-slate-400 pt-1 border-t border-slate-100/80">
-                      <span>{weather.satellites || 18} Satellites</span>
-                      <span className="text-slate-600 font-medium">3D Fix (0.8m)</span>
+                    <div className="flex items-center justify-between text-[10px] font-semibold text-slate-400 pt-1 border-t border-slate-100">
+                      <span>{telemetry.satellites} Satellites</span>
+                      <span className="text-slate-600 font-medium">{telemetry.gpsFix}</span>
                     </div>
                   </div>
-
-                  {/* Metric 4: Flight Air Time */}
-                  <div className="bento-subcard p-2.5 sm:p-3 flex flex-col justify-between">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[9px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                        AIR TIME
-                      </span>
-                      <Icon className="text-[18px] text-slate-400">timer</Icon>
-                    </div>
-                    <div className="my-0.5">
-                      <p className="data-font text-2xl sm:text-3xl font-black text-slate-900 leading-none">
-                        {flightTimeFormatted()}
-                      </p>
-                    </div>
-                    <div className="flex items-center justify-between text-[10px] font-semibold text-slate-400 pt-1 border-t border-slate-100/80">
-                      <span>Mission Logged</span>
-                      <span className="text-slate-600 font-medium">Live Link</span>
-                    </div>
-                  </div>
-
                 </div>
-
               </div>
             </div>
 
-            {/* BOTTOM-RIGHT: Drone Heading & 3D Gyro Compass (col-span-12 md:col-span-12 lg:col-span-3) */}
+            {/* BOTTOM-RIGHT: Drone Heading */}
             <div className="col-span-12 md:col-span-12 lg:col-span-3 h-full min-h-0 flex flex-col">
               <div className="bento-card flex flex-1 h-full min-h-0 flex-col items-center justify-between p-3.5 sm:p-4 text-center gap-1 rounded-2xl">
-                
-                {/* Header: Title + Dynamic Degree Text */}
                 <div className="flex items-center justify-between w-full pb-1 border-b border-slate-100 shrink-0">
-                  <span className="text-[10px] sm:text-xs font-bold text-slate-600 uppercase tracking-wider">
-                    HEADING
-                  </span>
+                  <span className="text-[10px] sm:text-xs font-bold text-slate-600 uppercase tracking-wider">HEADING</span>
                   <span className="data-font text-xs font-bold text-slate-700">
                     {telemetry.heading}° {degreesToCardinal(telemetry.heading)}
                   </span>
                 </div>
 
-                {/* 360° Rotating Gyro Compass Dial */}
                 <div className="relative my-auto flex h-[105px] w-[105px] sm:h-[114px] sm:w-[114px] items-center justify-center">
-                  {/* Rotating Dial Ring */}
                   <div
                     className="absolute inset-0 transition-transform duration-700 ease-out"
                     style={{ transform: `rotate(${-telemetry.heading}deg)` }}
                   >
                     <svg className="h-full w-full" viewBox="0 0 140 140">
-                      {/* Outer Ring Circle */}
                       <circle cx="70" cy="70" r="64" stroke="#e2e8f0" strokeWidth="1.2" fill="none" />
                       <circle cx="70" cy="70" r="54" stroke="#f1f5f9" strokeWidth="1" fill="none" />
-
-                      {/* Cardinal Directions */}
-                      <text x="70" y="24" textAnchor="middle" fill="#ef4444" fontSize="13" fontWeight="900" fontFamily="JetBrains Mono">N</text>
-                      <text x="122" y="74" textAnchor="middle" fill="#334155" fontSize="11" fontWeight="800" fontFamily="JetBrains Mono">E</text>
-                      <text x="70" y="126" textAnchor="middle" fill="#334155" fontSize="11" fontWeight="800" fontFamily="JetBrains Mono">S</text>
-                      <text x="18" y="74" textAnchor="middle" fill="#334155" fontSize="11" fontWeight="800" fontFamily="JetBrains Mono">W</text>
-
-                      {/* Small Compass Radial Ticks */}
-                      {Array.from({ length: 24 }).map((_, i) => {
-                        const angle = i * 15
-                        const rad = (angle * Math.PI) / 180
-                        const isMain = angle % 90 === 0
-                        const isMid = angle % 45 === 0
-                        const r1 = 64
-                        const r2 = isMain ? 54 : isMid ? 57 : 60
-                        const x1 = 70 + r1 * Math.sin(rad)
-                        const y1 = 70 - r1 * Math.cos(rad)
-                        const x2 = 70 + r2 * Math.sin(rad)
-                        const y2 = 70 - r2 * Math.cos(rad)
-                        return (
-                          <line
-                            key={i}
-                            x1={x1}
-                            y1={y1}
-                            x2={x2}
-                            y2={y2}
-                            stroke={isMain ? (angle === 0 ? '#ef4444' : '#475569') : isMid ? '#64748b' : '#cbd5e1'}
-                            strokeWidth={isMain ? 2 : isMid ? 1.5 : 1}
-                          />
-                        )
-                      })}
+                      <text x="70" y="24" textAnchor="middle" fill="#ef4444" fontSize="13" fontWeight="900">N</text>
+                      <text x="122" y="74" textAnchor="middle" fill="#334155" fontSize="11" fontWeight="800">E</text>
+                      <text x="70" y="126" textAnchor="middle" fill="#334155" fontSize="11" fontWeight="800">S</text>
+                      <text x="18" y="74" textAnchor="middle" fill="#334155" fontSize="11" fontWeight="800">W</text>
                     </svg>
                   </div>
 
-                  {/* Fixed Center Pointer / Aircraft Needle */}
                   <div className="pointer-events-none z-10 flex items-center justify-center">
                     <svg className="h-9 w-9 text-slate-800 drop-shadow-sm" viewBox="0 0 24 24" fill="none">
                       <polygon points="12,2 18,20 12,16 6,20" fill="#0f172a" stroke="#ffffff" strokeWidth="1.2" />
@@ -707,23 +1170,274 @@ export default function MissionOverview({ onNavigate, telemetry }) {
                   </div>
                 </div>
 
-                {/* Bottom Coordinates & Gyro Status */}
                 <div className="w-full pt-1.5 border-t border-slate-100 flex flex-col items-center gap-0.5 shrink-0">
                   <p className="data-font text-[10px] sm:text-[11px] font-bold text-slate-700 truncate w-full" title={weather.dmsLocation}>
                     {weather.dmsLocation}
                   </p>
                   <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">
-                    GYRO STABILIZED · 3-AXIS
+                    MAVLINK HEADING COMPASS
                   </span>
                 </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
 
+      {/* MAVLink Connection Modal */}
+      {showMavlinkModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 backdrop-blur-xs p-4">
+          <div className="w-full max-w-lg rounded-xl bg-white shadow-xl border border-slate-200 overflow-hidden">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 bg-slate-50/50">
+              <div>
+                <h3 className="text-sm font-bold text-slate-900">MAVLink Telemetry Connection</h3>
+                <p className="text-xs text-slate-500 mt-0.5">Select connection method for hardware devices or flight simulator</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowMavlinkModal(false)}
+                className="rounded-lg p-1 text-slate-400 hover:bg-slate-200/60 hover:text-slate-700 transition cursor-pointer"
+              >
+                <Icon className="text-[18px]">close</Icon>
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-5 space-y-3">
+              {/* Option 1: Stream Telemetri Simulasi */}
+              <div className="flex items-center justify-between p-3.5 rounded-lg border border-slate-200 hover:border-slate-300 bg-slate-50/30 transition">
+                <div className="pr-3">
+                  <h4 className="text-xs font-bold text-slate-900">1. Simulated Telemetry Stream</h4>
+                  <p className="text-[11px] text-slate-500 mt-0.5">Real-time MAVLink v2 generator (Heartbeat, Gyro, GPS)</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    enableMavlinkSim?.()
+                    setShowMavlinkModal(false)
+                  }}
+                  className="shrink-0 rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-800 transition cursor-pointer"
+                >
+                  Use Stream
+                </button>
+              </div>
+
+              {/* Option 2: WebSerial API */}
+              <div className="flex items-center justify-between p-3.5 rounded-lg border border-slate-200 hover:border-slate-300 bg-slate-50/30 transition">
+                <div className="pr-3">
+                  <h4 className="text-xs font-bold text-slate-900">2. USB Serial / Pixhawk (WebSerial)</h4>
+                  <p className="text-[11px] text-slate-500 mt-0.5">Direct connection to SiK Telemetry Radio or Pixhawk USB cable</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    await connectSerial?.(57600)
+                    setShowMavlinkModal(false)
+                  }}
+                  className="shrink-0 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition cursor-pointer"
+                >
+                  Connect USB
+                </button>
+              </div>
+
+              {/* Option 3: WebSocket Server */}
+              <div className="p-3.5 rounded-lg border border-slate-200 hover:border-slate-300 bg-slate-50/30 transition space-y-2.5">
+                <div>
+                  <h4 className="text-xs font-bold text-slate-900">3. WebSocket MAVLink Server</h4>
+                  <p className="text-[11px] text-slate-500 mt-0.5">Connect to MAVLink WebSocket bridge (e.g. ws://localhost:8080)</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={wsUrlInput}
+                    onChange={(e) => setWsUrlInput(e.target.value)}
+                    className="flex-1 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-800 font-mono focus:outline-none focus:border-slate-500"
+                    placeholder="ws://localhost:8080"
+                  />
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      await connectWebSocket?.(wsUrlInput)
+                      setShowMavlinkModal(false)
+                    }}
+                    className="shrink-0 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition cursor-pointer"
+                  >
+                    Connect
+                  </button>
+                </div>
               </div>
             </div>
 
+            {/* Modal Footer */}
+            {connectionStatus === 'connected' && (
+              <div className="px-5 py-3 border-t border-slate-100 bg-slate-50/50 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => {
+                    disconnectMavlink?.()
+                    setShowMavlinkModal(false)
+                  }}
+                  className="rounded-lg bg-red-50 text-red-600 border border-red-200 px-3 py-1.5 text-xs font-semibold hover:bg-red-100 transition cursor-pointer"
+                >
+                  Disconnect
+                  </button>
+              </div>
+            )}
           </div>
-
         </div>
-      </div>
+      )}
+
+      {/* Weather Location Selector Modal */}
+      {showLocationModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4">
+          <div className="w-full max-w-md rounded-xl bg-white shadow-xl border border-slate-200 overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 bg-slate-50/50">
+              <div>
+                <h3 className="text-sm font-bold text-slate-900">Set Weather Location</h3>
+                <p className="text-xs text-slate-500 mt-0.5">Auto-detect GPS or search your exact city/area</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowLocationModal(false)}
+                className="rounded-lg p-1 text-slate-400 hover:bg-slate-200/60 hover:text-slate-700 transition cursor-pointer"
+              >
+                <Icon className="text-[18px]">close</Icon>
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4">
+              {/* Option 1: Laptop Device GPS (Dashboard Ground Station) */}
+              <div className="space-y-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    weather.syncWithDeviceGps?.()
+                    setShowLocationModal(false)
+                  }}
+                  className={`w-full flex items-center justify-between p-3 rounded-xl border transition text-left cursor-pointer ${
+                    weather.locationMode === 'device'
+                      ? 'bg-emerald-50/80 border-emerald-300 ring-2 ring-emerald-500/20'
+                      : 'bg-slate-50 border-slate-200 hover:bg-slate-100/80 hover:border-slate-300'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={`flex items-center justify-center w-8 h-8 rounded-lg ${
+                      weather.locationMode === 'device' ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-700'
+                    }`}>
+                      <Icon className="text-[18px]">laptop_mac</Icon>
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-slate-900">Dashboard Device GPS (Laptop)</span>
+                        {weather.locationMode === 'device' && (
+                          <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-emerald-600 text-white uppercase tracking-wider">Active</span>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-slate-500 mt-0.5">
+                        {weather.gpsAccuracy ? `High-accuracy Wi-Fi/GPS (±${weather.gpsAccuracy}m)` : 'Real-time ground station position'}
+                      </p>
+                    </div>
+                  </div>
+                  <Icon className={`text-[18px] ${weather.locationMode === 'device' ? 'text-emerald-600' : 'text-slate-400'}`}>
+                    {weather.locationMode === 'device' ? 'check_circle' : 'chevron_right'}
+                  </Icon>
+                </button>
+
+                {/* Option 2: Drone Live Coordinates Sync */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    weather.syncWithDroneGps?.(telemetry.latitude, telemetry.longitude)
+                    setShowLocationModal(false)
+                  }}
+                  className={`w-full flex items-center justify-between p-3 rounded-xl border transition text-left cursor-pointer ${
+                    weather.locationMode === 'drone'
+                      ? 'bg-sky-50/80 border-sky-300 ring-2 ring-sky-500/20'
+                      : 'bg-slate-50 border-slate-200 hover:bg-slate-100/80 hover:border-slate-300'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={`flex items-center justify-center w-8 h-8 rounded-lg ${
+                      weather.locationMode === 'drone' ? 'bg-sky-600 text-white' : 'bg-slate-200 text-slate-700'
+                    }`}>
+                      <Icon className="text-[18px]">near_me</Icon>
+                    </div>
+                    <div className="min-w-0 pr-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-slate-900">Sync with Drone Telemetry GPS</span>
+                        {weather.locationMode === 'drone' && (
+                          <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-sky-600 text-white uppercase tracking-wider">Active</span>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-slate-500 truncate mt-0.5">
+                        {telemetry.latitude.toFixed(4)}, {telemetry.longitude.toFixed(4)} • {droneLocationName}
+                      </p>
+                    </div>
+                  </div>
+                  <Icon className={`text-[18px] ${weather.locationMode === 'drone' ? 'text-sky-600' : 'text-slate-400'}`}>
+                    {weather.locationMode === 'drone' ? 'check_circle' : 'chevron_right'}
+                  </Icon>
+                </button>
+              </div>
+
+              {/* Search Box */}
+              <div>
+                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1.5">
+                  Search Location (City, District, Area):
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={locationQuery}
+                    onChange={(e) => handleSearchLocation(e.target.value)}
+                    placeholder="e.g. Yogyakarta, Sleman, Jakarta..."
+                    className="w-full rounded-lg border border-slate-300 bg-white pl-8 pr-3 py-2 text-xs text-slate-800 focus:outline-none focus:border-slate-500"
+                  />
+                  <Icon className="absolute left-2.5 top-2.5 text-[16px] text-slate-400 pointer-events-none">search</Icon>
+                </div>
+              </div>
+
+              {/* Search Results */}
+              {isSearching && (
+                <p className="text-xs text-slate-400 text-center py-2">Searching locations...</p>
+              )}
+
+              {searchResults.length > 0 && (
+                <div className="max-h-48 overflow-y-auto border border-slate-200 rounded-lg divide-y divide-slate-100">
+                  {searchResults.map((res) => (
+                    <button
+                      key={`${res.id || res.latitude}-${res.longitude}`}
+                      type="button"
+                      onClick={() => {
+                        const name = [res.name, res.admin1, res.country].filter(Boolean).slice(0, 2).join(', ')
+                        weather.setCustomLocation?.(name, res.latitude, res.longitude)
+                        setShowLocationModal(false)
+                      }}
+                      className="w-full text-left p-2.5 hover:bg-slate-50 transition flex items-center justify-between text-xs cursor-pointer"
+                    >
+                      <div className="min-w-0 pr-2">
+                        <p className="font-bold text-slate-900 truncate">{res.name}</p>
+                        <p className="text-[11px] text-slate-500 truncate">{[res.admin1, res.country].filter(Boolean).join(', ')}</p>
+                      </div>
+                      <span className="text-[10px] text-slate-400 font-mono shrink-0">
+                        {res.latitude.toFixed(2)}, {res.longitude.toFixed(2)}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* Empty Search Prompt */}
+              {!isSearching && searchResults.length === 0 && (
+                <p className="text-[11px] text-slate-400 text-center py-1">
+                  Type your city, district, or street above to search and select live coordinates.
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   )
 }

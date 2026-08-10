@@ -22,7 +22,7 @@ export default function Sidebar({ activePage, onNavigate }) {
   }
 
   return (
-    <aside className="fixed inset-y-0 left-0 z-50 flex w-[72px] flex-col items-center justify-between border-r border-[#eef2f6] bg-white py-5 shadow-[1px_0_10px_rgba(0,0,0,0.02)]">
+    <aside className="fixed inset-y-0 left-0 z-50 flex w-[72px] flex-col items-center justify-between border-r border-slate-200 bg-white py-5">
       {/* Top Logo */}
       <div className="flex flex-col items-center gap-6">
         <button
