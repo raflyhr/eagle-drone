@@ -282,40 +282,42 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
                     <canvas className="pointer-events-none absolute inset-0 z-20" />
                   )}
 
-                  {/* Floating Clean Control Bar (No heavy full-width black background strip) */}
+                  {/* Floating Video Control Bar */}
                   {cameraStatus === 'connected' && (
                     <div className="absolute bottom-3 inset-x-3 z-30 flex items-center justify-between pointer-events-none">
-                      <div className="flex items-center gap-2 pointer-events-auto bg-slate-950/80 backdrop-blur-md border border-slate-800/80 rounded-xl p-1.5 shadow-lg">
+                      {/* Left Controls: Stop Camera, AI Detect, Camera Selector */}
+                      <div className="flex items-center gap-1.5 pointer-events-auto bg-slate-900/90 backdrop-blur-md border border-slate-800 rounded-lg p-1 shadow-md">
                         {/* Stop Camera Button */}
                         <button
+                          type="button"
                           onClick={toggleCamera}
-                          className="flex items-center gap-1.5 rounded-lg bg-red-600 hover:bg-red-700 px-2.5 py-1 text-xs font-bold text-white transition shadow-sm shrink-0 cursor-pointer"
-                          title="Stop Live Camera Stream"
+                          className="flex items-center gap-1.5 rounded-md bg-red-500/15 hover:bg-red-500/25 text-red-400 border border-red-500/30 px-2.5 py-1 text-xs font-semibold transition shrink-0 cursor-pointer"
+                          title="Putus Stream Kamera"
                         >
-                          <Icon className="text-[15px]">videocam_off</Icon>
+                          <Icon className="text-[14px]">videocam_off</Icon>
                           <span>Putus Kamera</span>
                         </button>
 
                         {/* AI Detection Toggle Button */}
                         <button
+                          type="button"
                           onClick={() => setAiActive((v) => !v)}
-                          className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold transition shrink-0 cursor-pointer ${
+                          className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold transition shrink-0 cursor-pointer ${
                             aiActive
-                              ? 'bg-emerald-600 text-white shadow-sm'
-                              : 'bg-slate-900/90 text-slate-300 hover:bg-slate-800 hover:text-white border border-slate-700/80'
+                              ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                              : 'bg-slate-800/50 text-slate-400 border border-slate-700/60 hover:bg-slate-800 hover:text-slate-200'
                           }`}
                         >
-                          <Icon className="text-[15px]">psychology</Icon>
+                          <Icon className="text-[14px]">psychology</Icon>
                           <span>AI Detect {aiActive ? `(${detections.length})` : 'Off'}</span>
                         </button>
 
-                        {/* Camera Switcher Menu */}
-                        <div className="flex items-center gap-1.5 bg-slate-900/90 border border-slate-700/80 rounded-lg px-2 py-1 text-xs font-medium text-slate-200">
-                          <Icon className="text-[15px] text-emerald-400 shrink-0">switch_camera</Icon>
+                        {/* Camera Switcher Selector */}
+                        <div className="flex items-center gap-1.5 bg-slate-800/50 border border-slate-700/60 rounded-md px-2 py-1 text-xs font-medium text-slate-300">
                           <select
                             value={selectedDeviceId}
                             onChange={(e) => selectCamera(e.target.value)}
-                            className="bg-transparent text-xs font-semibold text-white focus:outline-none cursor-pointer max-w-[160px] sm:max-w-[240px] truncate"
+                            className="bg-transparent text-xs font-medium text-slate-200 focus:outline-none cursor-pointer max-w-[160px] sm:max-w-[220px] truncate"
                           >
                             {devices.length > 0 ? (
                               devices.map((dev, idx) => (
@@ -330,25 +332,26 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
                             )}
                           </select>
                           <button
+                            type="button"
                             onClick={() => scanDevices(true)}
-                            className="text-slate-400 hover:text-white ml-0.5 cursor-pointer"
+                            className="text-slate-400 hover:text-white transition cursor-pointer"
                             title="Scan ulang kamera"
                           >
-                            <Icon className="text-[14px]">refresh</Icon>
+                            <Icon className="text-[13px]">refresh</Icon>
                           </button>
                         </div>
                       </div>
 
-                      {/* Right Controls: Resolution Specs + Fullscreen Button */}
-                      <div className="flex items-center gap-2 pointer-events-auto bg-slate-950/80 backdrop-blur-md border border-slate-800/80 rounded-xl p-1.5 shadow-lg">
+                      {/* Right Controls: Resolution Specs & Fullscreen */}
+                      <div className="flex items-center gap-1.5 pointer-events-auto bg-slate-900/90 backdrop-blur-md border border-slate-800 rounded-lg p-1 shadow-md">
                         {activeCameraSpecs && (
-                          <div className="text-[11px] text-slate-300 font-medium data-font hidden sm:block px-1">
+                          <div className="text-[11px] text-slate-400 font-medium font-mono hidden sm:block px-1.5">
                             {activeCameraSpecs.width}x{activeCameraSpecs.height} @ {Math.round(activeCameraSpecs.frameRate)}fps
                           </div>
                         )}
 
-                        {/* Fullscreen Button */}
                         <button
+                          type="button"
                           onClick={() => {
                             if (!videoPanelRef.current) return
                             if (!document.fullscreenElement) {
@@ -357,10 +360,10 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
                               document.exitFullscreen().catch((err) => console.warn(err))
                             }
                           }}
-                          className="flex items-center gap-1 rounded-lg bg-slate-900/90 hover:bg-slate-800 border border-slate-700/80 px-2.5 py-1 text-xs font-bold text-slate-200 hover:text-white transition cursor-pointer"
-                          title="Toggle Fullscreen Camera View"
+                          className="flex items-center gap-1.5 rounded-md bg-slate-800/60 hover:bg-slate-800 border border-slate-700/60 px-2.5 py-1 text-xs font-medium text-slate-300 hover:text-white transition cursor-pointer"
+                          title="Toggle Fullscreen"
                         >
-                          <Icon className="text-[16px]">fullscreen</Icon>
+                          <Icon className="text-[15px]">fullscreen</Icon>
                           <span className="hidden sm:inline">Fullscreen</span>
                         </button>
                       </div>
