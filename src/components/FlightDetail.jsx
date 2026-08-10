@@ -134,7 +134,7 @@ export default function FlightDetail({ mission, onBack }) {
       </header>
 
       <div className="grid min-h-0 flex-1 grid-cols-12 gap-4 p-4">
-        <section className={`${panelVisible ? 'col-span-9' : 'col-span-12'} grid min-h-0 grid-rows-[55%_45%] gap-4`}>
+        <section className={`${panelVisible ? 'col-span-9' : 'col-span-12'} grid min-h-0 grid-rows-[70%_30%] gap-4`}>
           <div ref={mapPanelRef} className="bento-card relative min-h-0 overflow-hidden bg-white [&:fullscreen]:h-screen [&:fullscreen]:w-screen [&:fullscreen]:rounded-none">
             <div ref={mapContainerRef} className="absolute inset-0" />
             <div className="pointer-events-none absolute left-3 top-3 z-[500] rounded-lg border border-slate-200 bg-white/95 px-3 py-2 shadow-sm">
@@ -171,27 +171,20 @@ export default function FlightDetail({ mission, onBack }) {
           </div>
 
           <div className="bento-card flex min-h-0 flex-col overflow-hidden">
-            <div className="flex shrink-0 items-center justify-between border-b border-slate-100 px-4 py-3">
+            <div className="flex shrink-0 items-center justify-between border-b border-slate-100 px-4 py-2">
               <div>
-                <h3 className="text-sm font-bold">Flight Captures</h3>
-                <p className="text-[11px] text-slate-400">RGB and thermal evidence recorded during flight</p>
+                <h3 className="text-xs font-bold">Flight Captures</h3>
               </div>
-              <span className="text-xs font-bold text-slate-500">{captures.length} photos</span>
+              <span className="text-[11px] font-bold text-slate-500">{captures.length} photos</span>
             </div>
-            <div className={`grid min-h-0 flex-1 gap-3 p-3 ${panelVisible ? 'grid-cols-4' : 'grid-cols-5'}`}>
+            <div className={`grid min-h-0 flex-1 gap-3 p-2.5 ${panelVisible ? 'grid-cols-4' : 'grid-cols-5'}`}>
               {visibleCaptures.map((capture) => (
-                <article key={capture.id} onClick={() => setSelectedCapture(capture)} className="min-w-0 cursor-pointer overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition hover:border-sky-300 hover:shadow-md">
-                  <img src={capture.image || capture.src} alt={capture.label || 'Drone capture'} className="h-28 w-full object-cover" />
-                  <div className="p-3">
-                    <div className="flex items-start justify-between gap-2">
-                      <p className="text-xs font-bold text-slate-800">{capture.label || 'Captured frame'}</p>
-                      <span className="text-[10px] font-bold text-sky-700">{capture.timestamp || capture.time}</span>
-                    </div>
-                    <p className="mt-2 font-mono text-[10px] text-slate-500">{capture.coordinate || 'Camera frame only'}</p>
-                    <p className="mt-1 text-[10px] font-semibold text-slate-400">{capture.source || 'Camera Capture'}</p>
-                    {capture.detections?.length > 0 && (
-                      <p className="mt-1 text-[10px] font-bold text-emerald-600">AI: {capture.detections.map((item) => `${item.label} ${item.confidence}%`).join(', ')}</p>
-                    )}
+                <article key={capture.id} onClick={() => setSelectedCapture(capture)} className="min-w-0 min-h-0 cursor-pointer overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition hover:border-sky-300 hover:shadow-md flex flex-col">
+                  <div className="relative flex-1 min-h-0 w-full overflow-hidden bg-slate-900">
+                    <img src={capture.image || capture.src} alt={capture.label || 'Drone capture'} className="h-full w-full object-cover" />
+                  </div>
+                  <div className="p-1.5 px-2.5 flex items-center justify-end bg-slate-50 border-t border-slate-100 shrink-0">
+                    <span className="text-[11px] font-bold text-sky-700 font-mono">{capture.timestamp || capture.time}</span>
                   </div>
                 </article>
               ))}
@@ -257,8 +250,7 @@ export default function FlightDetail({ mission, onBack }) {
             <img src={selectedCapture.image || selectedCapture.src} alt={selectedCapture.label || 'Drone capture'} className="max-h-[72vh] w-full rounded-xl object-contain bg-slate-950" />
             <div className="flex flex-wrap items-center justify-between gap-3 px-2 pt-4">
               <div>
-                <p className="text-sm font-bold text-slate-900">{selectedCapture.label || 'Captured frame'}</p>
-                <p className="mt-1 font-mono text-xs text-slate-500">{selectedCapture.timestamp || selectedCapture.time}</p>
+                <p className="font-mono text-xs font-bold text-slate-700">{selectedCapture.timestamp || selectedCapture.time}</p>
               </div>
               {selectedCapture.detections?.length > 0 && <span className="rounded-lg bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700">AI: {selectedCapture.detections.map((item) => `${item.label} ${item.confidence}%`).join(', ')}</span>}
             </div>
