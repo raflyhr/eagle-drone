@@ -56,7 +56,12 @@ function App() {
           />
         </div>
         <div className={page === 'flight-detail' ? 'block' : 'hidden'}>
-          <FlightDetail mission={selectedMission} onBack={() => setPage('history')} />
+          <FlightDetail
+            mission={selectedMission}
+            onBack={() => setPage('history')}
+            mapStyle={mapStyle}
+            onMapStyleChange={handleMapStyleChange}
+          />
         </div>
         <div className={page === 'settings' ? 'block' : 'hidden'}>
           <Settings onNavigate={setPage} telemetryState={telemetryState} />

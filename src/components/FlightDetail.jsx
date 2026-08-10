@@ -16,7 +16,7 @@ const defaultTrack = [
   [-7.5931, 110.4468],
 ]
 
-export default function FlightDetail({ mission, onBack }) {
+export default function FlightDetail({ mission, onBack, mapStyle = 'standard', onMapStyleChange }) {
   const mapContainerRef = useRef(null)
   const mapPanelRef = useRef(null)
   const mapRef = useRef(null)
@@ -25,7 +25,6 @@ export default function FlightDetail({ mission, onBack }) {
   const [selectedCapture, setSelectedCapture] = useState(null)
   const [panelVisible, setPanelVisible] = useState(true)
   const [isMapFullscreen, setIsMapFullscreen] = useState(false)
-  const [mapStyle, setMapStyle] = useState('standard')
   const [capturePage, setCapturePage] = useState(0)
 
   // Real recorded captures and marked locations from mission telemetry log
@@ -138,7 +137,7 @@ export default function FlightDetail({ mission, onBack }) {
             <div className="absolute right-3 top-3 z-[500] flex gap-2">
               <div className="flex items-center rounded-md border border-slate-200 bg-white p-0.5 shadow-md">
                 {['standard', 'satellite', 'terrain'].map((style) => (
-                  <button key={style} onClick={() => setMapStyle(style)} className={`rounded px-2.5 py-1 text-xs font-semibold transition ${mapStyle === style ? 'bg-slate-900 text-white font-bold' : 'text-slate-700 hover:bg-slate-100'}`}>
+                  <button key={style} onClick={() => onMapStyleChange?.(style)} className={`rounded px-2.5 py-1 text-xs font-semibold transition ${mapStyle === style ? 'bg-slate-900 text-white font-bold' : 'text-slate-700 hover:bg-slate-100'}`}>
                     {style[0].toUpperCase() + style.slice(1)}
                   </button>
                 ))}
