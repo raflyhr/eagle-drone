@@ -1,0 +1,173 @@
+import { useEffect, useMemo, useRef } from 'react'
+import L from 'leaflet'
+import 'leaflet/dist/leaflet.css'
+
+function Icon({ children, className = '' }) {
+  return <span className={`material-symbols-outlined ${className}`}>{children}</span>
+}
+
+const defaultTrack = [
+  [-7.595, 110.4485],
+  [-7.5938, 110.451],
+  [-7.5915, 110.4532],
+  [-7.5894, 110.4516],
+  [-7.5878, 110.4488],
+  [-7.5902, 110.4462],
+  [-7.5931, 110.4468],
+]
+
+const defaultMarkedLocations = [
+  { id: 'P-01', timestamp: '09:42:18', coordinate: [-7.5915, 110.4532], altitude: 118, captureId: null },
+  { id: 'P-02', timestamp: '10:05:44', coordinate: [-7.5878, 110.4488], altitude: 120, captureId: null },
+]
+
+const defaultCaptures = [
+  { id: 1, src: '/assets/forest_viewfinder.jpg', time: '09:42:18', label: 'Person detected', coordinate: '-7.59150, 110.45320', source: 'Thermal + RGB' },
+  { id: 2, src: '/assets/drone_preview.jpg', time: '09:48:31', label: 'Flight waypoint', coordinate: '-7.58940, 110.45160', source: 'RGB Camera' },
+  { id: 3, src: '/assets/forest_viewfinder.jpg', time: '10:05:44', label: 'Thermal signature', coordinate: '-7.58780, 110.44880', source: 'Thermal Camera' },
+  { id: 4, src: '/assets/drone_preview.jpg', time: '10:18:09', label: 'Search area overview', coordinate: '-7.59020, 110.44620', source: 'RGB Camera' },
+]
+
+export default function FlightDetail({ mission, onBack }) {
+  const mapContainerRef = useRef(null)
+  const mapRef = useRef(null)
+  const captures = useMemo(() => mission?.captures?.length ? mission.captures : defaultCaptures, [mission?.captures])
+  const markedLocations = useMemo(() => mission?.markedLocations?.length ? mission.markedLocations : defaultMarkedLocations, [mission?.markedLocations])
+
+  useEffect(() => {
+    if (!mapContainerRef.current || mapRef.current) return
+    const map = L.map(mapContainerRef.current, { zoomControl: false })
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap contributors',
+    }).addTo(map)
+
+    const path = L.polyline(defaultTrack, { color: '#0284c7', weight: 4, opacity: 0.9 }).addTo(map)
+    L.circleMarker(defaultTrack[0], { radius: 7, color: '#ffffff', weight: 3, fillColor: '#16a34a', fillOpacity: 1 }).bindTooltip('Start').addTo(map)
+    L.circleMarker(defaultTrack.at(-1), { radius: 7, color: '#ffffff', weight: 3, fillColor: '#dc2626', fillOpacity: 1 }).bindTooltip('Finish').addTo(map)
+    markedLocations.forEach((location, index) => {
+      L.marker(location.coordinate, {
+        icon: L.divIcon({
+          className: '',
+          html: '<div style="width:30px;height:30px;border-radius:9px;background:#dc2626;border:3px solid white;box-shadow:0 4px 12px #0f172a33;color:white;display:grid;place-items:center"><span class="material-symbols-outlined" style="font-size:17px">person_pin_circle</span></div>',
+          iconSize: [30, 30],
+          iconAnchor: [15, 15],
+        }),
+      }).bindTooltip(`${location.id || `MK-${String(index + 1).padStart(2, '0')}`} · ${location.altitude} m`).addTo(map)
+    })
+    map.fitBounds(path.getBounds(), { padding: [35, 35] })
+    L.control.zoom({ position: 'bottomright' }).addTo(map)
+    mapRef.current = map
+
+    const timer = setTimeout(() => map.invalidateSize(), 0)
+    return () => {
+      clearTimeout(timer)
+      map.remove()
+      mapRef.current = null
+    }
+  }, [markedLocations])
+
+  const focusPerson = (person) => {
+    mapRef.current?.flyTo(person.coordinate, 17, { duration: 0.8 })
+  }
+
+  return (
+    <main className="ml-[72px] flex h-screen min-w-0 flex-1 flex-col bg-[#f5f7fa] text-slate-900">
+      <header className="flex h-16 shrink-0 items-center justify-between border-b border-slate-200 bg-white px-6">
+        <div className="flex items-center gap-3">
+          <button onClick={onBack} className="grid h-9 w-9 place-items-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50" title="Back to Flight History">
+            <Icon className="text-[20px]">arrow_back</Icon>
+          </button>
+          <div>
+            <h2 className="text-lg font-bold tracking-tight">Flight Detail</h2>
+            <p className="text-[11px] font-semibold text-slate-400">{mission?.id || 'LIVE-MAVLINK'} · {mission?.type || 'SAR Mission'}</p>
+          </div>
+        </div>
+        <span className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700">{mission?.status || 'Success'}</span>
+      </header>
+
+      <div className="grid min-h-0 flex-1 grid-cols-12 gap-4 p-4">
+        <section className="col-span-9 grid min-h-0 grid-rows-[55%_45%] gap-4">
+          <div className="bento-card relative min-h-0 overflow-hidden">
+            <div ref={mapContainerRef} className="absolute inset-0" />
+            <div className="pointer-events-none absolute left-3 top-3 z-[500] rounded-lg border border-slate-200 bg-white/95 px-3 py-2 shadow-sm">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Recorded Flight Path</p>
+              <p className="mt-0.5 text-xs font-bold text-slate-800">{mission?.distance || '18.4 km'} · {mission?.duration || '02:14:33'}</p>
+            </div>
+          </div>
+
+          <div className="bento-card flex min-h-0 flex-col overflow-hidden">
+            <div className="flex shrink-0 items-center justify-between border-b border-slate-100 px-4 py-3">
+              <div>
+                <h3 className="text-sm font-bold">Flight Captures</h3>
+                <p className="text-[11px] text-slate-400">RGB and thermal evidence recorded during flight</p>
+              </div>
+              <span className="text-xs font-bold text-slate-500">{captures.length} photos</span>
+            </div>
+            <div className="flex min-h-0 flex-1 gap-3 overflow-x-auto p-3">
+              {captures.map((capture) => (
+                <article key={capture.id} className="w-64 shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+                  <img src={capture.image || capture.src} alt={capture.label || 'Drone capture'} className="h-28 w-full object-cover" />
+                  <div className="p-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="text-xs font-bold text-slate-800">{capture.label || 'Captured frame'}</p>
+                      <span className="text-[10px] font-bold text-sky-700">{capture.timestamp || capture.time}</span>
+                    </div>
+                    <p className="mt-2 font-mono text-[10px] text-slate-500">{capture.coordinate || 'Camera frame only'}</p>
+                    <p className="mt-1 text-[10px] font-semibold text-slate-400">{capture.source || 'Camera Capture'}</p>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <aside className="bento-card col-span-3 flex min-h-0 flex-col overflow-hidden">
+          <div className="border-b border-slate-100 p-4">
+            <h3 className="text-sm font-bold">Mission Information</h3>
+          </div>
+          <div className="space-y-4 overflow-y-auto p-4">
+            <section className="space-y-2">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Coordinates</p>
+              <Info label="Start" value="-7.59500, 110.44850" />
+              <Info label="Finish" value="-7.59310, 110.44680" />
+            </section>
+            <section className="space-y-2 border-t border-slate-100 pt-4">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Flight Time</p>
+              <Info label="Date" value={mission?.date || 'Oct 24, 2026'} />
+              <Info label="Duration" value={mission?.duration || '02:14:33'} />
+              <Info label="Max Altitude" value={mission?.maxAltitude || '120 m'} />
+            </section>
+            <section className="space-y-2 border-t border-slate-100 pt-4">
+              <div className="flex items-center justify-between">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Marked Locations</p>
+                <span className="rounded-md bg-red-50 px-2 py-0.5 text-[10px] font-bold text-red-600">{markedLocations.length} points</span>
+              </div>
+              {markedLocations.map((location, index) => {
+                const capture = captures.find((item) => item.id === location.captureId)
+                return (
+                  <button key={location.id} onClick={() => focusPerson(location)} className="w-full rounded-xl border border-slate-200 p-3 text-left transition hover:border-sky-300 hover:bg-sky-50/40">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-slate-800">{location.id || `MK-${String(index + 1).padStart(2, '0')}`}</span>
+                      <span className="text-[10px] font-bold text-slate-400">{location.altitude} m</span>
+                    </div>
+                    <p className="mt-1.5 font-mono text-[10px] text-slate-500">{location.coordinate.join(', ')}</p>
+                    <p className="mt-2 text-[10px] font-semibold text-sky-600">{capture ? `Photo ${capture.timestamp}` : 'No linked photo'}</p>
+                  </button>
+                )
+              })}
+            </section>
+          </div>
+        </aside>
+      </div>
+    </main>
+  )
+}
+
+function Info({ label, value }) {
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-lg bg-slate-50 px-3 py-2.5">
+      <span className="text-[11px] font-semibold text-slate-500">{label}</span>
+      <span className="text-right font-mono text-[10px] font-bold text-slate-800">{value}</span>
+    </div>
+  )
+}

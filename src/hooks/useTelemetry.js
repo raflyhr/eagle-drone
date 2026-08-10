@@ -5,7 +5,7 @@ import { getOfflineLocationName } from '../utils/geoCoder'
 export function calculateDistanceMeters(lat1, lon1, lat2, lon2) {
   if (lat1 === undefined || lon1 === undefined || lat2 === undefined || lon2 === undefined) return 0
   const dLat = (lat2 - lat1) * 111000
-  const dLon = (lat2 - lon1) * 111000 * Math.cos(((lat1 + lat2) / 2) * (Math.PI / 180))
+  const dLon = (lon2 - lon1) * 111000 * Math.cos(((lat1 + lat2) / 2) * (Math.PI / 180))
   return Math.round(Math.sqrt(dLat * dLat + dLon * dLon))
 }
 
@@ -45,6 +45,12 @@ export default function useTelemetry() {
   const [connectionStatus, setConnectionStatus] = useState('disconnected') // 'disconnected' | 'connecting' | 'connected' | 'error'
   const [connectionType, setConnectionType] = useState('none') // 'none' | 'serial' | 'websocket' | 'simulation'
   const [errorMessage, setErrorMessage] = useState('')
+  const [missionLogs, setMissionLogs] = useState([
+    { id: 'SAR-4922', type: 'Thermal Search', date: 'Oct 24, 2026', duration: '02:14:33', distance: '18.4 km', maxAltitude: '120 m', status: 'Success' },
+    { id: 'DEL-4921', type: 'P3K Delivery', date: 'Oct 22, 2026', duration: '01:45:10', distance: '12.1 km', maxAltitude: '115 m', status: 'Success' },
+    { id: 'SAR-4920', type: 'SAR Automation', date: 'Oct 19, 2026', duration: '00:54:12', distance: '6.8 km', maxAltitude: '90 m', status: 'Aborted' },
+  ])
+  const [currentMission, setCurrentMission] = useState(null)
 
   const serialPortRef = useRef(null)
   const readerRef = useRef(null)
@@ -52,6 +58,13 @@ export default function useTelemetry() {
   const parserRef = useRef(null)
   const simTimerRef = useRef(null)
   const seqRef = useRef(0)
+  const missionStartRef = useRef(null)
+  const missionDistanceRef = useRef(0)
+  const missionMaxAltitudeRef = useRef(0)
+  const missionPositionRef = useRef(null)
+  const capturesRef = useRef([])
+  const markedLocationsRef = useRef([])
+  const latestTelemetryRef = useRef(telemetry)
   const simStateRef = useRef({
     lat: -7.5950,
     lon: 110.4485,
@@ -62,6 +75,37 @@ export default function useTelemetry() {
     centerLat: -7.5950,
     centerLon: 110.4485,
   })
+
+  const updateCurrentMission = useCallback((next) => {
+    if (!missionStartRef.current) {
+      missionStartRef.current = Date.now()
+      missionMaxAltitudeRef.current = next.altitude || 0
+      missionPositionRef.current = { lat: next.latitude, lon: next.longitude }
+    }
+
+    const last = missionPositionRef.current
+    if (last && next.latitude !== undefined && next.longitude !== undefined) {
+      const meters = calculateDistanceMeters(last.lat, last.lon, next.latitude, next.longitude)
+      if (meters > 0 && meters < 1000) missionDistanceRef.current += meters
+      missionPositionRef.current = { lat: next.latitude, lon: next.longitude }
+    }
+
+    missionMaxAltitudeRef.current = Math.max(missionMaxAltitudeRef.current, next.altitude || 0)
+    const elapsed = Date.now() - missionStartRef.current
+    const duration = new Date(elapsed).toISOString().slice(11, 19)
+
+    setCurrentMission({
+      id: 'LIVE-MAVLINK',
+      type: next.flightMode === 'AUTO' ? 'SAR Automation' : 'Thermal Search',
+      date: new Date(missionStartRef.current).toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' }),
+      duration,
+      distance: formatDistance(missionDistanceRef.current),
+      maxAltitude: `${missionMaxAltitudeRef.current} m`,
+      status: connectionType === 'simulation' ? 'Simulation' : 'In Progress',
+      captures: capturesRef.current,
+      markedLocations: markedLocationsRef.current,
+    })
+  }, [connectionType])
 
   // Message Handler Callback for Parser
   const handleMavlinkMessage = useCallback((msg) => {
@@ -103,17 +147,63 @@ export default function useTelemetry() {
         if (msg.heading !== undefined) next.heading = Math.round(msg.heading)
       }
 
+      latestTelemetryRef.current = next
+      if (msg.msgName === 'GLOBAL_POSITION_INT' || msg.msgName === 'GPS_RAW_INT') {
+        updateCurrentMission(next)
+      }
+
       return next
     })
-  }, [])
+  }, [updateCurrentMission])
 
   // Initialize parser
   useEffect(() => {
     parserRef.current = new MavlinkParser(handleMavlinkMessage)
   }, [handleMavlinkMessage])
 
+  const capturePhoto = useCallback((image) => {
+    if (!image) return false
+    const capture = {
+      id: `capture-${Date.now()}`,
+      image,
+      timestamp: new Date().toLocaleTimeString('en-US', { hour12: false }),
+    }
+    capturesRef.current = [capture, ...capturesRef.current]
+    setCurrentMission((mission) => mission ? { ...mission, captures: capturesRef.current } : mission)
+    return true
+  }, [])
+
+  const markLocation = useCallback(() => {
+    const { latitude, longitude, altitude } = latestTelemetryRef.current
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return false
+    const marker = {
+      id: `marker-${Date.now()}`,
+      coordinate: [latitude, longitude],
+      altitude,
+      captureId: capturesRef.current[0]?.id || null,
+    }
+    markedLocationsRef.current = [marker, ...markedLocationsRef.current]
+    setCurrentMission((mission) => mission ? { ...mission, markedLocations: markedLocationsRef.current } : mission)
+    return true
+  }, [])
+
   // Disconnect function
   const disconnect = useCallback(async () => {
+    if (missionStartRef.current && (capturesRef.current.length || markedLocationsRef.current.length)) {
+      const finishedMission = {
+        id: `SIM-${Date.now().toString().slice(-6)}`,
+        type: 'SAR Automation',
+        date: new Date(missionStartRef.current).toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' }),
+        duration: new Date(Date.now() - missionStartRef.current).toISOString().slice(11, 19),
+        distance: formatDistance(missionDistanceRef.current),
+        maxAltitude: `${missionMaxAltitudeRef.current} m`,
+        status: 'Success',
+        captures: capturesRef.current,
+        markedLocations: markedLocationsRef.current,
+      }
+      setMissionLogs((logs) => [finishedMission, ...logs])
+    }
+
     if (simTimerRef.current) {
       clearInterval(simTimerRef.current)
       simTimerRef.current = null
@@ -143,6 +233,13 @@ export default function useTelemetry() {
       socketRef.current = null
     }
 
+    missionStartRef.current = null
+    missionDistanceRef.current = 0
+    missionMaxAltitudeRef.current = 0
+    missionPositionRef.current = null
+    capturesRef.current = []
+    markedLocationsRef.current = []
+    setCurrentMission(null)
     setConnectionStatus('disconnected')
     setConnectionType('none')
     setErrorMessage('')
@@ -262,6 +359,13 @@ export default function useTelemetry() {
     setConnectionStatus('connected')
     setConnectionType('simulation')
 
+    missionStartRef.current = null
+    missionDistanceRef.current = 0
+    missionMaxAltitudeRef.current = 0
+    missionPositionRef.current = null
+    capturesRef.current = []
+    markedLocationsRef.current = []
+
     simStateRef.current = {
       lat: -7.5950,
       lon: 110.4485,
@@ -378,6 +482,10 @@ export default function useTelemetry() {
     connectionStatus,
     connectionType,
     errorMessage,
+    missionLogs,
+    currentMission,
+    capturePhoto,
+    markLocation,
     connectSerial,
     connectWebSocket,
     enableMavlinkSim,

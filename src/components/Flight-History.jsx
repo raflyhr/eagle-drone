@@ -1,15 +1,22 @@
+import { useMemo, useState } from 'react'
+
 function Icon({ children, className = '' }) {
   return <span className={`material-symbols-outlined ${className}`}>{children}</span>
 }
 
 const missions = [
-  ['OP-4922', 'Oct 24, 2026', '02:14:33', '18.4 km', '120m', 'Success'],
-  ['OP-4921', 'Oct 22, 2026', '01:45:10', '12.1 km', '115m', 'Success'],
-  ['OP-4920', 'Oct 19, 2026', '00:54:12', '6.8 km', '90m', 'Aborted'],
-  ['OP-4919', 'Oct 15, 2026', '03:10:05', '24.2 km', '140m', 'Success'],
+  { id: 'SAR-4922', type: 'Thermal Search', date: 'Oct 24, 2026', duration: '02:14:33', distance: '18.4 km', maxAltitude: '120 m', status: 'Success' },
+  { id: 'DEL-4921', type: 'P3K Delivery', date: 'Oct 22, 2026', duration: '01:45:10', distance: '12.1 km', maxAltitude: '115 m', status: 'Success' },
+  { id: 'SAR-4920', type: 'SAR Automation', date: 'Oct 19, 2026', duration: '00:54:12', distance: '6.8 km', maxAltitude: '90 m', status: 'Aborted' },
 ]
 
-export default function FlightHistory() {
+export default function FlightHistory({ missionLogs = missions, currentMission, onOpenMission }) {
+  const [query, setQuery] = useState('')
+  const logs = useMemo(() => {
+    const rows = currentMission ? [currentMission, ...missionLogs] : missionLogs
+    return rows.filter((mission) => mission.id.toLowerCase().includes(query.toLowerCase()))
+  }, [currentMission, missionLogs, query])
+
   return (
     <main className="ml-[72px] flex-1 flex flex-col min-h-screen bg-[#f5f7fa] text-[#0f172a]">
       <header className="flex h-16 shrink-0 items-center justify-between border-b border-[#eef2f6] bg-white px-6">
@@ -23,6 +30,8 @@ export default function FlightHistory() {
               <div className="flex gap-2">
                 <input
                   type="text"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
                   placeholder="Search mission ID..."
                   className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs outline-none focus:border-slate-400"
                 />
@@ -35,6 +44,7 @@ export default function FlightHistory() {
                   <tr>
                     <th className="px-5 py-3">Mission ID</th>
                     <th className="px-5 py-3">Date</th>
+                    <th className="px-5 py-3">Mission Type</th>
                     <th className="px-5 py-3">Duration</th>
                     <th className="px-5 py-3">Distance</th>
                     <th className="px-5 py-3">Max Altitude</th>
@@ -42,21 +52,24 @@ export default function FlightHistory() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {missions.map(([id, date, duration, dist, alt, status]) => (
-                    <tr key={id} className="hover:bg-slate-50 transition">
+                  {logs.map(({ id, type, date, duration, distance, maxAltitude, status, captures, markedLocations }) => (
+                    <tr key={id} onClick={() => onOpenMission?.({ id, type, date, duration, distance, maxAltitude, status, captures, markedLocations })} className="cursor-pointer transition hover:bg-sky-50/50">
                       <td className="data-font font-bold px-5 py-3.5 text-slate-900">{id}</td>
                       <td className="px-5 py-3.5 text-slate-600">{date}</td>
+                      <td className="px-5 py-3.5 font-medium text-slate-700">{type}</td>
                       <td className="data-font px-5 py-3.5 text-slate-600">{duration}</td>
-                      <td className="data-font px-5 py-3.5 text-slate-600">{dist}</td>
-                      <td className="data-font px-5 py-3.5 text-slate-600">{alt}</td>
+                      <td className="data-font px-5 py-3.5 text-slate-600">{distance}</td>
+                      <td className="data-font px-5 py-3.5 text-slate-600">{maxAltitude}</td>
                       <td className="px-5 py-3.5 text-right">
                         <span className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-bold ${
                           status === 'Success'
                             ? 'bg-emerald-50 text-emerald-700 border border-emerald-100'
-                            : 'bg-red-50 text-red-700 border border-red-100'
+                            : status === 'Aborted'
+                              ? 'bg-red-50 text-red-700 border border-red-100'
+                              : 'bg-sky-50 text-sky-700 border border-sky-100'
                         }`}>
                           <Icon className="text-[14px]">
-                            {status === 'Success' ? 'check_circle' : 'cancel'}
+                            {status === 'Success' ? 'check_circle' : status === 'Aborted' ? 'cancel' : 'sensors'}
                           </Icon>
                           {status}
                         </span>
