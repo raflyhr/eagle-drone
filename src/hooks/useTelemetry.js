@@ -256,33 +256,33 @@ export default function useTelemetry() {
     }
   }, [disconnect, handleMavlinkMessage])
 
-  // Local MAVLink Simulation Mode Engine (Structured Lawnmower SAR Search Grid Flight)
+  // Local MAVLink Simulation Mode Engine (Pure Dynamic Random Search Flight)
   const enableMavlinkSim = useCallback(async () => {
     await disconnect()
     setConnectionStatus('connected')
     setConnectionType('simulation')
 
-    // Structured SAR Lawnmower Grid Search Waypoints (~1km x 600m search area)
-    const gridWaypoints = [
-      { lat: -7.5950, lon: 110.4485 },
-      { lat: -7.5950, lon: 110.4550 },
-      { lat: -7.5935, lon: 110.4550 },
-      { lat: -7.5935, lon: 110.4420 },
-      { lat: -7.5920, lon: 110.4420 },
-      { lat: -7.5920, lon: 110.4550 },
-      { lat: -7.5905, lon: 110.4550 },
-      { lat: -7.5905, lon: 110.4420 },
-      { lat: -7.5950, lon: 110.4420 },
-      { lat: -7.5950, lon: 110.4485 },
-    ]
+    const centerLat = -7.5950
+    const centerLon = 110.4485
+    const maxRadiusMeters = 800 // Bounding search area
+
+    const getRandomTarget = () => {
+      const angle = Math.random() * 2 * Math.PI
+      const dist = 200 + Math.random() * 550 // Random distance 200m - 750m
+      const targetLat = centerLat + (dist * Math.cos(angle)) / 111000
+      const targetLon = centerLon + (dist * Math.sin(angle)) / (111000 * Math.cos(centerLat * (Math.PI / 180)))
+      return { lat: targetLat, lon: targetLon }
+    }
 
     simStateRef.current = {
-      lat: gridWaypoints[0].lat,
-      lon: gridWaypoints[0].lon,
-      heading: 90,
+      lat: centerLat,
+      lon: centerLon,
+      heading: Math.floor(Math.random() * 360),
       speed: 20,
-      wpIndex: 1,
-      gridWaypoints,
+      targetWp: getRandomTarget(),
+      centerLat,
+      centerLon,
+      maxRadiusMeters,
     }
 
     simTimerRef.current = setInterval(() => {
@@ -293,27 +293,29 @@ export default function useTelemetry() {
       const timeMs = Math.floor(performance.now())
 
       const st = simStateRef.current
-      const targetWp = st.gridWaypoints[st.wpIndex]
 
-      // Distance to target waypoint
-      const dLat = (targetWp.lat - st.lat) * 111000
-      const dLon = (targetWp.lon - st.lon) * 111000 * Math.cos(st.lat * (Math.PI / 180))
-      const distMeters = Math.sqrt(dLat * dLat + dLon * dLon)
+      // Distance to current dynamic random target
+      const dLat = (st.targetWp.lat - st.lat) * 111000
+      const dLon = (st.targetWp.lon - st.lon) * 111000 * Math.cos(st.lat * (Math.PI / 180))
+      const distToTarget = Math.sqrt(dLat * dLat + dLon * dLon)
 
-      // If reached waypoint (within 15m), transition to next waypoint in sequence
-      if (distMeters < 15) {
-        st.wpIndex = (st.wpIndex + 1) % st.gridWaypoints.length
+      // Distance from origin center
+      const distFromCenter = calculateDistanceMeters(st.lat, st.lon, st.centerLat, st.centerLon)
+
+      // If reached dynamic target (< 30m) or drifted past max radius, generate new random target
+      if (distToTarget < 30 || distFromCenter > st.maxRadiusMeters) {
+        st.targetWp = getRandomTarget()
+        st.speed = Number((16 + Math.random() * 8).toFixed(1))
       }
 
-      const activeTargetWp = st.gridWaypoints[st.wpIndex]
-      const targetDLat = (activeTargetWp.lat - st.lat) * 111000
-      const targetDLon = (activeTargetWp.lon - st.lon) * 111000 * Math.cos(st.lat * (Math.PI / 180))
+      const targetDLat = (st.targetWp.lat - st.lat) * 111000
+      const targetDLon = (st.targetWp.lon - st.lon) * 111000 * Math.cos(st.lat * (Math.PI / 180))
 
       let targetHeading = Math.atan2(targetDLon, targetDLat) * (180 / Math.PI)
       if (targetHeading < 0) targetHeading += 360
 
       let diff = (targetHeading - st.heading + 540) % 360 - 180
-      const maxTurnRate = 5.0
+      const maxTurnRate = 4.5
       if (Math.abs(diff) > maxTurnRate) {
         st.heading = (st.heading + Math.sign(diff) * maxTurnRate + 360) % 360
       } else {
