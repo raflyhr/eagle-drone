@@ -251,8 +251,26 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
     const canvas = document.createElement('canvas')
     canvas.width = video.videoWidth
     canvas.height = video.videoHeight
-    canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height)
-    if (capturePhoto?.(canvas.toDataURL('image/jpeg', 0.85))) {
+    const context = canvas.getContext('2d')
+    context.drawImage(video, 0, 0, canvas.width, canvas.height)
+    if (aiActive) {
+      context.lineWidth = Math.max(3, Math.round(canvas.width / 320))
+      context.font = `bold ${Math.max(16, Math.round(canvas.width / 48))}px sans-serif`
+      detections.forEach(({ bbox, score }) => {
+        const [x, y, width, height] = bbox
+        const label = `PERSON ${Math.round(score * 100)}%`
+        const labelHeight = Math.max(24, Math.round(canvas.width / 28))
+        context.strokeStyle = '#10b981'
+        context.fillStyle = 'rgba(16, 185, 129, 0.15)'
+        context.fillRect(x, y, width, height)
+        context.strokeRect(x, y, width, height)
+        context.fillStyle = '#10b981'
+        context.fillRect(x, Math.max(0, y - labelHeight), context.measureText(label).width + 16, labelHeight)
+        context.fillStyle = '#ffffff'
+        context.fillText(label, x + 8, Math.max(labelHeight - 7, y - 7))
+      })
+    }
+    if (capturePhoto?.(canvas.toDataURL('image/jpeg', 0.85), detections.map(({ score }) => ({ label: 'PERSON', confidence: Math.round(score * 100) })))) {
       setCaptureFeedback(true)
       setTimeout(() => setCaptureFeedback(false), 900)
     }

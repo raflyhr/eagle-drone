@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 
@@ -30,9 +30,16 @@ const defaultCaptures = [
 
 export default function FlightDetail({ mission, onBack }) {
   const mapContainerRef = useRef(null)
+  const mapPanelRef = useRef(null)
   const mapRef = useRef(null)
+  const [selectedCapture, setSelectedCapture] = useState(null)
+  const [panelVisible, setPanelVisible] = useState(true)
+  const [isMapFullscreen, setIsMapFullscreen] = useState(false)
   const captures = useMemo(() => mission?.captures?.length ? mission.captures : defaultCaptures, [mission?.captures])
   const markedLocations = useMemo(() => mission?.markedLocations?.length ? mission.markedLocations : defaultMarkedLocations, [mission?.markedLocations])
+  const trackPoints = useMemo(() => mission?.trackPoints?.length ? mission.trackPoints : defaultTrack, [mission?.trackPoints])
+  const startPoint = trackPoints[0]
+  const finishPoint = trackPoints.at(-1)
 
   useEffect(() => {
     if (!mapContainerRef.current || mapRef.current) return
@@ -41,9 +48,9 @@ export default function FlightDetail({ mission, onBack }) {
       attribution: '&copy; OpenStreetMap contributors',
     }).addTo(map)
 
-    const path = L.polyline(defaultTrack, { color: '#0284c7', weight: 4, opacity: 0.9 }).addTo(map)
-    L.circleMarker(defaultTrack[0], { radius: 7, color: '#ffffff', weight: 3, fillColor: '#16a34a', fillOpacity: 1 }).bindTooltip('Start').addTo(map)
-    L.circleMarker(defaultTrack.at(-1), { radius: 7, color: '#ffffff', weight: 3, fillColor: '#dc2626', fillOpacity: 1 }).bindTooltip('Finish').addTo(map)
+    const path = L.polyline(trackPoints, { color: '#0284c7', weight: 4, opacity: 0.9 }).addTo(map)
+    L.circleMarker(startPoint, { radius: 7, color: '#ffffff', weight: 3, fillColor: '#16a34a', fillOpacity: 1 }).bindTooltip('Start').addTo(map)
+    L.circleMarker(finishPoint, { radius: 7, color: '#ffffff', weight: 3, fillColor: '#dc2626', fillOpacity: 1 }).bindTooltip('Finish').addTo(map)
     markedLocations.forEach((location, index) => {
       L.marker(location.coordinate, {
         icon: L.divIcon({
@@ -64,7 +71,20 @@ export default function FlightDetail({ mission, onBack }) {
       map.remove()
       mapRef.current = null
     }
-  }, [markedLocations])
+  }, [finishPoint, markedLocations, startPoint, trackPoints])
+
+  useEffect(() => {
+    setTimeout(() => mapRef.current?.invalidateSize(), 120)
+  }, [panelVisible])
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsMapFullscreen(document.fullscreenElement === mapPanelRef.current)
+      setTimeout(() => mapRef.current?.invalidateSize(), 120)
+    }
+    document.addEventListener('fullscreenchange', handleFullscreenChange)
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange)
+  }, [])
 
   const focusPerson = (person) => {
     mapRef.current?.flyTo(person.coordinate, 17, { duration: 0.8 })
@@ -86,12 +106,26 @@ export default function FlightDetail({ mission, onBack }) {
       </header>
 
       <div className="grid min-h-0 flex-1 grid-cols-12 gap-4 p-4">
-        <section className="col-span-9 grid min-h-0 grid-rows-[55%_45%] gap-4">
-          <div className="bento-card relative min-h-0 overflow-hidden">
+        <section className={`${panelVisible ? 'col-span-9' : 'col-span-12'} grid min-h-0 grid-rows-[55%_45%] gap-4`}>
+          <div ref={mapPanelRef} className="bento-card relative min-h-0 overflow-hidden bg-white [&:fullscreen]:h-screen [&:fullscreen]:w-screen [&:fullscreen]:rounded-none">
             <div ref={mapContainerRef} className="absolute inset-0" />
             <div className="pointer-events-none absolute left-3 top-3 z-[500] rounded-lg border border-slate-200 bg-white/95 px-3 py-2 shadow-sm">
               <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Recorded Flight Path</p>
               <p className="mt-0.5 text-xs font-bold text-slate-800">{mission?.distance || '18.4 km'} · {mission?.duration || '02:14:33'}</p>
+            </div>
+            <div className="absolute right-3 top-3 z-[500] flex gap-2">
+              <button onClick={() => setPanelVisible((visible) => !visible)} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 shadow-sm hover:bg-slate-50">
+                <Icon className="mr-1 align-middle text-[16px]">{panelVisible ? 'right_panel_close' : 'right_panel_open'}</Icon>
+                {panelVisible ? 'Hide Panel' : 'Show Panel'}
+              </button>
+              <button onClick={() => {
+                if (!mapPanelRef.current) return
+                if (document.fullscreenElement) document.exitFullscreen()
+                else mapPanelRef.current.requestFullscreen().catch(() => {})
+              }} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 shadow-sm hover:bg-slate-50">
+                <Icon className="mr-1 align-middle text-[16px]">{isMapFullscreen ? 'fullscreen_exit' : 'fullscreen'}</Icon>
+                {isMapFullscreen ? 'Exit Fullscreen' : 'Fullscreen Map'}
+              </button>
             </div>
           </div>
 
@@ -105,7 +139,7 @@ export default function FlightDetail({ mission, onBack }) {
             </div>
             <div className="flex min-h-0 flex-1 gap-3 overflow-x-auto p-3">
               {captures.map((capture) => (
-                <article key={capture.id} className="w-64 shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+                <article key={capture.id} onClick={() => setSelectedCapture(capture)} className="w-64 shrink-0 cursor-pointer overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition hover:border-sky-300 hover:shadow-md">
                   <img src={capture.image || capture.src} alt={capture.label || 'Drone capture'} className="h-28 w-full object-cover" />
                   <div className="p-3">
                     <div className="flex items-start justify-between gap-2">
@@ -114,6 +148,9 @@ export default function FlightDetail({ mission, onBack }) {
                     </div>
                     <p className="mt-2 font-mono text-[10px] text-slate-500">{capture.coordinate || 'Camera frame only'}</p>
                     <p className="mt-1 text-[10px] font-semibold text-slate-400">{capture.source || 'Camera Capture'}</p>
+                    {capture.detections?.length > 0 && (
+                      <p className="mt-1 text-[10px] font-bold text-emerald-600">AI: {capture.detections.map((item) => `${item.label} ${item.confidence}%`).join(', ')}</p>
+                    )}
                   </div>
                 </article>
               ))}
@@ -121,15 +158,15 @@ export default function FlightDetail({ mission, onBack }) {
           </div>
         </section>
 
-        <aside className="bento-card col-span-3 flex min-h-0 flex-col overflow-hidden">
+        {panelVisible && <aside className="bento-card col-span-3 flex min-h-0 flex-col overflow-hidden">
           <div className="border-b border-slate-100 p-4">
             <h3 className="text-sm font-bold">Mission Information</h3>
           </div>
           <div className="space-y-4 overflow-y-auto p-4">
             <section className="space-y-2">
               <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Coordinates</p>
-              <Info label="Start" value="-7.59500, 110.44850" />
-              <Info label="Finish" value="-7.59310, 110.44680" />
+              <Info label="Start" value={startPoint.map((value) => value.toFixed(5)).join(', ')} />
+              <Info label="Finish" value={finishPoint.map((value) => value.toFixed(5)).join(', ')} />
             </section>
             <section className="space-y-2 border-t border-slate-100 pt-4">
               <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Flight Time</p>
@@ -157,8 +194,25 @@ export default function FlightDetail({ mission, onBack }) {
               })}
             </section>
           </div>
-        </aside>
+        </aside>}
       </div>
+      {selectedCapture && (
+        <div onClick={() => setSelectedCapture(null)} className="fixed inset-0 z-[1000] grid place-items-center bg-slate-950/80 p-6 backdrop-blur-sm">
+          <div onClick={(event) => event.stopPropagation()} className="relative max-h-full w-full max-w-5xl overflow-auto rounded-2xl bg-white p-4 shadow-2xl">
+            <button onClick={() => setSelectedCapture(null)} className="absolute right-6 top-6 z-10 grid h-9 w-9 place-items-center rounded-full bg-slate-950/80 text-white hover:bg-slate-950" title="Close photo">
+              <Icon>close</Icon>
+            </button>
+            <img src={selectedCapture.image || selectedCapture.src} alt={selectedCapture.label || 'Drone capture'} className="max-h-[72vh] w-full rounded-xl object-contain bg-slate-950" />
+            <div className="flex flex-wrap items-center justify-between gap-3 px-2 pt-4">
+              <div>
+                <p className="text-sm font-bold text-slate-900">{selectedCapture.label || 'Captured frame'}</p>
+                <p className="mt-1 font-mono text-xs text-slate-500">{selectedCapture.timestamp || selectedCapture.time}</p>
+              </div>
+              {selectedCapture.detections?.length > 0 && <span className="rounded-lg bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700">AI: {selectedCapture.detections.map((item) => `${item.label} ${item.confidence}%`).join(', ')}</span>}
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   )
 }

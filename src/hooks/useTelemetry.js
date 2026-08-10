@@ -62,6 +62,7 @@ export default function useTelemetry() {
   const missionDistanceRef = useRef(0)
   const missionMaxAltitudeRef = useRef(0)
   const missionPositionRef = useRef(null)
+  const missionTrackRef = useRef([])
   const capturesRef = useRef([])
   const markedLocationsRef = useRef([])
   const latestTelemetryRef = useRef(telemetry)
@@ -81,12 +82,14 @@ export default function useTelemetry() {
       missionStartRef.current = Date.now()
       missionMaxAltitudeRef.current = next.altitude || 0
       missionPositionRef.current = { lat: next.latitude, lon: next.longitude }
+      missionTrackRef.current = Number.isFinite(next.latitude) && Number.isFinite(next.longitude) ? [[next.latitude, next.longitude]] : []
     }
 
     const last = missionPositionRef.current
     if (last && next.latitude !== undefined && next.longitude !== undefined) {
       const meters = calculateDistanceMeters(last.lat, last.lon, next.latitude, next.longitude)
       if (meters > 0 && meters < 1000) missionDistanceRef.current += meters
+      if (meters > 0 && meters < 1000) missionTrackRef.current = [...missionTrackRef.current, [next.latitude, next.longitude]].slice(-2000)
       missionPositionRef.current = { lat: next.latitude, lon: next.longitude }
     }
 
@@ -104,6 +107,7 @@ export default function useTelemetry() {
       status: connectionType === 'simulation' ? 'Simulation' : 'In Progress',
       captures: capturesRef.current,
       markedLocations: markedLocationsRef.current,
+      trackPoints: missionTrackRef.current,
     })
   }, [connectionType])
 
@@ -161,12 +165,13 @@ export default function useTelemetry() {
     parserRef.current = new MavlinkParser(handleMavlinkMessage)
   }, [handleMavlinkMessage])
 
-  const capturePhoto = useCallback((image) => {
+  const capturePhoto = useCallback((image, detections = []) => {
     if (!image) return false
     const capture = {
       id: `capture-${Date.now()}`,
       image,
       timestamp: new Date().toLocaleTimeString('en-US', { hour12: false }),
+      detections,
     }
     capturesRef.current = [capture, ...capturesRef.current]
     setCurrentMission((mission) => mission ? { ...mission, captures: capturesRef.current } : mission)
@@ -200,6 +205,7 @@ export default function useTelemetry() {
         status: 'Success',
         captures: capturesRef.current,
         markedLocations: markedLocationsRef.current,
+        trackPoints: missionTrackRef.current,
       }
       setMissionLogs((logs) => [finishedMission, ...logs])
     }
@@ -237,6 +243,7 @@ export default function useTelemetry() {
     missionDistanceRef.current = 0
     missionMaxAltitudeRef.current = 0
     missionPositionRef.current = null
+    missionTrackRef.current = []
     capturesRef.current = []
     markedLocationsRef.current = []
     setCurrentMission(null)
