@@ -27,6 +27,17 @@ function createDroneHeadingIcon(heading = 0, size = 32) {
   })
 }
 
+function createStartPointIcon() {
+  return L.divIcon({
+    className: 'custom-start-marker',
+    html: `
+      <div style="width: 18px; height: 18px; border-radius: 50%; background: #22c55e; border: 3px solid #ffffff; box-shadow: 0 2px 6px rgba(0,0,0,0.35);"></div>
+    `,
+    iconSize: [18, 18],
+    iconAnchor: [9, 9],
+  })
+}
+
 function createTargetPinIcon() {
   return L.divIcon({
     className: 'custom-target-marker',
@@ -77,6 +88,7 @@ export default function MapArea({ onNavigate, telemetry: rawTelemetry, active, m
   const baseLayerRef = useRef(null)
   const overlayLayerRef = useRef(null)
   const targetMarkersRef = useRef([])
+  const startMarkerRef = useRef(null)
   const isMarkingModeRef = useRef(false)
 
   useEffect(() => {
@@ -156,10 +168,13 @@ export default function MapArea({ onNavigate, telemetry: rawTelemetry, active, m
     trailRef.current = [initialPos]
     pathRef.current = L.polyline(trailRef.current, {
       color: '#0284c7',
-      weight: 2.5,
-      dashArray: '4, 4',
+      weight: 3.5,
       opacity: 0.95,
+      lineJoin: 'round',
+      lineCap: 'round',
     }).addTo(map)
+
+    startMarkerRef.current = L.marker(initialPos, { icon: createStartPointIcon() }).addTo(map).bindPopup('Takeoff Point')
 
     const customIcon = createDroneHeadingIcon(telemetry.heading || 0, 32)
 
@@ -179,6 +194,7 @@ export default function MapArea({ onNavigate, telemetry: rawTelemetry, active, m
       map.remove()
       leafletRef.current = null
       markerRef.current = null
+      startMarkerRef.current = null
       pathRef.current = null
       baseLayerRef.current = null
       overlayLayerRef.current = null
@@ -289,6 +305,9 @@ export default function MapArea({ onNavigate, telemetry: rawTelemetry, active, m
     }
     if (pathRef.current) {
       pathRef.current.setLatLngs(trailRef.current)
+    }
+    if (startMarkerRef.current && trailRef.current.length > 0) {
+      startMarkerRef.current.setLatLng(trailRef.current[0])
     }
   }, [telemetry.latitude, telemetry.longitude, telemetry.heading, isLocked])
 

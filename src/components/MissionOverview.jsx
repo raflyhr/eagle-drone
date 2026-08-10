@@ -31,6 +31,17 @@ function createDroneHeadingIcon(heading = 0, size = 28) {
   })
 }
 
+function createStartPointIcon() {
+  return L.divIcon({
+    className: 'custom-start-marker',
+    html: `
+      <div style="width: 16px; height: 16px; border-radius: 50%; background: #22c55e; border: 2.5px solid #ffffff; box-shadow: 0 2px 5px rgba(0,0,0,0.35);"></div>
+    `,
+    iconSize: [16, 16],
+    iconAnchor: [8, 8],
+  })
+}
+
 export default function MissionOverview({ onNavigate, telemetryState, mapStyle = 'standard', onMapStyleChange }) {
   const telemetry = telemetryState?.telemetry || {
     latitude: -7.5950,
@@ -217,6 +228,7 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
   const mapRef = useRef(null)
   const leafletRef = useRef(null)
   const markerRef = useRef(null)
+  const startMarkerRef = useRef(null)
   const pathRef = useRef(null)
   const baseLayerRef = useRef(null)
   const overlayLayerRef = useRef(null)
@@ -225,6 +237,7 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
   const fullscreenMapRef = useRef(null)
   const fullscreenLeafletRef = useRef(null)
   const fullscreenMarkerRef = useRef(null)
+  const fullscreenStartMarkerRef = useRef(null)
   const fullscreenPathRef = useRef(null)
   const fullscreenBaseLayerRef = useRef(null)
   const fullscreenOverlayLayerRef = useRef(null)
@@ -322,11 +335,14 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
 
     trailRef.current = [initialPos]
     pathRef.current = L.polyline(trailRef.current, {
-      color: '#38bdf8',
-      weight: 3,
-      dashArray: '5, 5',
+      color: '#0284c7',
+      weight: 3.5,
       opacity: 0.95,
+      lineJoin: 'round',
+      lineCap: 'round',
     }).addTo(map)
+
+    startMarkerRef.current = L.marker(initialPos, { icon: createStartPointIcon() }).addTo(map)
 
     const customIcon = createDroneHeadingIcon(telemetry.heading || 0, 28)
 
@@ -337,6 +353,7 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
       map.remove()
       leafletRef.current = null
       markerRef.current = null
+      startMarkerRef.current = null
       pathRef.current = null
       baseLayerRef.current = null
       overlayLayerRef.current = null
@@ -424,6 +441,9 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
     if (pathRef.current) {
       pathRef.current.setLatLngs(trailRef.current)
     }
+    if (startMarkerRef.current && trailRef.current.length > 0) {
+      startMarkerRef.current.setLatLng(trailRef.current[0])
+    }
   }, [telemetry.latitude, telemetry.longitude, telemetry.heading])
 
   // Initialize & Update Fullscreen Top-Right Mini Map
@@ -433,6 +453,7 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
         fullscreenLeafletRef.current.remove()
         fullscreenLeafletRef.current = null
         fullscreenMarkerRef.current = null
+        fullscreenStartMarkerRef.current = null
         fullscreenPathRef.current = null
         fullscreenBaseLayerRef.current = null
         fullscreenOverlayLayerRef.current = null
@@ -475,11 +496,13 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
     const customIcon = createDroneHeadingIcon(telemetry.heading || 0, 28)
 
     fullscreenMarkerRef.current = L.marker(initialPos, { icon: customIcon }).addTo(map)
+    fullscreenStartMarkerRef.current = L.marker(initialPos, { icon: createStartPointIcon() }).addTo(map)
     fullscreenPathRef.current = L.polyline(trailRef.current, {
-      color: '#38bdf8',
-      weight: 3,
-      dashArray: '5, 5',
+      color: '#0284c7',
+      weight: 3.5,
       opacity: 0.95,
+      lineJoin: 'round',
+      lineCap: 'round',
     }).addTo(map)
 
     fullscreenLeafletRef.current = map
@@ -489,6 +512,7 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
       map.remove()
       fullscreenLeafletRef.current = null
       fullscreenMarkerRef.current = null
+      fullscreenStartMarkerRef.current = null
       fullscreenPathRef.current = null
       fullscreenBaseLayerRef.current = null
       fullscreenOverlayLayerRef.current = null
@@ -552,6 +576,9 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
     fullscreenLeafletRef.current.panTo(newPos, { animate: true, duration: 0.8 })
     if (fullscreenPathRef.current && trailRef.current.length > 0) {
       fullscreenPathRef.current.setLatLngs(trailRef.current)
+    }
+    if (fullscreenStartMarkerRef.current && trailRef.current.length > 0) {
+      fullscreenStartMarkerRef.current.setLatLng(trailRef.current[0])
     }
   }, [telemetry.latitude, telemetry.longitude, telemetry.heading, isFullscreen, showFullscreenMap])
 
