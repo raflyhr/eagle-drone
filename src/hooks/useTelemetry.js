@@ -1,20 +1,31 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { encodeMavlink2Frame, MAVMSG, MavlinkParser } from '../utils/mavlink'
 
+const MERAPI_SAR_PATROL_WAYPOINTS = [
+  { name: 'Posko Utama SAR Kaliurang (Base Camp)', lat: -7.5950, lon: 110.4485 },
+  { name: 'Bunker Kaliurang (Sector Alpha)', lat: -7.5852, lon: 110.4462 },
+  { name: 'Kali Gendol Lava Gully (Sector Bravo)', lat: -7.5680, lon: 110.4520 },
+  { name: 'Kawah Puncak Merapi (Summit Ridge)', lat: -7.5407, lon: 110.4457 },
+  { name: 'Pasar Bubrah (Summit Checkpoint)', lat: -7.5450, lon: 110.4400 },
+  { name: 'Kali Bebeng Search Grid (Sector Charlie)', lat: -7.5650, lon: 110.4350 },
+  { name: 'Pos Babadan (Sector Delta)', lat: -7.5410, lon: 110.3790 },
+  { name: 'Bukit Turgo (Sector Echo Search)', lat: -7.6010, lon: 110.4280 },
+]
+
 export default function useTelemetry() {
   const [telemetry, setTelemetry] = useState({
-    latitude: -6.2,
-    longitude: 106.816666,
-    altitude: 120,
-    speed: 15,
-    heading: 285,
-    pitch: 2.4,
-    roll: -1.2,
-    yaw: 285,
-    battery: 74,
-    voltage: 15.2,
-    current: 12.5,
-    satellites: 14,
+    latitude: -7.5950,
+    longitude: 110.4485,
+    altitude: 450,
+    speed: 22,
+    heading: 0,
+    pitch: -2.5,
+    roll: -1.0,
+    yaw: 0,
+    battery: 88,
+    voltage: 16.1,
+    current: 14.2,
+    satellites: 18,
     gpsFix: '3D Fix',
     flightMode: 'AUTO',
     sysId: 1,
@@ -33,6 +44,13 @@ export default function useTelemetry() {
   const parserRef = useRef(null)
   const simTimerRef = useRef(null)
   const seqRef = useRef(0)
+  const simStateRef = useRef({
+    lat: -7.5950,
+    lon: 110.4485,
+    heading: 0,
+    speed: 22,
+    wpIndex: 1,
+  })
 
   // Message Handler Callback for Parser
   const handleMavlinkMessage = useCallback((msg) => {
@@ -227,17 +245,65 @@ export default function useTelemetry() {
     }
   }, [disconnect, handleMavlinkMessage])
 
-  // Local MAVLink Simulation Mode Engine
+  // Local MAVLink Simulation Mode Engine (Yogyakarta Patrol Route Waypoint Navigation)
   const enableMavlinkSim = useCallback(async () => {
     await disconnect()
     setConnectionStatus('connected')
     setConnectionType('simulation')
+
+    // Reset initial simulation coordinates to Posko SAR Kaliurang Base Camp
+    simStateRef.current = {
+      lat: -7.5950,
+      lon: 110.4485,
+      heading: 0,
+      speed: 22,
+      wpIndex: 1,
+    }
 
     simTimerRef.current = setInterval(() => {
       if (!parserRef.current) return
 
       seqRef.current = (seqRef.current + 1) % 256
       const seq = seqRef.current
+      const timeMs = Math.floor(performance.now())
+
+      const st = simStateRef.current
+      const targetWp = MERAPI_SAR_PATROL_WAYPOINTS[st.wpIndex]
+
+      // Distance to target waypoint
+      const dLatMeters = (targetWp.lat - st.lat) * 111000
+      const dLonMeters = (targetWp.lon - st.lon) * 111000 * Math.cos(st.lat * (Math.PI / 180))
+      const distToWp = Math.sqrt(dLatMeters * dLatMeters + dLonMeters * dLonMeters)
+
+      // Reach waypoint -> target next landmark
+      if (distToWp < 50) {
+        st.wpIndex = (st.wpIndex + 1) % MERAPI_SAR_PATROL_WAYPOINTS.length
+      }
+
+      // Calculate bearing angle to target waypoint
+      let targetHeading = Math.atan2(dLonMeters, dLatMeters) * (180 / Math.PI)
+      if (targetHeading < 0) targetHeading += 360
+
+      // Smoothly bank heading towards target waypoint
+      let diff = (targetHeading - st.heading + 540) % 360 - 180
+      const maxTurnRate = 3.5 // 3.5 deg per 200ms tick
+      if (Math.abs(diff) > maxTurnRate) {
+        st.heading = (st.heading + Math.sign(diff) * maxTurnRate + 360) % 360
+      } else {
+        st.heading = targetHeading
+      }
+
+      const currentHeading = Math.round(st.heading)
+      const headingRad = currentHeading * (Math.PI / 180)
+
+      // Step forward by 3.6 meters (18 m/s * 0.2s tick interval) along heading vector
+      const dt = 0.2
+      const distanceMeters = st.speed * dt
+      const moveLat = (distanceMeters * Math.cos(headingRad)) / 111000
+      const moveLon = (distanceMeters * Math.sin(headingRad)) / (111000 * Math.cos(st.lat * (Math.PI / 180)))
+
+      st.lat += moveLat
+      st.lon += moveLon
 
       // 1. HEARTBEAT MAVLink Frame
       const hbPayload = new Uint8Array(9)
@@ -254,27 +320,27 @@ export default function useTelemetry() {
       // 2. ATTITUDE MAVLink Frame
       const attPayload = new Uint8Array(28)
       const attView = new DataView(attPayload.buffer)
-      const timeMs = Date.now() & 0xffffffff
-      attView.setUint32(0, timeMs, true)
-      attView.setFloat32(4, Math.sin(timeMs / 2000) * 0.05, true) // Roll rad
-      attView.setFloat32(8, Math.cos(timeMs / 1500) * 0.04, true) // Pitch rad
-      attView.setFloat32(12, ((timeMs / 100) % 360) * (Math.PI / 180), true) // Yaw rad
+      attView.setUint32(0, timeMs & 0xffffffff, true)
+      attView.setFloat32(4, Math.sin(timeMs / 1000) * 0.04, true) // Roll rad
+      attView.setFloat32(8, -0.05, true) // Pitch forward pitch
+      attView.setFloat32(12, headingRad, true) // Yaw rad (synced with heading)
       const attFrame = encodeMavlink2Frame(MAVMSG.ATTITUDE, attPayload, 1, 1, seq)
       parserRef.current.parseBytes(attFrame)
 
       // 3. GLOBAL_POSITION_INT MAVLink Frame
       const posPayload = new Uint8Array(28)
       const posView = new DataView(posPayload.buffer)
-      posView.setUint32(0, timeMs, true)
-      const simLat = Math.round((-6.200000 + (Math.sin(timeMs / 5000) * 0.002)) * 1e7)
-      const simLon = Math.round((106.816666 + (Math.cos(timeMs / 5000) * 0.002)) * 1e7)
+      posView.setUint32(0, timeMs & 0xffffffff, true)
+      const simLat = Math.round(st.lat * 1e7)
+      const simLon = Math.round(st.lon * 1e7)
       posView.setInt32(4, simLat, true)
       posView.setInt32(8, simLon, true)
       posView.setInt32(12, 145000, true) // 145m MSL
       posView.setInt32(16, 120000, true) // 120m relative
-      posView.setInt16(20, 1200, true) // 12 m/s vx
-      posView.setInt16(22, 900, true) // 9 m/s vy
-      posView.setUint16(26, Math.round(((timeMs / 100) % 360) * 100), true)
+      posView.setInt16(20, Math.round(st.speed * Math.cos(headingRad) * 100), true) // vx (m/s * 100)
+      posView.setInt16(22, Math.round(st.speed * Math.sin(headingRad) * 100), true) // vy (m/s * 100)
+      posView.setInt16(24, 0, true) // vz
+      posView.setUint16(26, currentHeading * 100, true) // hdg in cdeg
       const posFrame = encodeMavlink2Frame(MAVMSG.GLOBAL_POSITION_INT, posPayload, 1, 1, seq)
       parserRef.current.parseBytes(posFrame)
 
@@ -287,25 +353,16 @@ export default function useTelemetry() {
       sysView.setInt8(18, 78) // 78% remaining
       const sysFrame = encodeMavlink2Frame(MAVMSG.SYS_STATUS, sysPayload, 1, 1, seq)
       parserRef.current.parseBytes(sysFrame)
-    }, 500)
+    }, 200)
   }, [disconnect])
 
-  // Fallback initial geolocation check
+  // Auto-start simulation mode on initial mount
   useEffect(() => {
-    if (typeof window !== 'undefined' && 'geolocation' in navigator) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          setTelemetry((prev) => ({
-            ...prev,
-            latitude: Number(pos.coords.latitude.toFixed(6)),
-            longitude: Number(pos.coords.longitude.toFixed(6)),
-          }))
-        },
-        () => {},
-        { timeout: 5000 }
-      )
+    enableMavlinkSim()
+    return () => {
+      if (simTimerRef.current) clearInterval(simTimerRef.current)
     }
-  }, [])
+  }, [enableMavlinkSim])
 
   return {
     telemetry,

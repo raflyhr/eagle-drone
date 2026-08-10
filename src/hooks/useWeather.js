@@ -99,23 +99,27 @@ function getWeatherCondition(code, isDay = 1) {
 }
 
 export default function useWeather(latitude, longitude) {
+  // Round to ~1km precision for network effect triggers so 5Hz telemetry doesn't cancel fetch
+  const roundedLat = latitude ? Math.round(latitude * 100) / 100 : -7.60
+  const roundedLon = longitude ? Math.round(longitude * 100) / 100 : 110.45
+
   const [weather, setWeather] = useState({
-    temperature: 28,
-    apparentTemperature: 30,
-    humidity: 72,
-    precipitation: 10,
-    windSpeed: 4.2,
-    windSpeedKmH: 15.1,
-    windDirection: 285,
-    windCardinal: 'WNW',
+    temperature: 24,
+    apparentTemperature: 25,
+    humidity: 78,
+    precipitation: 15,
+    windSpeed: 5.8,
+    windSpeedKmH: 20.9,
+    windDirection: 350,
+    windCardinal: 'N',
     condition: 'Partly Cloudy',
     weatherType: 'partly_cloudy',
     isDay: 1,
-    locationName: 'Locating Area...',
-    dmsLocation: formatCoordinatesDMS(latitude || -6.2, longitude || 106.816666),
+    locationName: 'Posko SAR Kaliurang (G. Merapi), Indonesia',
+    dmsLocation: formatCoordinatesDMS(latitude || -7.5950, longitude || 110.4485),
     satellites: 18,
-    sector: 'SEC-A1',
-    loading: true,
+    sector: 'SAR-MERAPI-S1',
+    loading: false,
     lastUpdated: null,
   })
 
@@ -126,15 +130,12 @@ export default function useWeather(latitude, longitude) {
 
     async function fetchRealData() {
       try {
-        // 1. Fetch Real Weather from Open-Meteo
-        const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,relative_humidity_2m,apparent_temperature,is_day,precipitation,weather_code,wind_speed_10m,wind_direction_10m&wind_speed_unit=ms&timezone=auto`
-        const weatherRes = await fetch(weatherUrl)
-        
-        if (!weatherRes.ok) throw new Error('Weather fetch failed')
-        const weatherData = await weatherRes.json()
+        let placeName = 'Posko SAR Kaliurang (G. Merapi), Indonesia'
 
-        // 2. Fetch Real Location Name via Reverse Geocoding
-        let placeName = 'Drone Operation Zone'
+        if (latitude < -7.50 && latitude > -7.65 && longitude > 110.35 && longitude < 110.50) {
+          placeName = 'Posko SAR Kaliurang (G. Merapi), Indonesia'
+        }
+
         try {
           const geoUrl = `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=en`
           const geoRes = await fetch(geoUrl)
@@ -152,9 +153,18 @@ export default function useWeather(latitude, longitude) {
           // Keep default placeName if geocode fails
         }
 
+        // Fetch Real Weather from Open-Meteo
+        const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,relative_humidity_2m,apparent_temperature,is_day,precipitation,weather_code,wind_speed_10m,wind_direction_10m&wind_speed_unit=ms&timezone=auto`
+        const weatherRes = await fetch(weatherUrl)
+        
+        let current = {}
+        if (weatherRes.ok) {
+          const weatherData = await weatherRes.json()
+          current = weatherData.current || {}
+        }
+
         if (!isMounted) return
 
-        const current = weatherData.current || {}
         const temp = Math.round(current.temperature_2m ?? 28)
         const apparent = Math.round(current.apparent_temperature ?? temp)
         const hum = Math.round(current.relative_humidity_2m ?? 70)
@@ -166,7 +176,8 @@ export default function useWeather(latitude, longitude) {
         const isDay = current.is_day ?? 1
         const cond = getWeatherCondition(current.weather_code ?? 2, isDay)
 
-        setWeather({
+        setWeather((prev) => ({
+          ...prev,
           temperature: temp,
           apparentTemperature: apparent,
           humidity: hum,
@@ -180,16 +191,15 @@ export default function useWeather(latitude, longitude) {
           isDay,
           locationName: placeName,
           dmsLocation: formatCoordinatesDMS(latitude, longitude),
-          satellites: 16 + (Math.abs(Math.round(latitude * 10)) % 6),
-          sector: `SEC-${String.fromCharCode(65 + (Math.abs(Math.round(latitude)) % 6))}${Math.abs(Math.round(longitude)) % 9 + 1}`,
           loading: false,
           lastUpdated: new Date().toLocaleTimeString(),
-        })
+        }))
       } catch (err) {
         console.warn('Real weather sync fallback:', err)
         if (!isMounted) return
         setWeather((prev) => ({
           ...prev,
+          locationName: 'Yogyakarta, Indonesia',
           dmsLocation: formatCoordinatesDMS(latitude, longitude),
           loading: false,
         }))
@@ -204,6 +214,15 @@ export default function useWeather(latitude, longitude) {
       isMounted = false
       clearInterval(interval)
     }
+  }, [roundedLat, roundedLon])
+
+  // Always sync DMS location formatting on high-frequency telemetry updates
+  useEffect(() => {
+    if (!latitude || !longitude) return
+    setWeather((prev) => ({
+      ...prev,
+      dmsLocation: formatCoordinatesDMS(latitude, longitude),
+    }))
   }, [latitude, longitude])
 
   return weather
