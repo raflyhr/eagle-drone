@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import useTelemetry from './hooks/useTelemetry'
 import './index.css'
-import DetectionEvents from './components/Detection-Events'
 import FlightHistory from './components/Flight-History'
 import MapArea from './components/Map-Area'
 import MissionOverview from './components/MissionOverview'
@@ -41,9 +40,6 @@ function App() {
             mapStyle={mapStyle}
             onMapStyleChange={handleMapStyleChange}
           />
-        </div>
-        <div className={page === 'events' ? 'block' : 'hidden'}>
-          <DetectionEvents onNavigate={setPage} />
         </div>
         <div className={page === 'history' ? 'block' : 'hidden'}>
           <FlightHistory onNavigate={setPage} />

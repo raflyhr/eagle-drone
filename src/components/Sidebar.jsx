@@ -1,3 +1,5 @@
+import logoUrl from '../assets/logo-eagle.png'
+
 function Icon({ children, className = '' }) {
   return <span className={`material-symbols-outlined ${className}`}>{children}</span>
 }
@@ -6,7 +8,6 @@ export default function Sidebar({ activePage, onNavigate }) {
   const navItems = [
     { id: 'home', icon: 'home', title: 'Mission Overview', page: 'mission' },
     { id: 'control', icon: 'control_camera', title: 'Flight Controls & Map', page: 'map' },
-    { id: 'grid', icon: 'grid_view', title: 'Detection Events', page: 'events' },
     { id: 'video', icon: 'videocam', title: 'Live Camera Feed', page: 'mission' },
     { id: 'settings', icon: 'settings', title: 'System Settings', page: 'settings' },
     { id: 'history', icon: 'history', title: 'Flight Archives', page: 'history' },
@@ -15,7 +16,6 @@ export default function Sidebar({ activePage, onNavigate }) {
   const isItemActive = (itemId) => {
     if (activePage === 'mission') return itemId === 'home'
     if (activePage === 'map') return itemId === 'control'
-    if (activePage === 'events') return itemId === 'grid'
     if (activePage === 'settings') return itemId === 'settings'
     if (activePage === 'history') return itemId === 'history'
     return false
@@ -27,15 +27,10 @@ export default function Sidebar({ activePage, onNavigate }) {
       <div className="flex flex-col items-center gap-6">
         <button
           onClick={() => onNavigate('mission')}
-          className="flex h-11 w-11 items-center justify-center rounded-xl bg-slate-900 text-white shadow-sm transition hover:bg-slate-800"
+          className="flex items-center justify-center bg-transparent transition"
           title="Eagle Drone"
         >
-          {/* DP / Drone Monogram Logo */}
-          <svg className="h-6 w-6 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M4 8h5a4 4 0 0 1 4 4v0a4 4 0 0 1-4 4H4V8z" />
-            <path d="M15 8h4a3 3 0 0 1 3 3v2a3 3 0 0 1-3 3h-4" />
-            <circle cx="9" cy="12" r="1.5" fill="currentColor" />
-          </svg>
+          <img src={logoUrl} alt="Eagle Drone" className="h-14 w-14 object-contain object-center" />
         </button>
 
         {/* Navigation Icons Stack */}
