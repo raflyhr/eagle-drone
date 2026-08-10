@@ -32,21 +32,34 @@ export default function FlightDetail({ mission, onBack }) {
   const mapContainerRef = useRef(null)
   const mapPanelRef = useRef(null)
   const mapRef = useRef(null)
+  const baseLayerRef = useRef(null)
+  const overlayLayerRef = useRef(null)
   const [selectedCapture, setSelectedCapture] = useState(null)
   const [panelVisible, setPanelVisible] = useState(true)
   const [isMapFullscreen, setIsMapFullscreen] = useState(false)
+  const [mapStyle, setMapStyle] = useState('standard')
+  const [capturePage, setCapturePage] = useState(0)
   const captures = useMemo(() => mission?.captures?.length ? mission.captures : defaultCaptures, [mission?.captures])
   const markedLocations = useMemo(() => mission?.markedLocations?.length ? mission.markedLocations : defaultMarkedLocations, [mission?.markedLocations])
   const trackPoints = useMemo(() => mission?.trackPoints?.length ? mission.trackPoints : defaultTrack, [mission?.trackPoints])
   const startPoint = trackPoints[0]
   const finishPoint = trackPoints.at(-1)
+  const capturesPerPage = panelVisible ? 4 : 5
+  const capturePageCount = Math.ceil(captures.length / capturesPerPage)
+  const visibleCaptures = captures.slice(capturePage * capturesPerPage, (capturePage + 1) * capturesPerPage)
+
+  useEffect(() => {
+    setCapturePage(0)
+  }, [panelVisible])
+
+  useEffect(() => {
+    if (capturePage >= capturePageCount) setCapturePage(Math.max(0, capturePageCount - 1))
+  }, [capturePage, capturePageCount])
 
   useEffect(() => {
     if (!mapContainerRef.current || mapRef.current) return
     const map = L.map(mapContainerRef.current, { zoomControl: false })
-    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; OpenStreetMap contributors',
-    }).addTo(map)
+    baseLayerRef.current = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap contributors', maxZoom: 19 }).addTo(map)
 
     const path = L.polyline(trackPoints, { color: '#0284c7', weight: 4, opacity: 0.9 }).addTo(map)
     L.circleMarker(startPoint, { radius: 7, color: '#ffffff', weight: 3, fillColor: '#16a34a', fillOpacity: 1 }).bindTooltip('Start').addTo(map)
@@ -62,7 +75,6 @@ export default function FlightDetail({ mission, onBack }) {
       }).bindTooltip(`${location.id || `MK-${String(index + 1).padStart(2, '0')}`} · ${location.altitude} m`).addTo(map)
     })
     map.fitBounds(path.getBounds(), { padding: [35, 35] })
-    L.control.zoom({ position: 'bottomright' }).addTo(map)
     mapRef.current = map
 
     const timer = setTimeout(() => map.invalidateSize(), 0)
@@ -72,6 +84,22 @@ export default function FlightDetail({ mission, onBack }) {
       mapRef.current = null
     }
   }, [finishPoint, markedLocations, startPoint, trackPoints])
+
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map) return
+    if (baseLayerRef.current) map.removeLayer(baseLayerRef.current)
+    if (overlayLayerRef.current) map.removeLayer(overlayLayerRef.current)
+
+    if (mapStyle === 'satellite') {
+      baseLayerRef.current = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution: '&copy; Esri Satellite', maxZoom: 19 }).addTo(map)
+      overlayLayerRef.current = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, opacity: 0.85 }).addTo(map)
+    } else if (mapStyle === 'terrain') {
+      baseLayerRef.current = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenTopoMap', maxZoom: 17 }).addTo(map)
+    } else {
+      baseLayerRef.current = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap', maxZoom: 19 }).addTo(map)
+    }
+  }, [mapStyle])
 
   useEffect(() => {
     setTimeout(() => mapRef.current?.invalidateSize(), 120)
@@ -113,11 +141,24 @@ export default function FlightDetail({ mission, onBack }) {
               <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Recorded Flight Path</p>
               <p className="mt-0.5 text-xs font-bold text-slate-800">{mission?.distance || '18.4 km'} · {mission?.duration || '02:14:33'}</p>
             </div>
+            <div className="absolute left-3 top-16 z-[500] flex flex-col overflow-hidden rounded-md border border-slate-200 bg-white shadow-md">
+              <button onClick={() => mapRef.current?.zoomIn()} className="grid h-8 w-8 place-items-center border-b border-slate-200 text-slate-700 hover:bg-slate-100" title="Zoom in"><Icon className="text-[18px]">add</Icon></button>
+              <button onClick={() => mapRef.current?.zoomOut()} className="grid h-8 w-8 place-items-center text-slate-700 hover:bg-slate-100" title="Zoom out"><Icon className="text-[18px]">remove</Icon></button>
+            </div>
             <div className="absolute right-3 top-3 z-[500] flex gap-2">
-              <button onClick={() => setPanelVisible((visible) => !visible)} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 shadow-sm hover:bg-slate-50">
-                <Icon className="mr-1 align-middle text-[16px]">{panelVisible ? 'right_panel_close' : 'right_panel_open'}</Icon>
-                {panelVisible ? 'Hide Panel' : 'Show Panel'}
-              </button>
+              <div className="flex items-center rounded-md border border-slate-200 bg-white p-0.5 shadow-md">
+                {['standard', 'satellite', 'terrain'].map((style) => (
+                  <button key={style} onClick={() => setMapStyle(style)} className={`rounded px-2.5 py-1 text-xs font-semibold transition ${mapStyle === style ? 'bg-slate-900 text-white font-bold' : 'text-slate-700 hover:bg-slate-100'}`}>
+                    {style[0].toUpperCase() + style.slice(1)}
+                  </button>
+                ))}
+              </div>
+              {!panelVisible && (
+                <button onClick={() => setPanelVisible(true)} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 shadow-sm hover:bg-slate-50">
+                  <Icon className="mr-1 align-middle text-[16px]">right_panel_open</Icon>
+                  Show Panel
+                </button>
+              )}
               <button onClick={() => {
                 if (!mapPanelRef.current) return
                 if (document.fullscreenElement) document.exitFullscreen()
@@ -137,9 +178,9 @@ export default function FlightDetail({ mission, onBack }) {
               </div>
               <span className="text-xs font-bold text-slate-500">{captures.length} photos</span>
             </div>
-            <div className="flex min-h-0 flex-1 gap-3 overflow-x-auto p-3">
-              {captures.map((capture) => (
-                <article key={capture.id} onClick={() => setSelectedCapture(capture)} className="w-64 shrink-0 cursor-pointer overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition hover:border-sky-300 hover:shadow-md">
+            <div className={`grid min-h-0 flex-1 gap-3 p-3 ${panelVisible ? 'grid-cols-4' : 'grid-cols-5'}`}>
+              {visibleCaptures.map((capture) => (
+                <article key={capture.id} onClick={() => setSelectedCapture(capture)} className="min-w-0 cursor-pointer overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition hover:border-sky-300 hover:shadow-md">
                   <img src={capture.image || capture.src} alt={capture.label || 'Drone capture'} className="h-28 w-full object-cover" />
                   <div className="p-3">
                     <div className="flex items-start justify-between gap-2">
@@ -155,12 +196,23 @@ export default function FlightDetail({ mission, onBack }) {
                 </article>
               ))}
             </div>
+            {capturePageCount > 1 && (
+              <div className="flex shrink-0 items-center justify-center gap-3 border-t border-slate-100 px-4 py-2">
+                <button disabled={capturePage === 0} onClick={() => setCapturePage((page) => page - 1)} className="rounded-lg border border-slate-200 px-3 py-1 text-xs font-bold text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40">Previous</button>
+                <span className="text-xs font-semibold text-slate-500">Page {capturePage + 1} of {capturePageCount}</span>
+                <button disabled={capturePage >= capturePageCount - 1} onClick={() => setCapturePage((page) => page + 1)} className="rounded-lg border border-slate-200 px-3 py-1 text-xs font-bold text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40">Next</button>
+              </div>
+            )}
           </div>
         </section>
 
         {panelVisible && <aside className="bento-card col-span-3 flex min-h-0 flex-col overflow-hidden">
-          <div className="border-b border-slate-100 p-4">
+          <div className="flex items-center justify-between border-b border-slate-100 p-4">
             <h3 className="text-sm font-bold">Mission Information</h3>
+            <button onClick={() => setPanelVisible(false)} className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-bold text-slate-600 hover:bg-slate-50" title="Hide information panel">
+              <Icon className="mr-1 align-middle text-[16px]">right_panel_close</Icon>
+              Hide Panel
+            </button>
           </div>
           <div className="space-y-4 overflow-y-auto p-4">
             <section className="space-y-2">
