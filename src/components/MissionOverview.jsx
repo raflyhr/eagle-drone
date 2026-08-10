@@ -272,7 +272,7 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
     }
     if (capturePhoto?.(canvas.toDataURL('image/jpeg', 0.85), detections.map(({ score }) => ({ label: 'PERSON', confidence: Math.round(score * 100) })))) {
       setCaptureFeedback(true)
-      setTimeout(() => setCaptureFeedback(false), 900)
+      setTimeout(() => setCaptureFeedback(false), 160)
     }
   }
 
@@ -642,8 +642,11 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
                     <canvas className="pointer-events-none absolute inset-0 z-20" />
                   )}
                   {captureFeedback && (
-                    <div className="pointer-events-none absolute inset-0 z-50 grid place-items-center bg-white/75 text-slate-900 transition">
-                      <div className="rounded-full bg-slate-950/80 px-5 py-2 text-sm font-black text-white shadow-xl">cekrek · Photo Captured</div>
+                    <div className="pointer-events-none absolute inset-0 z-50 bg-white/70 transition">
+                      <div className="absolute right-5 top-5 flex items-center gap-2 rounded-full bg-slate-950/85 px-4 py-2 text-xs font-bold text-white shadow-xl">
+                        <Icon className="text-[16px]">photo_camera</Icon>
+                        <span>Photo saved</span>
+                      </div>
                     </div>
                   )}
                   {locationFeedback && (
@@ -806,7 +809,7 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
                           title="Capture current camera frame"
                         >
                           <Icon className="text-[14px]">photo_camera</Icon>
-                          <span>{captureFeedback ? 'Captured' : 'Capture Photo'}</span>
+                          <span>{captureFeedback ? 'Photo saved' : 'Capture Photo'}</span>
                         </button>
 
                         <button
