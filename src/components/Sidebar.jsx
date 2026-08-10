@@ -28,11 +28,11 @@ export default function Sidebar({ activePage, onNavigate }) {
           className="flex items-center justify-center bg-transparent transition"
           title="Eagle Drone"
         >
-          <img src={logoUrl} alt="Eagle Drone" className="h-18 w-18 object-contain object-center" />
+          <img src={logoUrl} alt="Eagle Drone" className="relative -top-6 h-18 w-18 object-contain object-center" />
         </button>
 
         {/* Navigation Icons Stack */}
-        <nav className="flex flex-col items-center gap-2">
+        <nav className="-mt-4 flex flex-col items-center gap-2">
           {navItems.map((item) => {
             const isActive = isItemActive(item.id)
             return (
