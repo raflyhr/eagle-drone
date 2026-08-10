@@ -306,9 +306,6 @@ export default function MapArea({ onNavigate, telemetry: rawTelemetry, active, m
     if (pathRef.current) {
       pathRef.current.setLatLngs(trailRef.current)
     }
-    if (startMarkerRef.current && trailRef.current.length > 0) {
-      startMarkerRef.current.setLatLng(trailRef.current[0])
-    }
   }, [telemetry.latitude, telemetry.longitude, telemetry.heading, isLocked])
 
   useEffect(() => {

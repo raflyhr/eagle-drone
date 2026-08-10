@@ -441,9 +441,6 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
     if (pathRef.current) {
       pathRef.current.setLatLngs(trailRef.current)
     }
-    if (startMarkerRef.current && trailRef.current.length > 0) {
-      startMarkerRef.current.setLatLng(trailRef.current[0])
-    }
   }, [telemetry.latitude, telemetry.longitude, telemetry.heading])
 
   // Initialize & Update Fullscreen Top-Right Mini Map
@@ -576,9 +573,6 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
     fullscreenLeafletRef.current.panTo(newPos, { animate: true, duration: 0.8 })
     if (fullscreenPathRef.current && trailRef.current.length > 0) {
       fullscreenPathRef.current.setLatLngs(trailRef.current)
-    }
-    if (fullscreenStartMarkerRef.current && trailRef.current.length > 0) {
-      fullscreenStartMarkerRef.current.setLatLng(trailRef.current[0])
     }
   }, [telemetry.latitude, telemetry.longitude, telemetry.heading, isFullscreen, showFullscreenMap])
 
