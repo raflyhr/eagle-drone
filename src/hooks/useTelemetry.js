@@ -1,32 +1,387 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { encodeMavlink2Frame, MAVMSG, MavlinkParser } from '../utils/mavlink'
+import { getOfflineLocationName } from '../utils/geoCoder'
+
+export function calculateDistanceMeters(lat1, lon1, lat2, lon2) {
+  if (lat1 === undefined || lon1 === undefined || lat2 === undefined || lon2 === undefined) return 0
+  const dLat = (lat2 - lat1) * 111000
+  const dLon = (lat2 - lon1) * 111000 * Math.cos(((lat1 + lat2) / 2) * (Math.PI / 180))
+  return Math.round(Math.sqrt(dLat * dLat + dLon * dLon))
+}
+
+export function formatDistance(meters) {
+  if (meters === undefined || meters === null || isNaN(meters)) return '0 m'
+  if (meters < 1000) return `${meters} m`
+  return `${(meters / 1000).toFixed(2)} km`
+}
+
+export function getDroneLocationName(lat, lon) {
+  if (!lat || !lon) return 'UAV Takeoff Point'
+  return getOfflineLocationName(lat, lon)
+}
 
 export default function useTelemetry() {
   const [telemetry, setTelemetry] = useState({
-    latitude: -6.2,
-    longitude: 106.816666,
-    altitude: 120,
-    speed: 15,
-    heading: 285,
-    battery: 74,
-    signal: 98,
+    latitude: -7.5950,
+    longitude: 110.4485,
+    altitude: 450,
+    speed: 22,
+    heading: 0,
+    pitch: -2.5,
+    roll: -1.0,
+    yaw: 0,
+    battery: 88,
+    voltage: 16.1,
+    current: 14.2,
+    satellites: 18,
+    gpsFix: '3D Fix',
+    flightMode: 'AUTO',
+    sysId: 1,
+    compId: 1,
+    packetCount: 0,
+    lastHeartbeat: Date.now(),
   })
 
-  useEffect(() => {
-    const intervalId = setInterval(() => {
-      setTelemetry((value) => ({
-        latitude: Number((value.latitude + 0.00018).toFixed(6)),
-        longitude: Number((value.longitude + 0.00012).toFixed(6)),
-        altitude: 118 + ((value.altitude + 3) % 8),
-        speed: 14 + ((value.speed + 1) % 6),
-        heading: (value.heading + 7) % 360,
-        battery: value.battery <= 20 ? 74 : Number((value.battery - 0.2).toFixed(1)),
-        signal: 96 + ((value.signal + 1) % 3),
-      }))
-    }, 1500)
+  const [connectionStatus, setConnectionStatus] = useState('disconnected') // 'disconnected' | 'connecting' | 'connected' | 'error'
+  const [connectionType, setConnectionType] = useState('none') // 'none' | 'serial' | 'websocket' | 'simulation'
+  const [errorMessage, setErrorMessage] = useState('')
 
-    return () => clearInterval(intervalId)
+  const serialPortRef = useRef(null)
+  const readerRef = useRef(null)
+  const socketRef = useRef(null)
+  const parserRef = useRef(null)
+  const simTimerRef = useRef(null)
+  const seqRef = useRef(0)
+  const simStateRef = useRef({
+    lat: -7.5950,
+    lon: 110.4485,
+    heading: 45,
+    speed: 18,
+    phase: 0,
+    radius: 0.012,
+    centerLat: -7.5950,
+    centerLon: 110.4485,
+  })
+
+  // Message Handler Callback for Parser
+  const handleMavlinkMessage = useCallback((msg) => {
+    setTelemetry((prev) => {
+      const next = { ...prev, packetCount: prev.packetCount + 1 }
+
+      if (msg.sysId) next.sysId = msg.sysId
+      if (msg.compId) next.compId = msg.compId
+
+      if (msg.msgName === 'HEARTBEAT') {
+        next.flightMode = msg.flightMode || prev.flightMode
+        next.lastHeartbeat = msg.timestamp
+      } else if (msg.msgName === 'SYS_STATUS') {
+        if (msg.batteryRemaining !== undefined) next.battery = msg.batteryRemaining
+        if (msg.voltageBattery !== undefined) next.voltage = msg.voltageBattery
+        if (msg.currentBattery !== undefined) next.current = msg.currentBattery
+      } else if (msg.msgName === 'GPS_RAW_INT') {
+        if (msg.lat) next.latitude = Number(msg.lat.toFixed(6))
+        if (msg.lon) next.longitude = Number(msg.lon.toFixed(6))
+        if (msg.alt !== undefined) next.altitude = Math.round(msg.alt)
+        if (msg.satellitesVisible !== undefined) next.satellites = msg.satellitesVisible
+        if (msg.fixLabel) next.gpsFix = msg.fixLabel
+      } else if (msg.msgName === 'ATTITUDE') {
+        if (msg.pitch !== undefined) next.pitch = msg.pitch
+        if (msg.roll !== undefined) next.roll = msg.roll
+        if (msg.yaw !== undefined) {
+          next.yaw = msg.yaw
+          next.heading = Math.round(msg.yaw)
+        }
+      } else if (msg.msgName === 'GLOBAL_POSITION_INT' || msg.msgName === 'VFR_HUD') {
+        if (msg.lat) next.latitude = Number(msg.lat.toFixed(6))
+        if (msg.lon) next.longitude = Number(msg.lon.toFixed(6))
+        if (msg.alt !== undefined || msg.relativeAlt !== undefined) {
+          next.altitude = Math.round(msg.relativeAlt ?? msg.alt)
+        }
+        if (msg.speed !== undefined || msg.groundspeed !== undefined) {
+          next.speed = Number((msg.groundspeed ?? msg.speed).toFixed(1))
+        }
+        if (msg.heading !== undefined) next.heading = Math.round(msg.heading)
+      }
+
+      return next
+    })
   }, [])
 
-  return telemetry
+  // Initialize parser
+  useEffect(() => {
+    parserRef.current = new MavlinkParser(handleMavlinkMessage)
+  }, [handleMavlinkMessage])
+
+  // Disconnect function
+  const disconnect = useCallback(async () => {
+    if (simTimerRef.current) {
+      clearInterval(simTimerRef.current)
+      simTimerRef.current = null
+    }
+
+    if (readerRef.current) {
+      try {
+        await readerRef.current.cancel()
+        readerRef.current.releaseLock()
+      } catch (err) {
+        console.warn('Error releasing serial reader:', err)
+      }
+      readerRef.current = null
+    }
+
+    if (serialPortRef.current) {
+      try {
+        await serialPortRef.current.close()
+      } catch (err) {
+        console.warn('Error closing serial port:', err)
+      }
+      serialPortRef.current = null
+    }
+
+    if (socketRef.current) {
+      socketRef.current.close()
+      socketRef.current = null
+    }
+
+    setConnectionStatus('disconnected')
+    setConnectionType('none')
+    setErrorMessage('')
+  }, [])
+
+  // Connect via WebSerial API (USB / Telemetry Radio)
+  const connectSerial = useCallback(async (baudRate = 57600) => {
+    if (!('serial' in navigator)) {
+      setConnectionStatus('error')
+      setErrorMessage('WebSerial API is not supported in this browser (use Chrome/Edge).')
+      return false
+    }
+
+    try {
+      await disconnect()
+      setConnectionStatus('connecting')
+      setConnectionType('serial')
+
+      const port = await navigator.serial.requestPort()
+      await port.open({ baudRate: Number(baudRate) })
+      serialPortRef.current = port
+
+      setConnectionStatus('connected')
+
+      // Read loop
+      const readLoop = async () => {
+        while (port.readable && serialPortRef.current === port) {
+          try {
+            const reader = port.readable.getReader()
+            readerRef.current = reader
+            while (true) {
+              const { value, done } = await reader.read()
+              if (done) break
+              if (value && parserRef.current) {
+                parserRef.current.parseBytes(value)
+              }
+            }
+          } catch (err) {
+            console.error('Serial read error:', err)
+            break
+          } finally {
+            if (readerRef.current) {
+              readerRef.current.releaseLock()
+              readerRef.current = null
+            }
+          }
+        }
+      }
+
+      readLoop()
+      return true
+    } catch (err) {
+      console.error('Failed to open WebSerial port:', err)
+      setConnectionStatus('error')
+      setErrorMessage(err.message || 'Failed to connect to Serial/USB MAVLink device.')
+      return false
+    }
+  }, [disconnect])
+
+  // Connect via WebSocket MAVLink Bridge
+  const connectWebSocket = useCallback(async (wsUrl = 'ws://localhost:8080') => {
+    try {
+      await disconnect()
+      setConnectionStatus('connecting')
+      setConnectionType('websocket')
+
+      const ws = new WebSocket(wsUrl)
+      ws.binaryType = 'arraybuffer'
+
+      ws.onopen = () => {
+        setConnectionStatus('connected')
+        socketRef.current = ws
+      }
+
+      ws.onmessage = (evt) => {
+        if (!parserRef.current) return
+        if (evt.data instanceof ArrayBuffer) {
+          parserRef.current.parseBytes(new Uint8Array(evt.data))
+        } else if (typeof evt.data === 'string') {
+          try {
+            const json = JSON.parse(evt.data)
+            if (json.msgName || json.msgId !== undefined) {
+              handleMavlinkMessage(json)
+            }
+          } catch {
+            // Raw text buffer fallback
+            const encoder = new TextEncoder()
+            parserRef.current.parseBytes(encoder.encode(evt.data))
+          }
+        }
+      }
+
+      ws.onerror = (err) => {
+        console.error('WebSocket MAVLink Error:', err)
+        setConnectionStatus('error')
+        setErrorMessage('Failed to connect to WebSocket MAVLink Bridge.')
+      }
+
+      ws.onclose = () => {
+        if (socketRef.current === ws) {
+          setConnectionStatus('disconnected')
+          setConnectionType('none')
+        }
+      }
+
+      return true
+    } catch (err) {
+      setConnectionStatus('error')
+      setErrorMessage(err.message || 'Failed to open WebSocket MAVLink connection.')
+      return false
+    }
+  }, [disconnect, handleMavlinkMessage])
+
+  // Local MAVLink Simulation Mode Engine (Dynamic SAR Search Exploration Flight)
+  const enableMavlinkSim = useCallback(async () => {
+    await disconnect()
+    setConnectionStatus('connected')
+    setConnectionType('simulation')
+
+    simStateRef.current = {
+      lat: -7.5950,
+      lon: 110.4485,
+      heading: 45,
+      speed: 18,
+      phase: 0,
+      radius: 0.012,
+      centerLat: -7.5950,
+      centerLon: 110.4485,
+    }
+
+    simTimerRef.current = setInterval(() => {
+      if (!parserRef.current) return
+
+      seqRef.current = (seqRef.current + 1) % 256
+      const seq = seqRef.current
+      const timeMs = Math.floor(performance.now())
+
+      const st = simStateRef.current
+      st.phase += 0.015
+
+      // Smooth search exploration curve
+      const offsetLat = Math.sin(st.phase * 0.7) * st.radius
+      const offsetLon = Math.cos(st.phase * 0.5) * st.radius * 1.2
+      const targetLat = st.centerLat + offsetLat
+      const targetLon = st.centerLon + offsetLon
+
+      const dLat = (targetLat - st.lat) * 111000
+      const dLon = (targetLon - st.lon) * 111000 * Math.cos(st.lat * (Math.PI / 180))
+
+      let targetHeading = Math.atan2(dLon, dLat) * (180 / Math.PI)
+      if (targetHeading < 0) targetHeading += 360
+
+      let diff = (targetHeading - st.heading + 540) % 360 - 180
+      const maxTurnRate = 4.0
+      if (Math.abs(diff) > maxTurnRate) {
+        st.heading = (st.heading + Math.sign(diff) * maxTurnRate + 360) % 360
+      } else {
+        st.heading = targetHeading
+      }
+
+      const currentHeading = Math.round(st.heading)
+      const headingRad = currentHeading * (Math.PI / 180)
+
+      const dt = 0.2
+      const distanceMeters = st.speed * dt
+      const moveLat = (distanceMeters * Math.cos(headingRad)) / 111000
+      const moveLon = (distanceMeters * Math.sin(headingRad)) / (111000 * Math.cos(st.lat * (Math.PI / 180)))
+
+      st.lat += moveLat
+      st.lon += moveLon
+
+      // 1. HEARTBEAT MAVLink Frame
+      const hbPayload = new Uint8Array(9)
+      const hbView = new DataView(hbPayload.buffer)
+      hbView.setUint32(0, 3, true) // Mode AUTO
+      hbView.setUint8(4, 2) // Quadrotor
+      hbView.setUint8(5, 3) // ArduPilot
+      hbView.setUint8(6, 209)
+      hbView.setUint8(7, 4) // Active
+      hbView.setUint8(8, 3)
+      const hbFrame = encodeMavlink2Frame(MAVMSG.HEARTBEAT, hbPayload, 1, 1, seq)
+      parserRef.current.parseBytes(hbFrame)
+
+      // 2. ATTITUDE MAVLink Frame
+      const attPayload = new Uint8Array(28)
+      const attView = new DataView(attPayload.buffer)
+      attView.setUint32(0, timeMs & 0xffffffff, true)
+      attView.setFloat32(4, Math.sin(timeMs / 1000) * 0.04, true)
+      attView.setFloat32(8, -0.05, true)
+      attView.setFloat32(12, headingRad, true)
+      const attFrame = encodeMavlink2Frame(MAVMSG.ATTITUDE, attPayload, 1, 1, seq)
+      parserRef.current.parseBytes(attFrame)
+
+      // 3. GLOBAL_POSITION_INT MAVLink Frame
+      const posPayload = new Uint8Array(28)
+      const posView = new DataView(posPayload.buffer)
+      posView.setUint32(0, timeMs & 0xffffffff, true)
+      const simLat = Math.round(st.lat * 1e7)
+      const simLon = Math.round(st.lon * 1e7)
+      posView.setInt32(4, simLat, true)
+      posView.setInt32(8, simLon, true)
+      posView.setInt32(12, 145000, true)
+      posView.setInt32(16, 120000, true)
+      posView.setInt16(20, Math.round(st.speed * Math.cos(headingRad) * 100), true)
+      posView.setInt16(22, Math.round(st.speed * Math.sin(headingRad) * 100), true)
+      posView.setInt16(24, 0, true)
+      posView.setUint16(26, currentHeading * 100, true)
+      const posFrame = encodeMavlink2Frame(MAVMSG.GLOBAL_POSITION_INT, posPayload, 1, 1, seq)
+      parserRef.current.parseBytes(posFrame)
+
+      // 4. SYS_STATUS MAVLink Frame
+      const sysPayload = new Uint8Array(31)
+      const sysView = new DataView(sysPayload.buffer)
+      sysView.setUint16(12, 350, true)
+      sysView.setUint16(14, 15400, true)
+      sysView.setInt16(16, 1420, true)
+      sysView.setInt8(18, 78)
+      const sysFrame = encodeMavlink2Frame(MAVMSG.SYS_STATUS, sysPayload, 1, 1, seq)
+      parserRef.current.parseBytes(sysFrame)
+    }, 200)
+  }, [disconnect])
+
+  // Auto-start simulation mode on initial mount
+  useEffect(() => {
+    enableMavlinkSim()
+    return () => {
+      if (simTimerRef.current) clearInterval(simTimerRef.current)
+    }
+  }, [enableMavlinkSim])
+
+  return {
+    telemetry,
+    connectionStatus,
+    connectionType,
+    errorMessage,
+    connectSerial,
+    connectWebSocket,
+    enableMavlinkSim,
+    disconnect,
+  }
 }
 

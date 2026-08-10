@@ -1,67 +1,114 @@
 @import 'tailwindcss';
 
 @theme {
-  --color-surface: #10131a;
-  --color-secondary-fixed: #89f2ff;
-  --color-surface-container: #1d2026;
-  --color-on-surface: #e1e2eb;
-  --color-on-tertiary: #442b00;
-  --color-primary-fixed-dim: #c7bfff;
-  --color-on-tertiary-container: #3b2500;
-  --color-inverse-primary: #5a49cb;
-  --color-on-primary-fixed-variant: #422db2;
-  --color-on-primary: #2a039d;
-  --color-surface-dim: #10131a;
-  --color-surface-variant: #32353c;
-  --color-primary-container: #8e7fff;
-  --color-on-tertiary-fixed-variant: #614000;
-  --color-tertiary: #ffba49;
-  --color-on-tertiary-fixed: #291800;
-  --color-surface-bright: #363940;
-  --color-on-error: #690005;
-  --color-on-background: #e1e2eb;
-  --color-surface-container-low: #191c22;
-  --color-surface-tint: #c7bfff;
-  --color-error: #ffb4ab;
-  --color-primary-fixed: #e4dfff;
-  --color-inverse-on-surface: #2e3037;
-  --color-tertiary-container: #c38404;
-  --color-on-secondary-fixed-variant: #004f56;
-  --color-on-error-container: #ffdad6;
-  --color-surface-container-highest: #32353c;
-  --color-surface-container-lowest: #0b0e14;
-  --color-on-secondary-container: #004248;
-  --color-on-secondary: #00363b;
-  --color-secondary-fixed-dim: #4ad9e8;
-  --color-tertiary-fixed-dim: #ffba49;
-  --color-inverse-surface: #e1e2eb;
-  --color-on-surface-variant: #c8c4d6;
-  --color-background: #10131a;
-  --color-secondary: #4ad9e8;
-  --color-outline: #928f9f;
-  --color-secondary-container: #00b7c6;
-  --color-surface-container-high: #272a31;
-  --color-on-primary-fixed: #170065;
-  --color-on-secondary-fixed: #001f23;
-  --color-primary: #c7bfff;
-  --color-tertiary-fixed: #ffddb1;
-  --color-on-primary-container: #24008c;
-  --color-outline-variant: #474554;
-  --color-error-container: #93000a;
-  --font-headline-md: Manrope, sans-serif;
-  --font-data-lg: 'JetBrains Mono', monospace;
-  --font-label-caps: 'JetBrains Mono', monospace;
-  --font-body-md: Manrope, sans-serif;
-  --font-display-lg: Manrope, sans-serif;
-  --font-headline-sm: Manrope, sans-serif;
-  --font-body-sm: Manrope, sans-serif;
-  --font-data-md: 'JetBrains Mono', monospace;
+  --color-brand-bg: #f5f7fa;
+  --color-surface-white: #ffffff;
+  --color-surface-subtle: #f8fafc;
+  --color-surface-muted: #eef2f6;
+  --color-border-subtle: #e2e8f0;
+  --color-border-hairline: #eef2f6;
+  
+  --color-text-main: #0f172a;
+  --color-text-secondary: #475569;
+  --color-text-muted: #94a3b8;
+  
+  --color-accent-emerald: #10b981;
+  --color-accent-cyan: #0284c7;
+  --color-accent-indigo: #4f46e5;
+  --color-accent-amber: #f59e0b;
+  --color-accent-rose: #ef4444;
+
+  --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
 }
 
-body { margin: 0; min-width: 320px; font-family: Manrope, sans-serif; background: #0b0e14; color: #e1e2eb; }
-button { cursor: pointer; }
-.data-font { font-family: 'JetBrains Mono', monospace; }
-.glass-panel { background: rgba(31, 41, 55, 0.4); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.08); }
-.alert-pulse { animation: pulse 2s infinite; }
-.material-symbols-outlined { font-family: 'Material Symbols Outlined'; font-weight: normal; font-style: normal; font-size: 24px; line-height: 1; letter-spacing: normal; text-transform: none; display: inline-block; white-space: nowrap; word-wrap: normal; direction: ltr; -webkit-font-feature-settings: 'liga'; -webkit-font-smoothing: antialiased; }
-@keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(255, 180, 171, 0.4); } 70% { box-shadow: 0 0 0 10px rgba(255, 180, 171, 0); } 100% { box-shadow: 0 0 0 0 rgba(255, 180, 171, 0); } }
+:root {
+  color-scheme: light;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  background-color: #f5f7fa;
+  color: #0f172a;
+}
+
+button {
+  cursor: pointer;
+  user-select: none;
+}
+
+.dashboard-grid-container {
+  display: grid;
+  grid-template-rows: 1.35fr 1fr;
+  height: 100%;
+  width: 100%;
+  min-height: 0;
+}
+
+.data-font {
+  font-family: 'JetBrains Mono', monospace;
+  font-feature-settings: 'tnum' on, 'zero' on;
+}
+
+/* Bento Card Style: Pure solid white surface, hairline border, clean enterprise */
+.bento-card {
+  background-color: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.75rem;
+}
+
+.bento-subcard {
+  background-color: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.5rem;
+}
+
+/* Material Symbols configuration */
+.material-symbols-outlined {
+  font-family: 'Material Symbols Outlined';
+  font-weight: normal;
+  font-style: normal;
+  font-size: 22px;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-block;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  -webkit-font-feature-settings: 'liga';
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Custom HUD Crosshair and Horizon line animations */
+.hud-line {
+  stroke: rgba(255, 255, 255, 0.85);
+  stroke-width: 1.5;
+}
+
+/* Leaflet Map clean light custom styling */
+.leaflet-container {
+  font-family: inherit;
+  background-color: #e2e8f0;
+}
+
+/* Custom slim scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}

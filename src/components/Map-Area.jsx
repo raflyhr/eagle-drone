@@ -1,99 +1,589 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
-import logoUrl from '../assets/logo-eagle.png'
-const navigationItems = [['dashboard', 'Mission Overview', 'mission'], ['map', 'Map & Search Area', 'map'], ['target', 'Detection Events', 'events'], ['history', 'Flight History', 'history'], ['settings', 'System Settings', 'settings']]
-const initialPosition = [-6.2, 106.816666]
+import useWeather from '../hooks/useWeather'
+import useDroneRegion from '../hooks/useDroneRegion'
 
 function Icon({ children, className = '' }) {
   return <span className={`material-symbols-outlined ${className}`}>{children}</span>
 }
 
-function MapArea({ onNavigate, telemetry, active }) {
+function createDroneHeadingIcon(heading = 0, size = 32) {
+  const rotation = typeof heading === 'number' ? heading : 0
+  const innerSize = Math.round(size * 0.75)
+  return L.divIcon({
+    className: 'custom-drone-heading-marker',
+    html: `
+      <div style="position: relative; width: ${size}px; height: ${size}px; display: flex; align-items: center; justify-content: center;">
+        <div style="position: relative; width: ${innerSize}px; height: ${innerSize}px; display: flex; align-items: center; justify-content: center; transform: rotate(${rotation}deg); transform-origin: center;">
+          <svg viewBox="0 0 24 24" width="${innerSize}" height="${innerSize}">
+            <path d="M12 2L3 21L12 16.5L21 21L12 2Z" fill="#0284c7" stroke="#0f172a" stroke-width="1.8" stroke-linejoin="round"/>
+          </svg>
+        </div>
+      </div>
+    `,
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
+  })
+}
+
+function createTargetPinIcon() {
+  return L.divIcon({
+    className: 'custom-target-marker',
+    html: `
+      <div style="width: 24px; height: 24px; border-radius: 4px; background: #dc2626; border: 2px solid #ffffff; display: flex; align-items: center; justify-content: center; color: white;">
+        <span class="material-symbols-outlined" style="font-size: 14px; font-weight: bold; line-height: 1;">location_on</span>
+      </div>
+    `,
+    iconSize: [24, 24],
+    iconAnchor: [12, 12],
+  })
+}
+
+export default function MapArea({ _onNavigate, telemetry, active, mapStyle = 'standard', onMapStyleChange }) {
+  const weather = useWeather()
+  const droneRegionName = useDroneRegion(telemetry.latitude, telemetry.longitude)
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
+  const [isLocked, setIsLocked] = useState(true)
+  const [isMarkingMode, setIsMarkingMode] = useState(false)
+  const [customWaypoints, setCustomWaypoints] = useState([])
   const mapRef = useRef(null)
   const leafletRef = useRef(null)
   const markerRef = useRef(null)
+  const pathRef = useRef(null)
+  const trailRef = useRef([])
+  const baseLayerRef = useRef(null)
+  const overlayLayerRef = useRef(null)
+  const targetMarkersRef = useRef([])
+  const isMarkingModeRef = useRef(false)
+
+  useEffect(() => {
+    isMarkingModeRef.current = isMarkingMode
+    if (leafletRef.current) {
+      const container = leafletRef.current.getContainer()
+      if (container) {
+        container.style.cursor = isMarkingMode ? 'crosshair' : ''
+      }
+    }
+  }, [isMarkingMode])
+
+  const handleToggleMarkingMode = () => {
+    setIsMarkingMode((prev) => {
+      const next = !prev
+      if (next) {
+        // Immediately unlock map auto-centering when entering marking mode so user can freely pan
+        setIsLocked(false)
+      }
+      return next
+    })
+  }
+
+  const handleRecenter = () => {
+    setIsLocked(true)
+    if (leafletRef.current && telemetry.latitude && telemetry.longitude) {
+      leafletRef.current.panTo([telemetry.latitude, telemetry.longitude], { animate: true })
+    }
+  }
+
+  const handleFocusTarget = (wp) => {
+    setIsLocked(false)
+    if (leafletRef.current) {
+      leafletRef.current.flyTo([wp.lat, wp.lon], 16, { animate: true, duration: 0.8 })
+    }
+  }
+
+  const handleRemoveCustomWp = (id) => {
+    setCustomWaypoints((prev) => prev.filter((w) => w.id !== id))
+  }
+
+  const handleClearCustomWps = () => {
+    setCustomWaypoints([])
+  }
 
   useEffect(() => {
     if (!mapRef.current || leafletRef.current) return
-    leafletRef.current = L.map(mapRef.current, { zoomControl: false }).setView(initialPosition, 15)
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap' }).addTo(leafletRef.current)
-    markerRef.current = L.marker(initialPosition).addTo(leafletRef.current).bindPopup('EGL-01')
+    const initialPos = [telemetry.latitude || -7.5950, telemetry.longitude || 110.4485]
+    const map = L.map(mapRef.current, { zoomControl: false }).setView(initialPos, 14)
+
+    // Unlock map auto-centering when user manually pans/drags the map
+    map.on('dragstart', () => setIsLocked(false))
+    map.on('movestart', (e) => {
+      if (e.originalEvent) setIsLocked(false)
+    })
+
+    // Click on map to drop target point ONLY when isMarkingMode is active
+    map.on('click', (e) => {
+      if (!isMarkingModeRef.current) return
+
+      const clickedLat = Number(e.latlng.lat.toFixed(6))
+      const clickedLon = Number(e.latlng.lng.toFixed(6))
+      setCustomWaypoints((prev) => [
+        ...prev,
+        {
+          id: `target-${Date.now()}`,
+          name: `Target #${prev.length + 1}`,
+          lat: clickedLat,
+          lon: clickedLon,
+          isVictim: true,
+          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        },
+      ])
+      setIsMarkingMode(false)
+    })
+
+    trailRef.current = [initialPos]
+    pathRef.current = L.polyline(trailRef.current, {
+      color: '#0284c7',
+      weight: 2.5,
+      dashArray: '4, 4',
+      opacity: 0.95,
+    }).addTo(map)
+
+    const customIcon = createDroneHeadingIcon(telemetry.heading || 0, 32)
+
+    markerRef.current = L.marker(initialPos, { icon: customIcon }).addTo(map).bindPopup('Eagle Drone - EGL-01')
+    leafletRef.current = map
+
+    setTimeout(() => map.invalidateSize(), 50)
+    setTimeout(() => map.invalidateSize(), 200)
+
+    const ro = new ResizeObserver(() => {
+      map.invalidateSize()
+    })
+    ro.observe(mapRef.current)
+
     return () => {
-      leafletRef.current?.remove()
+      ro.disconnect()
+      map.remove()
       leafletRef.current = null
       markerRef.current = null
+      pathRef.current = null
+      baseLayerRef.current = null
+      overlayLayerRef.current = null
     }
   }, [])
+
+  // Sync Custom Target Markers on Map
+  useEffect(() => {
+    if (!leafletRef.current) return
+    const map = leafletRef.current
+
+    targetMarkersRef.current.forEach((m) => m.remove())
+    targetMarkersRef.current = []
+
+    customWaypoints.forEach((wp) => {
+      const icon = createTargetPinIcon()
+      const marker = L.marker([wp.lat, wp.lon], { icon })
+        .addTo(map)
+        .bindPopup(`<b>${wp.name}</b><br/>Coordinates: ${wp.lat}, ${wp.lon}<br/>Timestamp: ${wp.time}`)
+      targetMarkersRef.current.push(marker)
+    })
+  }, [customWaypoints])
+
+  // Dynamic Tile Layer Switcher
+  useEffect(() => {
+    if (!leafletRef.current) return
+    const map = leafletRef.current
+
+    if (baseLayerRef.current) {
+      map.removeLayer(baseLayerRef.current)
+      baseLayerRef.current = null
+    }
+    if (overlayLayerRef.current) {
+      map.removeLayer(overlayLayerRef.current)
+      overlayLayerRef.current = null
+    }
+
+    if (mapStyle === 'satellite') {
+      baseLayerRef.current = L.tileLayer(
+        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+        {
+          attribution: '&copy; Esri Satellite',
+          maxZoom: 19,
+        }
+      ).addTo(map)
+
+      overlayLayerRef.current = L.tileLayer(
+        'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
+        {
+          maxZoom: 19,
+          opacity: 0.85,
+        }
+      ).addTo(map)
+    } else if (mapStyle === 'terrain') {
+      baseLayerRef.current = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenTopoMap',
+        maxZoom: 17,
+      }).addTo(map)
+    } else {
+      // Default: 'standard' (OpenStreetMap)
+      baseLayerRef.current = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap',
+        maxZoom: 19,
+      }).addTo(map)
+    }
+  }, [mapStyle])
+
+  // Invalidate Map Size when sidebar collapse toggles
+  useEffect(() => {
+    if (leafletRef.current) {
+      const timer1 = setTimeout(() => leafletRef.current?.invalidateSize(), 50)
+      const timer2 = setTimeout(() => leafletRef.current?.invalidateSize(), 320)
+      return () => {
+        clearTimeout(timer1)
+        clearTimeout(timer2)
+      }
+    }
+  }, [isSidebarCollapsed])
 
   useEffect(() => {
     if (!leafletRef.current || !markerRef.current) return
     const position = [telemetry.latitude, telemetry.longitude]
-    markerRef.current.setLatLng(position).bindPopup(`EGL-01 · ALT: ${telemetry.altitude}m`)
-    leafletRef.current.panTo(position, { animate: true })
-  }, [telemetry.latitude, telemetry.longitude, telemetry.altitude])
+    markerRef.current.setLatLng(position)
+    markerRef.current.setIcon(createDroneHeadingIcon(telemetry.heading || 0, 32))
+    
+    // Only auto-pan map when locked onto drone
+    if (isLocked) {
+      leafletRef.current.panTo(position, { animate: true })
+    }
+
+    const lastPos = trailRef.current[trailRef.current.length - 1]
+    if (!lastPos || Math.abs(lastPos[0] - position[0]) > 0.00001 || Math.abs(lastPos[1] - position[1]) > 0.00001) {
+      trailRef.current.push(position)
+      if (trailRef.current.length > 2000) {
+        trailRef.current.splice(1, 1)
+      }
+    }
+    if (pathRef.current) {
+      pathRef.current.setLatLngs(trailRef.current)
+    }
+  }, [telemetry.latitude, telemetry.longitude, telemetry.heading, isLocked])
 
   useEffect(() => {
     if (active && leafletRef.current) {
       setTimeout(() => leafletRef.current?.invalidateSize(), 0)
+      setTimeout(() => leafletRef.current?.invalidateSize(), 150)
     }
   }, [active])
 
   return (
-    <div className="flex h-screen justify-center overflow-hidden bg-[#0b0e14]">
-      <div className="relative flex h-full w-full overflow-hidden bg-surface-container-lowest">
-        <aside className="z-50 hidden h-full w-64 shrink-0 flex-col border-r border-white/10 bg-surface-container py-5 md:flex">
-          <div className="mb-8 flex items-center gap-3 px-6">
-            <img alt="Eagle Drone Logo" className="h-10 w-24 rounded-md object-contain" src={logoUrl} />
-            <div><h1 className="font-headline-md text-2xl font-bold tracking-tight text-primary">Eagle Drone</h1><p className="font-body-sm text-sm text-on-surface-variant">SAR Command Unit</p></div>
+    <main className="ml-[72px] flex-1 flex flex-col min-h-screen bg-slate-100 text-slate-900">
+      {/* Top Header */}
+      <header className="flex h-14 shrink-0 items-center justify-between border-b border-slate-200 bg-white px-6">
+        <div className="flex items-center gap-2">
+          <Icon className="text-[20px] text-slate-700">map</Icon>
+          <h2 className="text-sm font-bold text-slate-900 tracking-tight uppercase">Map & Search Area</h2>
+        </div>
+      </header>
+
+      <div className="flex flex-1 flex-col lg:flex-row min-h-0 relative">
+        {/* Map Viewport Area */}
+        <div className="relative flex-1 min-h-[450px] overflow-hidden bg-slate-200">
+          <div ref={mapRef} className="absolute inset-0" />
+          
+          {/* Top Left Floating UAV & Location Badges */}
+          <div className="absolute left-4 top-4 z-[400] flex flex-wrap gap-2 pointer-events-auto">
+            <div className="flex items-center gap-2 rounded-md bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white border border-slate-800">
+              <Icon className="text-sky-400 text-[16px]">near_me</Icon>
+              <span className="text-slate-400 font-medium">UAV:</span>
+              <span className="data-font font-bold text-white">{telemetry.latitude.toFixed(5)}, {telemetry.longitude.toFixed(5)}</span>
+            </div>
+
+            <div className="flex items-center gap-2 rounded-md bg-white px-3 py-1.5 text-xs font-semibold text-slate-900 border border-slate-200">
+              <Icon className="text-slate-700 text-[16px]">location_on</Icon>
+              <span className="text-slate-500 font-medium">Region:</span>
+              <span className="font-bold text-slate-900 truncate max-w-[320px] sm:max-w-none">
+                {droneRegionName}
+              </span>
+            </div>
           </div>
-          <nav className="flex-1 space-y-2 px-4">
-            {navigationItems.map(([icon, label, page]) => (
-              <button key={label} onClick={() => page && onNavigate(page)} className={`flex w-full items-center gap-3 rounded-lg px-4 py-3 text-left transition ${page === 'map' ? 'border-r-2 border-primary bg-primary/5 font-bold text-primary' : 'font-medium text-on-surface-variant hover:bg-surface-variant/50 hover:text-on-surface'}`}>
-                <Icon className={page === 'map' ? '[font-variation-settings:"FILL"_1]' : ''}>{icon}</Icon>
-                <span className="font-label-caps text-xs tracking-[.08em]">{label}</span>
+
+          {/* Top Right Controls Container */}
+          <div className="absolute top-4 right-4 z-[400] flex items-center gap-2 pointer-events-auto">
+            {/* Recenter Drone Position Button */}
+            <button
+              type="button"
+              onClick={handleRecenter}
+              className={`flex items-center justify-center w-8 h-8 rounded-md border transition cursor-pointer ${
+                isLocked
+                  ? 'bg-slate-900 text-white border-slate-900 hover:bg-slate-800'
+                  : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100 active:scale-95'
+              }`}
+              title={isLocked ? 'Map Locked to Drone' : 'Recenter Map to Drone'}
+            >
+              <Icon className="text-[18px]">{isLocked ? 'my_location' : 'location_searching'}</Icon>
+            </button>
+
+            {/* Map Style Selector */}
+            <div className="flex items-center rounded-md bg-white p-0.5 border border-slate-200">
+              <button
+                type="button"
+                onClick={() => onMapStyleChange?.('standard')}
+                className={`rounded px-2.5 py-1 text-xs font-semibold transition cursor-pointer ${
+                  mapStyle === 'standard'
+                    ? 'bg-slate-900 text-white font-bold'
+                    : 'text-slate-700 hover:bg-slate-100'
+                }`}
+                title="Standard Street Map (OSM)"
+              >
+                Standard
               </button>
-            ))}
-          </nav>
-        </aside>
 
-        <main className="relative flex h-full min-w-0 flex-1 flex-col overflow-hidden">
-          <header className="z-40 flex h-16 w-full shrink-0 items-center justify-between border-b border-white/5 bg-surface px-4 md:px-6">
-            <div className="flex items-center gap-4"><h2 className="font-headline-sm text-lg font-bold text-on-surface">Map & Search Area</h2><div className="flex items-center gap-2 rounded-full border border-white/10 bg-surface-container-high px-3 py-1"><Icon className="text-[16px] text-secondary">emergency</Icon><span className="font-data-md text-sm text-secondary">SAR-2026-041</span><span className="ml-1 h-1.5 w-1.5 animate-pulse rounded-full bg-error" /><span className="font-label-caps text-xs text-error">Active</span></div></div>
-            <div className="flex items-center gap-3"><button className="relative text-on-surface-variant hover:text-primary"><Icon>notifications</Icon><span className="absolute right-0 top-0 h-2 w-2 rounded-full border border-surface bg-error" /></button><div className="grid h-8 w-8 place-items-center overflow-hidden rounded-full border border-primary/30 bg-surface-variant"><Icon className="text-on-surface-variant">person</Icon></div></div>
-          </header>
+              <button
+                type="button"
+                onClick={() => onMapStyleChange?.('satellite')}
+                className={`rounded px-2.5 py-1 text-xs font-semibold transition cursor-pointer ${
+                  mapStyle === 'satellite'
+                    ? 'bg-slate-900 text-white font-bold'
+                    : 'text-slate-700 hover:bg-slate-100'
+                }`}
+                title="Hybrid Satellite Map"
+              >
+                Satellite
+              </button>
 
-          <div className="flex min-h-0 flex-1 flex-col overflow-y-auto lg:flex-row lg:overflow-hidden">
-            <section className="relative min-h-[520px] flex-1 overflow-hidden bg-surface-container-low">
-              <div ref={mapRef} className="absolute inset-0" />
-              <div className="map-overlay pointer-events-none absolute inset-0" />
-              <div className="absolute left-4 top-4 z-[500] flex flex-wrap gap-3 md:left-6 md:top-6"><Info icon="my_location" label="UAV Pos" value={`${telemetry.latitude.toFixed(3)}, ${telemetry.longitude.toFixed(3)}`} variant="secondary" /><Info icon="radar" label="Active Sector" value="C-4 (Alpine Ridge)" variant="primary" /></div>
-              <div className="absolute bottom-6 left-6 z-[500] rounded-lg border border-white/10 bg-surface-container/90 p-3 backdrop-blur-sm"><p className="font-label-caps text-[10px] text-on-surface-variant">MAP LAYER</p><p className="data-font mt-1 text-xs text-on-surface">OPENSTREETMAP · LIVE GPS</p></div>
-            </section>
+              <button
+                type="button"
+                onClick={() => onMapStyleChange?.('terrain')}
+                className={`rounded px-2.5 py-1 text-xs font-semibold transition cursor-pointer ${
+                  mapStyle === 'terrain'
+                    ? 'bg-slate-900 text-white font-bold'
+                    : 'text-slate-700 hover:bg-slate-100'
+                }`}
+                title="Topographic Altitude Map"
+              >
+                Terrain
+              </button>
+            </div>
 
-            <aside className="z-30 flex w-full shrink-0 flex-col border-l border-white/10 bg-surface-container lg:w-96">
-              <div className="flex-1 space-y-6 overflow-y-auto p-6"><section><h3 className="mb-4 flex items-center gap-2 font-headline-sm text-lg text-on-surface"><Icon>route</Icon>Active Waypoints</h3><div className="space-y-3"><Waypoint no="1" title="Alpha Ridge Base" meta="Cleared - 14:02" icon="check_circle" done /><Waypoint no="2" title="Sector C-4 Center" meta="En Route - ETA 2m" icon="sync" active /><Waypoint no="3" title="Ravine Echo" meta="Pending" icon="schedule" faded /></div></section><section><h3 className="mb-4 flex items-center gap-2 font-headline-sm text-lg text-on-surface"><Icon>analytics</Icon>Environment</h3><div className="grid grid-cols-2 gap-3">{[['Wind SPD', `${telemetry.speed} m/s`], ['Visibility', '12 km'], ['Temp', '-4 °C'], ['Signal', `${telemetry.signal}%`]].map(([label, value]) => <div className="rounded-lg border border-white/5 bg-surface-container-low p-3" key={label}><p className="mb-1 font-label-caps text-xs text-on-surface-variant">{label}</p><p className={`font-data-lg text-lg ${label === 'Temp' ? 'text-secondary' : 'text-on-surface'}`}>{value}</p></div>)}</div></section></div>
-            </aside>
+            {/* Expand Sidebar Trigger Button */}
+            {isSidebarCollapsed && (
+              <button
+                type="button"
+                onClick={() => setIsSidebarCollapsed(false)}
+                className="flex items-center gap-1 rounded-md bg-white px-2.5 py-1 text-xs font-semibold text-slate-800 border border-slate-200 hover:bg-slate-900 hover:text-white transition cursor-pointer"
+                title="Open Data Panel"
+              >
+                <Icon className="text-[16px]">chevron_left</Icon>
+                <span>Panel</span>
+              </button>
+            )}
           </div>
 
-          <footer className="z-40 flex h-8 shrink-0 items-center justify-between border-t border-white/5 bg-surface-container-lowest px-4"><div className="flex gap-3 md:gap-6"><Status color="bg-secondary-fixed" label="Receiver: OK" /><Status color="bg-secondary-fixed" label="Telemetry: LNK" /><Status color="bg-primary" label="AI: RDY" /></div><span className="font-label-caps text-[10px] text-on-surface-variant opacity-50">v4.2.0-PRO</span></footer>
-        </main>
+          {/* Zoom In / Zoom Out Controls */}
+          <div className="absolute bottom-4 right-4 z-[400] flex flex-col rounded-md bg-white border border-slate-200 overflow-hidden pointer-events-auto">
+            <button
+              type="button"
+              onClick={() => leafletRef.current?.zoomIn()}
+              className="flex items-center justify-center w-8 h-8 text-slate-700 hover:bg-slate-900 hover:text-white border-b border-slate-200 transition cursor-pointer active:scale-95"
+              title="Zoom In (+)"
+            >
+              <Icon className="text-[18px]">add</Icon>
+            </button>
+            <button
+              type="button"
+              onClick={() => leafletRef.current?.zoomOut()}
+              className="flex items-center justify-center w-8 h-8 text-slate-700 hover:bg-slate-900 hover:text-white transition cursor-pointer active:scale-95"
+              title="Zoom Out (-)"
+            >
+              <Icon className="text-[18px]">remove</Icon>
+            </button>
+          </div>
+
+          {/* Map Source Info Badge */}
+          <div className="absolute bottom-4 left-4 z-[400] rounded-md bg-white px-2.5 py-1 text-xs text-slate-700 border border-slate-200 font-medium pointer-events-auto">
+            <span className="text-slate-500">Map: </span>
+            <span className="font-bold text-slate-900">
+              {mapStyle === 'satellite'
+                ? 'Esri Satellite'
+                : mapStyle === 'terrain'
+                ? 'OpenTopoMap'
+                : 'OpenStreetMap'}
+            </span>
+          </div>
+        </div>
+
+        {/* Right Sidebar: Pure Solid Panel (Zero Glassmorphism) */}
+        <aside
+          className={`relative z-[500] border-t lg:border-t-0 lg:border-l border-slate-200 bg-white transition-all duration-300 ease-in-out overflow-y-auto ${
+            isSidebarCollapsed
+              ? 'w-0 border-0 p-0 hidden lg:hidden'
+              : 'w-full lg:w-[380px] p-4 flex flex-col gap-4 bg-white'
+          }`}
+        >
+          {/* Sidebar Minimize Header */}
+          <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+            <div className="flex items-center gap-2">
+              <Icon className="text-[18px] text-slate-700">space_dashboard</Icon>
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-700">Mission Tracking</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsSidebarCollapsed(true)}
+              className="flex items-center gap-1 rounded-md bg-slate-100 hover:bg-slate-900 hover:text-white text-slate-700 px-2.5 py-1 text-xs font-semibold transition border border-slate-200 cursor-pointer"
+              title="Hide Sidebar Panel"
+            >
+              <span>Hide</span>
+              <Icon className="text-[14px]">chevron_right</Icon>
+            </button>
+          </div>
+
+          {/* Current Drone Location Card */}
+          <div className="rounded-lg border border-slate-200 bg-white p-3.5">
+            <div className="mb-2">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Current Drone Region</span>
+            </div>
+
+            <h4 className="text-sm font-bold text-slate-900 leading-snug mb-1">
+              {droneRegionName}
+            </h4>
+            <p className="text-xs text-slate-500 mb-3">
+              Live Flight Telemetry • Active Navigation
+            </p>
+
+            {/* Real-time Telemetry Grid */}
+            <div className="grid grid-cols-2 gap-2 pt-2.5 border-t border-slate-100 text-xs">
+              <div className="bg-slate-50 rounded-md p-2 border border-slate-200/80">
+                <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">Coordinates</p>
+                <p className="font-bold text-slate-900 data-font truncate" title={`${telemetry.latitude}, ${telemetry.longitude}`}>
+                  {telemetry.latitude.toFixed(5)}, {telemetry.longitude.toFixed(5)}
+                </p>
+              </div>
+              <div className="bg-slate-50 rounded-md p-2 border border-slate-200/80">
+                <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">Altitude (Alt)</p>
+                <p className="font-bold text-slate-900 data-font">
+                  {telemetry.altitude} m MSL
+                </p>
+              </div>
+              <div className="bg-slate-50 rounded-md p-2 border border-slate-200/80">
+                <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">Ground Speed</p>
+                <p className="font-bold text-slate-900 data-font">
+                  {telemetry.speed} m/s ({(telemetry.speed * 3.6).toFixed(1)} km/h)
+                </p>
+              </div>
+              <div className="bg-slate-50 rounded-md p-2 border border-slate-200/80">
+                <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">Heading</p>
+                <p className="font-bold text-slate-900 data-font">
+                  {telemetry.heading}°
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Target Points Section */}
+          <div className="rounded-lg border border-slate-200 bg-white p-3.5">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-1.5">
+                <Icon className="text-slate-700 text-[18px]">location_on</Icon>
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">Target Points</h3>
+                <span className="text-[10px] font-bold bg-slate-100 text-slate-700 px-1.5 py-0.2 rounded border border-slate-200">
+                  {customWaypoints.length}
+                </span>
+              </div>
+              {customWaypoints.length > 0 && (
+                <button
+                  type="button"
+                  onClick={handleClearCustomWps}
+                  className="text-[11px] font-bold text-red-600 hover:text-red-700 hover:underline transition cursor-pointer"
+                >
+                  Clear All
+                </button>
+              )}
+            </div>
+
+            {/* Mode Penanda Action Button */}
+            <div className="mb-3">
+              <button
+                type="button"
+                onClick={handleToggleMarkingMode}
+                className={`w-full flex items-center justify-center gap-2 px-3 py-2 rounded-md text-xs font-bold transition cursor-pointer border ${
+                  isMarkingMode
+                    ? 'bg-red-600 text-white border-red-700'
+                    : 'bg-white hover:bg-slate-50 text-slate-800 border-slate-300'
+                }`}
+              >
+                <Icon className="text-[16px]">{isMarkingMode ? 'close' : 'add_location_alt'}</Icon>
+                <span>{isMarkingMode ? 'Cancel Target Pin Mode' : 'Add Target Marker'}</span>
+              </button>
+              {isMarkingMode && (
+                <div className="mt-2 p-2 rounded-md bg-red-50 border border-red-200 text-center">
+                  <p className="text-[11px] text-red-700 font-semibold leading-tight">
+                    Click anywhere on the map to place a target pin.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Target List or Clean Empty State */}
+            {customWaypoints.length > 0 ? (
+              <div className="space-y-1.5 max-h-[220px] overflow-y-auto pr-1">
+                {customWaypoints.map((wp) => (
+                  <div
+                    key={wp.id}
+                    className="flex items-center gap-2.5 rounded-md p-2 border border-slate-200 bg-slate-50 transition"
+                  >
+                    <Icon className="text-red-600 text-[20px] shrink-0">location_on</Icon>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-bold text-slate-900 truncate">
+                        {wp.name}
+                      </p>
+                      <p className="text-[10px] font-semibold text-slate-500 data-font">
+                        {wp.lat.toFixed(4)}, {wp.lon.toFixed(4)} • {wp.time}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => handleFocusTarget(wp)}
+                        className="flex h-6 w-6 items-center justify-center rounded text-slate-500 hover:bg-white hover:text-slate-900 border border-transparent hover:border-slate-200 transition cursor-pointer"
+                        title="Focus Map on This Target"
+                      >
+                        <Icon className="text-[15px]">center_focus_strong</Icon>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveCustomWp(wp.id)}
+                        className="flex h-6 w-6 items-center justify-center rounded text-slate-400 hover:bg-red-50 hover:text-red-600 border border-transparent hover:border-red-200 transition cursor-pointer"
+                        title="Delete Target Point"
+                      >
+                        <Icon className="text-[15px]">delete</Icon>
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-center">
+                <p className="text-xs font-semibold text-slate-700">No Target Points</p>
+                <p className="text-[11px] text-slate-500 mt-0.5">Click &quot;Add Target Marker&quot; then click on map to drop a pin.</p>
+              </div>
+            )}
+          </div>
+
+          {/* Environment Metrics */}
+          <div className="rounded-lg border border-slate-200 bg-white p-3.5">
+            <div className="flex items-center justify-between mb-2.5">
+              <h3 className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-700">
+                <Icon className="text-slate-700 text-[18px]">analytics</Icon>
+                Local Environment Metrics
+              </h3>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                ['Wind Speed', `${weather.windSpeed} m/s`],
+                ['Humidity', `${weather.humidity}%`],
+                ['Temp', `${weather.temperature} °C`],
+                ['Signal Link', `${telemetry.signal || 98}%`],
+              ].map(([label, value]) => (
+                <div key={label} className="bg-slate-50 rounded-md p-2 border border-slate-200/80">
+                  <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide mb-0.5">{label}</p>
+                  <p className="data-font text-xs font-bold text-slate-900">{value}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </aside>
       </div>
-    </div>
+    </main>
   )
 }
-
-function Info({ icon, label, value, variant }) {
-  const styles = variant === 'secondary' ? 'border-secondary/30 text-secondary' : 'border-primary/30 text-primary'
-  return <div className={`flex items-center gap-3 rounded-lg border bg-surface-container/90 px-4 py-2 backdrop-blur-sm ${styles}`}><Icon>{icon}</Icon><div><p className="font-label-caps text-xs text-on-surface-variant">{label}</p><p className="font-data-md text-sm">{value}</p></div></div>
-}
-
-function Waypoint({ no, title, meta, icon, active, done, faded }) {
-  return <div className={`flex items-center gap-4 rounded-lg border p-4 ${active ? 'border-primary/30 bg-primary/5' : 'border-white/5 bg-surface-container-low'} ${faded ? 'opacity-50' : ''}`}><div className={`flex h-8 w-8 items-center justify-center rounded-full font-data-md text-sm ${active ? 'bg-primary text-on-primary' : 'bg-surface-variant text-on-surface'}`}>{no}</div><div className="flex-1"><p className={`font-body-sm text-sm ${active ? 'text-primary' : 'text-on-surface'}`}>{title}</p><p className="font-data-md text-sm text-on-surface-variant">{meta}</p></div><Icon className={done ? 'text-green-400' : active ? 'animate-spin text-primary' : 'text-on-surface-variant'}>{icon}</Icon></div>
-}
-
-function Status({ color, label }) {
-  return <span className="data-font flex items-center gap-1 text-[11px] text-outline"><span className={`h-1.5 w-1.5 rounded-full ${color}`} />{label}</span>
-}
-
-export default MapArea
