@@ -10,7 +10,13 @@ import Sidebar from './components/Sidebar'
 
 function App() {
   const [page, setPage] = useState('mission')
-  const telemetry = useTelemetry()
+  const [mapStyle, setMapStyle] = useState(() => localStorage.getItem('eagle_map_style') || 'standard')
+  const telemetryState = useTelemetry()
+
+  const handleMapStyleChange = (style) => {
+    setMapStyle(style)
+    localStorage.setItem('eagle_map_style', style)
+  }
 
   return (
     <div className="flex min-h-screen bg-[#f5f7fa] text-[#0f172a]">
@@ -20,10 +26,21 @@ function App() {
       {/* Pages Viewport */}
       <div className="flex-1 min-w-0">
         <div className={page === 'mission' ? 'block' : 'hidden'}>
-          <MissionOverview onNavigate={setPage} telemetry={telemetry} />
+          <MissionOverview
+            onNavigate={setPage}
+            telemetryState={telemetryState}
+            mapStyle={mapStyle}
+            onMapStyleChange={handleMapStyleChange}
+          />
         </div>
         <div className={page === 'map' ? 'block' : 'hidden'}>
-          <MapArea onNavigate={setPage} telemetry={telemetry} active={page === 'map'} />
+          <MapArea
+            onNavigate={setPage}
+            telemetry={telemetryState.telemetry}
+            active={page === 'map'}
+            mapStyle={mapStyle}
+            onMapStyleChange={handleMapStyleChange}
+          />
         </div>
         <div className={page === 'events' ? 'block' : 'hidden'}>
           <DetectionEvents onNavigate={setPage} />
@@ -32,7 +49,7 @@ function App() {
           <FlightHistory onNavigate={setPage} />
         </div>
         <div className={page === 'settings' ? 'block' : 'hidden'}>
-          <Settings onNavigate={setPage} />
+          <Settings onNavigate={setPage} telemetryState={telemetryState} />
         </div>
       </div>
     </div>

@@ -7,31 +7,27 @@ function Icon({ children, className = '' }) {
   return <span className={`material-symbols-outlined ${className}`}>{children}</span>
 }
 
-const initialPosition = [47.0142, 8.0467]
-
-export default function MapArea({ onNavigate, telemetry, active }) {
+export default function MapArea({ _onNavigate, telemetry, active, mapStyle = 'standard', onMapStyleChange }) {
   const weather = useWeather(telemetry.latitude, telemetry.longitude)
   const mapRef = useRef(null)
   const leafletRef = useRef(null)
   const markerRef = useRef(null)
   const pathRef = useRef(null)
   const trailRef = useRef([])
+  const baseLayerRef = useRef(null)
+  const overlayLayerRef = useRef(null)
 
   useEffect(() => {
     if (!mapRef.current || leafletRef.current) return
     const initialPos = [telemetry.latitude || -6.2, telemetry.longitude || 106.816666]
     const map = L.map(mapRef.current, { zoomControl: false }).setView(initialPos, 14)
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-      attribution: '&copy; OpenStreetMap & CartoDB',
-      maxZoom: 19,
-    }).addTo(map)
 
     trailRef.current = [initialPos]
     pathRef.current = L.polyline(trailRef.current, {
-      color: '#0f172a',
-      weight: 2.5,
-      dashArray: '4, 6',
-      opacity: 0.8,
+      color: '#38bdf8',
+      weight: 3,
+      dashArray: '5, 5',
+      opacity: 0.95,
     }).addTo(map)
 
     const customIcon = L.divIcon({
@@ -65,8 +61,54 @@ export default function MapArea({ onNavigate, telemetry, active }) {
       leafletRef.current = null
       markerRef.current = null
       pathRef.current = null
+      baseLayerRef.current = null
+      overlayLayerRef.current = null
     }
   }, [])
+
+  // Dynamic Tile Layer Switcher
+  useEffect(() => {
+    if (!leafletRef.current) return
+    const map = leafletRef.current
+
+    if (baseLayerRef.current) {
+      map.removeLayer(baseLayerRef.current)
+      baseLayerRef.current = null
+    }
+    if (overlayLayerRef.current) {
+      map.removeLayer(overlayLayerRef.current)
+      overlayLayerRef.current = null
+    }
+
+    if (mapStyle === 'satellite') {
+      baseLayerRef.current = L.tileLayer(
+        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+        {
+          attribution: '&copy; Esri &mdash; Satellite Imagery',
+          maxZoom: 19,
+        }
+      ).addTo(map)
+
+      overlayLayerRef.current = L.tileLayer(
+        'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
+        {
+          maxZoom: 19,
+          opacity: 0.85,
+        }
+      ).addTo(map)
+    } else if (mapStyle === 'terrain') {
+      baseLayerRef.current = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenTopoMap contributors',
+        maxZoom: 17,
+      }).addTo(map)
+    } else {
+      // Default: 'standard' (OpenStreetMap)
+      baseLayerRef.current = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+        maxZoom: 19,
+      }).addTo(map)
+    }
+  }, [mapStyle])
 
   useEffect(() => {
     if (!leafletRef.current || !markerRef.current) return
@@ -118,9 +160,60 @@ export default function MapArea({ onNavigate, telemetry, active }) {
               </div>
             </div>
 
-            {/* Bottom Map Badge */}
+            {/* Top Right Map Style Selector (Clean UI without thumbnail images) */}
+            <div className="absolute top-6 right-6 z-[400] flex items-center rounded-xl bg-white/95 p-1 shadow-[0_4px_16px_rgba(0,0,0,0.08)] border border-slate-200/80 backdrop-blur-md">
+              <button
+                type="button"
+                onClick={() => onMapStyleChange?.('standard')}
+                className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition cursor-pointer ${
+                  mapStyle === 'standard'
+                    ? 'bg-slate-900 text-white shadow-sm'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                }`}
+                title="Peta Jalan Standard (OpenStreetMap)"
+              >
+                <Icon className="text-[16px]">map</Icon>
+                <span>Standard</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => onMapStyleChange?.('satellite')}
+                className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition cursor-pointer ${
+                  mapStyle === 'satellite'
+                    ? 'bg-slate-900 text-white shadow-sm'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                }`}
+                title="Peta Satelit Hybrid"
+              >
+                <Icon className="text-[16px]">satellite_alt</Icon>
+                <span>Satelit</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => onMapStyleChange?.('terrain')}
+                className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition cursor-pointer ${
+                  mapStyle === 'terrain'
+                    ? 'bg-slate-900 text-white shadow-sm'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                }`}
+                title="Peta Topografi & Kontur Altitude"
+              >
+                <Icon className="text-[16px]">terrain</Icon>
+                <span>Topografi</span>
+              </button>
+            </div>
+
+            {/* Map Source Info Badge */}
             <div className="absolute bottom-6 left-6 z-[400] rounded-xl bg-white/95 px-4 py-2.5 text-xs text-slate-800 backdrop-blur-md shadow-[0_4px_12px_rgba(0,0,0,0.06)] border border-slate-200/80">
-              <p className="font-bold text-slate-900">CartoDB Voyager · OpenStreetMap</p>
+              <p className="font-bold text-slate-900">
+                {mapStyle === 'satellite'
+                  ? 'Esri World Imagery · Satelit Hybrid'
+                  : mapStyle === 'terrain'
+                  ? 'OpenTopoMap · Topografi'
+                  : 'OpenStreetMap · Standard Street'}
+              </p>
               <p className="text-[11px] text-slate-500">Live Mission Waypoints Overlay</p>
             </div>
           </div>
@@ -181,7 +274,7 @@ export default function MapArea({ onNavigate, telemetry, active }) {
                   ['Wind Speed', `${weather.windSpeed} m/s`],
                   ['Humidity', `${weather.humidity}%`],
                   ['Temp', `${weather.temperature} °C`],
-                  ['Signal Link', `${telemetry.signal}%`],
+                  ['Signal Link', `${telemetry.signal || 98}%`],
                 ].map(([label, value]) => (
                   <div key={label} className="bento-subcard p-3">
                     <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">{label}</p>
