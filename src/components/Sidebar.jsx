@@ -30,7 +30,7 @@ export default function Sidebar({ activePage, onNavigate }) {
           className="flex items-center justify-center bg-transparent transition"
           title="Eagle Drone"
         >
-          <img src={logoUrl} alt="Eagle Drone" className="h-14 w-14 object-contain object-center" />
+          <img src={logoUrl} alt="Eagle Drone" className="relative -top-4 h-18 w-18 object-contain object-center" />
         </button>
 
         {/* Navigation Icons Stack */}
