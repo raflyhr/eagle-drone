@@ -749,92 +749,104 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
 
       {/* MAVLink Connection Modal */}
       {showMavlinkModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
-          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl border border-slate-200">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <div className="flex items-center gap-2">
-                <Icon className="text-[22px] text-slate-900">settings_remote</Icon>
-                <h3 className="text-base font-bold text-slate-900">Pengaturan Koneksi MAVLink</h3>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 backdrop-blur-xs p-4">
+          <div className="w-full max-w-lg rounded-xl bg-white shadow-xl border border-slate-200 overflow-hidden">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 bg-slate-50/50">
+              <div>
+                <h3 className="text-sm font-bold text-slate-900">Koneksi Telemetri MAVLink</h3>
+                <p className="text-xs text-slate-500 mt-0.5">Pilih metode koneksi ke perangkat hardware atau simulator</p>
               </div>
               <button
+                type="button"
                 onClick={() => setShowMavlinkModal(false)}
-                className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                className="rounded-lg p-1 text-slate-400 hover:bg-slate-200/60 hover:text-slate-700 transition cursor-pointer"
               >
-                <Icon className="text-[20px]">close</Icon>
+                <Icon className="text-[18px]">close</Icon>
               </button>
             </div>
 
-            <div className="py-4 space-y-4">
-              {/* Option 1: MAVLink Simulation Mode */}
-              <div className="rounded-xl border border-slate-200 p-3.5 hover:border-slate-400 transition">
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-xs font-bold text-slate-900">1. MAVLink Stream (Local Engine)</span>
-                  <span className="rounded bg-emerald-100 text-emerald-800 px-2 py-0.5 text-[10px] font-bold">Recommended</span>
+            {/* Modal Body */}
+            <div className="p-5 space-y-3">
+              {/* Option 1: Stream Telemetri Simulasi */}
+              <div className="flex items-center justify-between p-3.5 rounded-lg border border-slate-200 hover:border-slate-300 bg-slate-50/30 transition">
+                <div className="pr-3">
+                  <h4 className="text-xs font-bold text-slate-900">1. Stream Telemetri Simulasi</h4>
+                  <p className="text-[11px] text-slate-500 mt-0.5">Generator data real-time MAVLink v2 (Heartbeat, Gyro, GPS)</p>
                 </div>
-                <p className="text-[11px] text-slate-500 mb-3">
-                  Simulasi generator frame MAVLink v2 real-time membaca pesan Heartbeat, Attitude, dan Global Position.
-                </p>
                 <button
+                  type="button"
                   onClick={() => {
                     enableMavlinkSim?.()
                     setShowMavlinkModal(false)
                   }}
-                  className="w-full rounded-xl bg-slate-900 px-4 py-2 text-xs font-bold text-white hover:bg-slate-800"
+                  className="shrink-0 rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-800 transition cursor-pointer"
                 >
-                  Aktifkan MAVLink Stream
+                  Gunakan Stream
                 </button>
               </div>
 
-              {/* Option 2: WebSerial USB Radio */}
-              <div className="rounded-xl border border-slate-200 p-3.5 hover:border-slate-400 transition">
-                <span className="text-xs font-bold text-slate-900 block mb-1">2. WebSerial API (USB Radio / Pixhawk)</span>
-                <p className="text-[11px] text-slate-500 mb-3">
-                  Hubungkan langsung ke SiK Telemetry Radio atau kabel USB Pixhawk/ArduPilot dari browser Chrome/Edge.
-                </p>
+              {/* Option 2: WebSerial API */}
+              <div className="flex items-center justify-between p-3.5 rounded-lg border border-slate-200 hover:border-slate-300 bg-slate-50/30 transition">
+                <div className="pr-3">
+                  <h4 className="text-xs font-bold text-slate-900">2. USB Serial / Pixhawk (WebSerial)</h4>
+                  <p className="text-[11px] text-slate-500 mt-0.5">Koneksi langsung ke SiK Telemetry Radio atau kabel USB Pixhawk</p>
+                </div>
                 <button
+                  type="button"
                   onClick={async () => {
                     await connectSerial?.(57600)
                     setShowMavlinkModal(false)
                   }}
-                  className="w-full rounded-xl bg-slate-100 border border-slate-300 px-4 py-2 text-xs font-bold text-slate-800 hover:bg-slate-200"
+                  className="shrink-0 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition cursor-pointer"
                 >
-                  Pilih Perangkat Serial USB
+                  Hubungkan USB
                 </button>
               </div>
 
-              {/* Option 3: WebSocket MAVLink Bridge */}
-              <div className="rounded-xl border border-slate-200 p-3.5 hover:border-slate-400 transition">
-                <span className="text-xs font-bold text-slate-900 block mb-1">3. WebSocket MAVLink Server</span>
-                <input
-                  type="text"
-                  value={wsUrlInput}
-                  onChange={(e) => setWsUrlInput(e.target.value)}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-xs text-slate-800 mb-2 font-mono"
-                  placeholder="ws://localhost:8080"
-                />
-                <button
-                  onClick={async () => {
-                    await connectWebSocket?.(wsUrlInput)
-                    setShowMavlinkModal(false)
-                  }}
-                  className="w-full rounded-xl bg-slate-100 border border-slate-300 px-4 py-2 text-xs font-bold text-slate-800 hover:bg-slate-200"
-                >
-                  Sambungkan WebSocket
-                </button>
+              {/* Option 3: WebSocket Server */}
+              <div className="p-3.5 rounded-lg border border-slate-200 hover:border-slate-300 bg-slate-50/30 transition space-y-2.5">
+                <div>
+                  <h4 className="text-xs font-bold text-slate-900">3. WebSocket MAVLink Server</h4>
+                  <p className="text-[11px] text-slate-500 mt-0.5">Koneksi ke WebSocket MAVLink bridge (e.g. localhost:8080)</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={wsUrlInput}
+                    onChange={(e) => setWsUrlInput(e.target.value)}
+                    className="flex-1 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-800 font-mono focus:outline-none focus:border-slate-500"
+                    placeholder="ws://localhost:8080"
+                  />
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      await connectWebSocket?.(wsUrlInput)
+                      setShowMavlinkModal(false)
+                    }}
+                    className="shrink-0 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition cursor-pointer"
+                  >
+                    Sambungkan
+                  </button>
+                </div>
               </div>
+            </div>
 
-              {connectionStatus === 'connected' && (
+            {/* Modal Footer */}
+            {connectionStatus === 'connected' && (
+              <div className="px-5 py-3 border-t border-slate-100 bg-slate-50/50 flex justify-end">
                 <button
+                  type="button"
                   onClick={() => {
                     disconnectMavlink?.()
                     setShowMavlinkModal(false)
                   }}
-                  className="w-full rounded-xl bg-red-100 text-red-700 px-4 py-2 text-xs font-bold hover:bg-red-200"
+                  className="rounded-lg bg-red-50 text-red-600 border border-red-200 px-3 py-1.5 text-xs font-semibold hover:bg-red-100 transition cursor-pointer"
                 >
-                  Putus Koneksi MAVLink
+                  Putus Koneksi
                 </button>
-              )}
-            </div>
+              </div>
+            )}
           </div>
         </div>
       )}
