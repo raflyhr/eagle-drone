@@ -497,17 +497,11 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
           <button
             type="button"
             onClick={() => setShowMavlinkModal(true)}
-            className="flex items-center gap-2.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 px-3 py-1.5 text-xs text-slate-700 shadow-xs transition cursor-pointer"
+            className="flex items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs text-slate-600 transition hover:bg-slate-100 cursor-pointer"
           >
-            <span
-              className={`h-2 w-2 rounded-full ${
-                connectionStatus === 'connected' ? 'bg-emerald-500' : 'bg-amber-500'
-              }`}
-            />
             <span className="font-medium">
-              MAVLink: <strong className="font-bold text-slate-900">{connectionStatus === 'connected' ? connectionType.toUpperCase() : 'Disconnected'}</strong>
+              MAVLink <span className="text-slate-400">/</span> <strong className="font-semibold text-slate-800">{connectionStatus === 'connected' ? connectionType.toUpperCase() : 'Disconnected'}</strong>
             </span>
-            <Icon className="text-[16px] text-slate-400 ml-0.5">settings_remote</Icon>
           </button>
         </div>
       </header>
@@ -766,18 +760,6 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
                   {/* Camera Offline / Selection Standby View */}
                   {cameraStatus !== 'connected' && (
                     <div className="relative flex h-full w-full flex-col items-center justify-center bg-[#f8fafc] border border-slate-200/80 rounded-2xl p-6 overflow-hidden">
-                      {/* Corner Framing Brackets */}
-                      <div className="pointer-events-none absolute inset-4 sm:inset-6 flex flex-col justify-between">
-                        <div className="flex justify-between">
-                          <div className="h-5 w-5 border-t-2 border-l-2 border-slate-300" />
-                          <div className="h-5 w-5 border-t-2 border-r-2 border-slate-300" />
-                        </div>
-                        <div className="flex justify-between">
-                          <div className="h-5 w-5 border-b-2 border-l-2 border-slate-300" />
-                          <div className="h-5 w-5 border-b-2 border-r-2 border-slate-300" />
-                        </div>
-                      </div>
-
                       {/* Top Header */}
                       <div className="absolute top-4 inset-x-6 flex items-center justify-between text-[11px] font-semibold text-slate-500 data-font pointer-events-none">
                         <span className="text-slate-700 tracking-wider font-bold">DRONE CAMERA FEED</span>
@@ -1046,17 +1028,17 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
               <div className="bento-card flex flex-1 h-full min-h-0 flex-col justify-between p-3.5 sm:p-4 gap-2.5 rounded-2xl">
                 {/* Top Header: Battery + MAVLink Mode & Heartbeat */}
                 <div className="flex items-center justify-between gap-3 pb-2 border-b border-slate-100 shrink-0">
-                  {/* Horizontal Battery Gauge */}
-                  <div className="flex items-center gap-2.5">
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">BATTERY</span>
-                    <div className="flex items-center gap-1.5 text-xs font-bold text-slate-900 data-font">
-                      <svg className="w-5 h-3 text-emerald-600 shrink-0" viewBox="0 0 24 14" fill="currentColor">
-                        <rect x="1" y="1" width="19" height="12" rx="2" fill="none" stroke="currentColor" strokeWidth="2" />
-                        <rect x="3" y="3" width={Math.max(2, (15 * (telemetry.battery || 74)) / 100)} height="8" rx="1" fill="currentColor" />
-                        <path d="M21 4.5V9.5C21.8 9.5 22.5 8.8 22.5 8V6C22.5 5.2 21.8 4.5 21 4.5Z" fill="currentColor" />
-                      </svg>
-                      <span>{telemetry.battery}%</span>
-                      <span className="text-[11px] text-slate-400 font-medium">({telemetry.voltage}V)</span>
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs font-medium text-slate-500">Battery</span>
+                    <div className="h-1.5 w-24 overflow-hidden rounded-full bg-slate-200">
+                      <div
+                        className="h-full rounded-full bg-slate-700 transition-all"
+                        style={{ width: `${telemetry.battery || 74}%` }}
+                      />
+                    </div>
+                    <div className="flex items-baseline gap-1.5 data-font text-xs">
+                      <span className="font-bold text-slate-900">{telemetry.battery}%</span>
+                      <span className="text-[10px] text-slate-400">{telemetry.voltage}V</span>
                     </div>
                   </div>
                 </div>
@@ -1067,7 +1049,7 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
                   <div className="bento-subcard p-2.5 sm:p-3 flex flex-col justify-between">
                     <div className="flex items-center justify-between">
                       <span className="text-[9px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-wider">ALTITUDE</span>
-                      <Icon className="text-[18px] text-slate-400">height</Icon>
+                      <Icon className="text-[18px] text-slate-400">unfold_more</Icon>
                     </div>
                     <div className="flex items-baseline gap-1 my-0.5">
                       <span className="data-font text-2xl sm:text-3xl font-black text-slate-900 leading-none">{telemetry.altitude}</span>
@@ -1099,7 +1081,7 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
                   <div className="bento-subcard p-2.5 sm:p-3 flex flex-col justify-between">
                     <div className="flex items-center justify-between">
                       <span className="text-[9px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-wider">ATTITUDE</span>
-                      <Icon className="text-[18px] text-slate-400">screen_rotation</Icon>
+                      <Icon className="text-[18px] text-slate-400">3d_rotation</Icon>
                     </div>
                     <div className="flex items-center justify-between my-0.5">
                       <div className="text-center">
@@ -1122,7 +1104,7 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
                   <div className="bento-subcard p-2.5 sm:p-3 flex flex-col justify-between">
                     <div className="flex items-center justify-between">
                       <span className="text-[9px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-wider">GPS FIX & SATS</span>
-                      <Icon className="text-[18px] text-slate-400">satellite_alt</Icon>
+                      <Icon className="text-[18px] text-slate-400">gps_fixed</Icon>
                     </div>
                     <div className="my-0.5">
                       <p className="data-font text-xs sm:text-sm font-black text-slate-900 truncate">
