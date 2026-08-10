@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import useWeather from '../hooks/useWeather'
@@ -9,6 +9,7 @@ function Icon({ children, className = '' }) {
 
 export default function MapArea({ _onNavigate, telemetry, active, mapStyle = 'standard', onMapStyleChange }) {
   const weather = useWeather(telemetry.latitude, telemetry.longitude)
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
   const mapRef = useRef(null)
   const leafletRef = useRef(null)
   const markerRef = useRef(null)
@@ -110,6 +111,18 @@ export default function MapArea({ _onNavigate, telemetry, active, mapStyle = 'st
     }
   }, [mapStyle])
 
+  // Invalidate Map Size when sidebar collapse toggles
+  useEffect(() => {
+    if (leafletRef.current) {
+      const timer1 = setTimeout(() => leafletRef.current?.invalidateSize(), 50)
+      const timer2 = setTimeout(() => leafletRef.current?.invalidateSize(), 320)
+      return () => {
+        clearTimeout(timer1)
+        clearTimeout(timer2)
+      }
+    }
+  }, [isSidebarCollapsed])
+
   useEffect(() => {
     if (!leafletRef.current || !markerRef.current) return
     const position = [telemetry.latitude, telemetry.longitude]
@@ -160,49 +173,62 @@ export default function MapArea({ _onNavigate, telemetry, active, mapStyle = 'st
               </div>
             </div>
 
-            {/* Top Right Map Style Selector (Clean UI without thumbnail images) */}
-            <div className="absolute top-6 right-6 z-[400] flex items-center rounded-xl bg-white/95 p-1 shadow-[0_4px_16px_rgba(0,0,0,0.08)] border border-slate-200/80 backdrop-blur-md">
-              <button
-                type="button"
-                onClick={() => onMapStyleChange?.('standard')}
-                className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition cursor-pointer ${
-                  mapStyle === 'standard'
-                    ? 'bg-slate-900 text-white shadow-sm'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-                }`}
-                title="Peta Jalan Standard (OpenStreetMap)"
-              >
-                <Icon className="text-[16px]">map</Icon>
-                <span>Standard</span>
-              </button>
+            {/* Top Right Controls Container (Map Style Selector + Panel Data Button) */}
+            <div className="absolute top-6 right-6 z-[400] flex items-center gap-2">
+              {/* Map Style Selector Pill */}
+              <div className="flex items-center rounded-xl bg-white/95 p-1 shadow-[0_4px_16px_rgba(0,0,0,0.08)] border border-slate-200/80 backdrop-blur-md">
+                <button
+                  type="button"
+                  onClick={() => onMapStyleChange?.('standard')}
+                  className={`rounded-lg px-3.5 py-1.5 text-xs font-bold transition cursor-pointer ${
+                    mapStyle === 'standard'
+                      ? 'bg-slate-900 text-white shadow-sm'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                  }`}
+                  title="Peta Jalan Standard (OpenStreetMap)"
+                >
+                  Standard
+                </button>
 
-              <button
-                type="button"
-                onClick={() => onMapStyleChange?.('satellite')}
-                className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition cursor-pointer ${
-                  mapStyle === 'satellite'
-                    ? 'bg-slate-900 text-white shadow-sm'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-                }`}
-                title="Peta Satelit Hybrid"
-              >
-                <Icon className="text-[16px]">satellite_alt</Icon>
-                <span>Satelit</span>
-              </button>
+                <button
+                  type="button"
+                  onClick={() => onMapStyleChange?.('satellite')}
+                  className={`rounded-lg px-3.5 py-1.5 text-xs font-bold transition cursor-pointer ${
+                    mapStyle === 'satellite'
+                      ? 'bg-slate-900 text-white shadow-sm'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                  }`}
+                  title="Peta Satelit Hybrid"
+                >
+                  Satelit
+                </button>
 
-              <button
-                type="button"
-                onClick={() => onMapStyleChange?.('terrain')}
-                className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition cursor-pointer ${
-                  mapStyle === 'terrain'
-                    ? 'bg-slate-900 text-white shadow-sm'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-                }`}
-                title="Peta Topografi & Kontur Altitude"
-              >
-                <Icon className="text-[16px]">terrain</Icon>
-                <span>Topografi</span>
-              </button>
+                <button
+                  type="button"
+                  onClick={() => onMapStyleChange?.('terrain')}
+                  className={`rounded-lg px-3.5 py-1.5 text-xs font-bold transition cursor-pointer ${
+                    mapStyle === 'terrain'
+                      ? 'bg-slate-900 text-white shadow-sm'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                  }`}
+                  title="Peta Topografi & Kontur Altitude"
+                >
+                  Topografi
+                </button>
+              </div>
+
+              {/* Expand Sidebar Trigger Button positioned to the RIGHT of Style Selector */}
+              {isSidebarCollapsed && (
+                <button
+                  type="button"
+                  onClick={() => setIsSidebarCollapsed(false)}
+                  className="flex items-center gap-1.5 rounded-xl bg-white/95 px-3.5 py-2 text-xs font-bold text-slate-800 backdrop-blur-md shadow-[0_4px_16px_rgba(0,0,0,0.08)] border border-slate-200/80 hover:bg-slate-900 hover:text-white transition cursor-pointer"
+                  title="Buka Panel Informasi"
+                >
+                  <Icon className="text-[18px]">chevron_left</Icon>
+                  <span>Panel Data</span>
+                </button>
+              )}
             </div>
 
             {/* Map Source Info Badge */}
@@ -218,8 +244,31 @@ export default function MapArea({ _onNavigate, telemetry, active, mapStyle = 'st
             </div>
           </div>
 
-          {/* Right Sidebar: Waypoints & Environment */}
-          <aside className="w-full lg:w-96 border-t lg:border-t-0 lg:border-l border-[#eef2f6] bg-white p-6 flex flex-col gap-6 overflow-y-auto">
+          {/* Right Sidebar: Waypoints & Environment (Collapsible/Minimizable) */}
+          <aside
+            className={`border-t lg:border-t-0 lg:border-l border-[#eef2f6] bg-white transition-all duration-300 ease-in-out overflow-y-auto ${
+              isSidebarCollapsed
+                ? 'w-0 border-0 p-0 hidden lg:hidden'
+                : 'w-full lg:w-96 p-6 flex flex-col gap-6'
+            }`}
+          >
+            {/* Sidebar Minimize Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <Icon className="text-[20px] text-slate-700">space_dashboard</Icon>
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-600">Mission Panel</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsSidebarCollapsed(true)}
+                className="flex items-center gap-1.5 rounded-xl bg-slate-100 hover:bg-slate-900 hover:text-white text-slate-700 px-3 py-1.5 text-xs font-bold transition border border-slate-200 shadow-xs cursor-pointer"
+                title="Sembunyikan Panel"
+              >
+                <span>Sembunyikan</span>
+                <Icon className="text-[16px]">chevron_right</Icon>
+              </button>
+            </div>
+
             <section>
               <h3 className="mb-4 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-slate-400">
                 <Icon className="text-slate-600">route</Icon>
