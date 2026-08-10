@@ -1026,8 +1026,9 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
             {/* BOTTOM-CENTER: Flight Dynamics & MAVLink Telemetry Console */}
             <div className="col-span-12 md:col-span-8 lg:col-span-6 h-full min-h-0 flex flex-col">
               <div className="bento-card flex flex-1 h-full min-h-0 flex-col justify-between p-3.5 sm:p-4 gap-2.5 rounded-2xl">
-                {/* Top Header: Battery + MAVLink Mode & Heartbeat */}
+                {/* Top Header: Drone Status + Battery */}
                 <div className="flex items-center justify-between gap-3 pb-2 border-b border-slate-100 shrink-0">
+                  <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Drone Status</span>
                   <div className="flex items-center gap-3">
                     <span className="text-xs font-medium text-slate-500">Battery</span>
                     <div className="h-1.5 w-24 overflow-hidden rounded-full bg-slate-200">
