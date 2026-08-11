@@ -1,328 +1,200 @@
-# Eagle Drone Dashboard
+# Eagle Drone Mission Control
 
-Dashboard web untuk co-pilot atau navigator drone. Aplikasi berfungsi sebagai sistem monitoring, bukan sistem kendali autopilot.
+Platform web untuk monitoring misi drone, bukti visual, telemetri, rute penerbangan, serta arsip misi. Aplikasi ini bersifat **observasi dan pencatatan**; tidak mengirim perintah autopilot, motor, arah, atau kecepatan ke drone.
 
-## 1. Ringkasan Proyek
+## Fitur Utama
 
-Eagle Drone menampilkan informasi misi pencarian dan penyelamatan dalam satu antarmuka dashboard:
+- Dashboard misi dengan status telemetri MAVLink.
+- Simulasi MAVLink otomatis untuk pengujian UI tanpa perangkat fisik.
+- Koneksi WebSerial dan WebSocket MAVLink untuk sumber telemetri eksternal.
+- Peta Leaflet/OpenStreetMap, rute drone, heading, posisi, dan area pencarian.
+- Kamera browser melalui `getUserMedia`.
+- Deteksi orang di browser menggunakan TensorFlow.js dan COCO-SSD.
+- Capture foto beserta hasil deteksi AI.
+- Penandaan lokasi/temuan pada posisi GPS drone.
+- Mission Logs realtime dari Supabase.
+- Flight Detail dari rekaman misi: route, koordinat, durasi, altitude, capture, dan marked location.
+- Pagination Mission Logs: 10 mission per halaman.
+- Hapus satu atau banyak log `Success` melalui mode checkbox.
+- Halaman terakhir dan gaya peta disimpan untuk mempertahankan navigasi setelah refresh.
 
-- Streaming webcam laptop.
-- Deteksi manusia dari video menggunakan TensorFlow.js dan COCO-SSD.
-- Bounding box, label, confidence, dan jumlah manusia terdeteksi.
-- Telemetri penerbangan dummy yang bergerak secara berkala.
-- Peta navigasi berbasis Leaflet dan OpenStreetMap.
-- Riwayat penerbangan dummy.
-- Panel event deteksi.
-- Panel pengaturan sistem.
+## Status Sistem
 
-Tahap saat ini menggunakan webcam laptop dan data penerbangan simulasi. Integrasi kamera Runcam, GPS sungguhan, flight controller, serta telemetri drone nyata belum dilakukan.
-
-## 2. Tujuan Sistem
-
-Sistem dirancang sebagai dashboard observasi untuk membantu operator melihat kondisi misi secara real-time. Dashboard tidak mengirim perintah autopilot dan tidak mengendalikan arah, kecepatan, ketinggian, atau motor drone.
-
-Batas tanggung jawab aplikasi:
-
-1. Menerima video dari kamera.
-2. Memproses frame video di browser.
-3. Menampilkan hasil deteksi objek.
-4. Menampilkan data telemetri.
-5. Menampilkan posisi drone pada peta.
-6. Menyediakan informasi arsip dan konfigurasi tampilan.
-
-## 3. Teknologi yang Digunakan
-
-| Teknologi | Fungsi |
-|---|---|
-| React | Membangun UI berbasis komponen |
-| Vite | Development server dan production bundler |
-| JavaScript | Logika aplikasi |
-| Tailwind CSS | Styling antarmuka |
-| TensorFlow.js | Runtime machine learning di browser |
-| COCO-SSD | Deteksi objek, khususnya class `person` |
-| Leaflet | Rendering peta interaktif |
-| OpenStreetMap | Tile peta navigasi |
-| MediaDevices API | Akses webcam laptop |
-| Canvas API | Menggambar bounding box secara presisi |
-| Manrope | Font UI |
-| JetBrains Mono | Font data telemetry |
-| Material Symbols | Icon dashboard |
-
-OpenCV.js dan MobileNet belum dipakai pada tahap ini. COCO-SSD dipilih karena sudah mendukung deteksi manusia secara langsung dan sesuai dengan stack implementasi yang disetujui.
-
-## 4. Status Fitur
-
-| Fitur | Status | Keterangan |
+| Kapabilitas | Status | Keterangan |
 |---|---|---|
-| React + Vite | Selesai | Project berhasil dibuat dan dapat dijalankan |
-| Tailwind CSS | Selesai | Terintegrasi melalui plugin Vite |
-| Layout dashboard | Selesai | Desktop dan responsive layout tersedia |
-| Mission Overview | Selesai | Halaman dashboard utama |
-| Map & Search Area | Selesai | Halaman peta dan waypoint dummy |
-| Detection Events | Selesai | Daftar event dan detail event dummy |
-| Flight History | Selesai | Arsip penerbangan dummy |
-| System Settings | Selesai | Preferensi dan status hardware dummy |
-| Webcam laptop | Selesai | Start/stop melalui `getUserMedia` |
-| Status kamera | Selesai | Offline, Connecting, Connected, Error |
-| COCO-SSD | Selesai | Model dimuat saat AI aktif dan kamera tersambung |
-| Deteksi manusia | Selesai | Hanya class `person` dengan confidence minimal 50% |
-| Bounding box | Selesai | Canvas memperhitungkan skala dan crop `object-cover` |
-| Jumlah manusia | Selesai | Berdasarkan hasil prediksi aktif |
-| Telemetri dummy | Selesai | GPS dan data penerbangan bergerak berkala |
-| Leaflet/OpenStreetMap | Selesai | Peta aktif di Mission Overview |
-| Marker drone | Selesai | Mengikuti koordinat GPS dummy |
-| GPS asli | Belum | Menunggu sumber GPS atau flight controller |
-| Stream Runcam | Belum | Menunggu format stream dan transmitter |
-| Video demo | Belum | Dibuat setelah pengujian final |
-| Dokumentasi | Selesai | Dokumen ini menjadi dokumentasi progres awal |
+| Dashboard React + Vite | Aktif | Antarmuka monitoring desktop.
+| Simulasi MAVLink | Aktif | Generator heartbeat, attitude, GPS, position, dan battery.
+| WebSerial MAVLink | Aktif | Untuk telemetry radio/USB pada browser yang mendukung WebSerial.
+| WebSocket MAVLink | Aktif | Untuk MAVLink bridge eksternal.
+| Kamera browser | Aktif | Membutuhkan izin browser.
+| Deteksi manusia COCO-SSD | Aktif | Diproses di browser.
+| Supabase PostgreSQL | Aktif | Menyimpan mission dan telemetry terkait.
+| Supabase Storage | Aktif | Menyimpan capture pada bucket private `mission-captures`.
+| Supabase Realtime | Aktif | Sinkronisasi Mission Logs.
+| Kontrol autopilot | Tidak ada | Platform tidak mengendalikan drone.
 
-## 5. Struktur Folder
+## Arsitektur
 
 ```text
-src/
-├── App.jsx
-├── index.css
-├── main.jsx
-├── assets/
-└── components/
-    ├── MissionOverview.jsx
-    ├── Map-Area.jsx
-    ├── Detection-Events.jsx
-    ├── Flight-History.jsx
-    └── Settings.jsx
+MAVLink source / Simulation
+          |
+          v
+     useTelemetry
+          |
+          +--> Mission Overview / Map Area
+          |
+          +--> Supabase PostgreSQL
+          |      missions
+          |      mission_track_points
+          |      mission_captures
+          |      mission_marked_locations
+          |
+          +--> Supabase Storage
+                 mission-captures/<mission-id>/<capture-id>.jpg
 
-src/hooks/
-├── useCamera.js
-├── useObjectDetection.js
-└── useTelemetry.js
+Flight History <---- Supabase Realtime: missions
+Flight Detail  <---- Supabase PostgreSQL + signed Storage URLs
 ```
 
-## 6. Arsitektur Aplikasi
+## Lifecycle Mission
 
-### 6.1 `App.jsx`
+1. Telemetry GPS pertama memulai satu record `missions` dengan status `live`.
+2. Telemetry disimpan ke `mission_track_points` dengan sampling minimal 1,5 detik atau saat perpindahan melewati ambang jarak.
+3. Ringkasan mission—durasi, jarak, altitude maksimum, posisi awal/akhir—diperbarui berkala.
+4. Capture kamera di-upload ke Supabase Storage, lalu metadata dan hasil deteksi AI disimpan ke `mission_captures`.
+5. Saat lokasi ditandai, marker dan track point pada koordinat serta timestamp yang sama disimpan ke database.
+6. Saat koneksi dihentikan atau halaman ditutup/refresh, mission difinalisasi menjadi `success`.
+7. Detail misi `Success` mengambil satu rekaman lengkap dari database. Mission `Live` tidak dapat dibuka sampai selesai.
 
-`App.jsx` berfungsi sebagai page switcher sederhana. State `page` menentukan halaman yang ditampilkan:
+Database menegakkan maksimal **satu mission `live`**. Saat mission `live` baru dibuat, mission live sebelumnya otomatis diubah menjadi `success`.
 
-- `mission` → `MissionOverview`
-- `map` → `MapArea`
-- `events` → `DetectionEvents`
-- `history` → `FlightHistory`
-- `settings` → `Settings`
+## Status Mission
 
-Router eksternal belum diperlukan karena jumlah halaman masih sedikit. Navigasi dikirim ke setiap halaman melalui prop `onNavigate`.
+| Status database | Status UI | Arti |
+|---|---|---|
+| `live` | Live | Mission sedang berjalan. Detail arsip belum dapat dibuka.
+| `success` | Success | Mission telah selesai dan rekaman lengkap dapat dibuka/dihapus.
 
-### 6.2 `MissionOverview.jsx`
+## Penyimpanan Data
 
-Halaman utama dashboard. Komponen ini menggabungkan:
+Log mission dan evidence **tidak memakai localStorage**. Supabase adalah sumber data utama untuk rekaman penerbangan.
 
-- Sidebar navigasi.
-- Header misi.
-- Alert deteksi.
-- Video panel.
-- Canvas bounding box.
-- Panel telemetry.
-- Peta Leaflet.
-- AI detection subsystem.
-- Incident summary.
-- Footer status sistem.
+`localStorage` hanya dipakai untuk preferensi antarmuka:
 
-### 6.3 `Map-Area.jsx`
+- Halaman aktif: `eagle_active_page`
+- Gaya peta: `eagle_map_style`
+- Mode/cuaca koordinat perangkat: `eagle_weather_mode`, `eagle_weather_coords`
 
-Halaman monitoring area pencarian. Berisi:
+### Tabel PostgreSQL
 
-- Informasi posisi UAV.
-- Active sector.
-- Marker drone simulasi.
-- Search area visual dengan zona radius sektor SAR.
-- Pantauan Wilayah & Sektor Operasi SAR real-time (otomatis terdeteksi saat drone berpindah wilayah).
-- Penandaan titik temuan/korban SAR secara manual.
-- Data lingkungan seperti wind speed, visibility, temperature, dan signal.
+| Tabel | Fungsi | Data utama |
+|---|---|---|
+| `missions` | Ringkasan satu penerbangan | kode, tipe, status, waktu, durasi, jarak, max altitude, koordinat awal/akhir |
+| `mission_track_points` | Jalur telemetri | timestamp, latitude, longitude, altitude, speed, heading, battery |
+| `mission_captures` | Metadata bukti visual | `storage_path`, waktu capture, hasil deteksi AI JSON |
+| `mission_marked_locations` | Lokasi yang ditandai operator | koordinat, altitude, timestamp, capture terkait |
 
-### 6.4 `Detection-Events.jsx`
+Relasi child menggunakan `ON DELETE CASCADE`, sehingga telemetry, capture metadata, dan marked location ikut terhapus saat mission dihapus.
 
-Halaman untuk melihat event hasil deteksi. Berisi:
+### Supabase Storage
 
-- Detection alert cards.
-- Status critical, review, dan event ber-confidence rendah.
-- Gambar thermal/IR/optical dummy.
-- Detail event terpilih.
-- Target telemetry.
-- Media preview.
+Bucket private `mission-captures` menyimpan foto dengan struktur:
 
-### 6.5 `Flight-History.jsx`
-
-Halaman arsip penerbangan. Berisi:
-
-- Mission ID.
-- Tanggal misi.
-- Durasi.
-- Jarak.
-- Ketinggian maksimum.
-- Nama pilot.
-- Status penerbangan.
-- Detail misi.
-- Ringkasan telemetry.
-
-### 6.6 `Settings.jsx`
-
-Halaman pengaturan tampilan dan status hardware. Berisi:
-
-- Measurement system: Metric atau Imperial.
-- Interface theme: Dark atau NVG.
-- Alert volume.
-- Motor health.
-- Battery cycles.
-- Signal encryption.
-- Tombol penyimpanan konfigurasi.
-
-## 7. Alur Webcam
-
-Logika kamera berada di `src/hooks/useCamera.js`.
-
-Alur kerja:
-
-1. User menekan tombol kamera.
-2. Aplikasi memanggil `navigator.mediaDevices.getUserMedia`.
-3. Browser meminta izin kamera.
-4. Stream diberikan ke elemen `<video>` melalui `srcObject`.
-5. Status berubah menjadi `connected`.
-6. User dapat menghentikan kamera.
-7. Semua video track dihentikan saat kamera berhenti atau komponen dilepas.
-
-Status kamera:
-
-- `offline`: kamera belum aktif.
-- `connecting`: permintaan kamera sedang diproses.
-- `connected`: stream aktif.
-- `error`: izin ditolak atau kamera gagal diakses.
-
-Kamera browser membutuhkan secure context. `localhost` diperbolehkan untuk development. Pada deployment jaringan, gunakan HTTPS.
-
-## 8. Alur Deteksi COCO-SSD
-
-Logika deteksi berada di `src/hooks/useObjectDetection.js`.
-
-Alur kerja:
-
-1. AI aktif dan kamera berada pada status `connected`.
-2. Model COCO-SSD dimuat sekali.
-3. Status model berubah menjadi `loading` lalu `ready`.
-4. Model membaca frame video secara berkala.
-5. Prediksi difilter hanya untuk class `person`.
-6. Prediksi dengan confidence di bawah `0.5` dibuang.
-7. Hasil disimpan sebagai array `detections`.
-8. Jumlah array digunakan sebagai jumlah manusia.
-9. Bounding box digambar pada canvas.
-
-Contoh bentuk data prediksi COCO-SSD:
-
-```js
-{
-  class: 'person',
-  score: 0.94,
-  bbox: [x, y, width, height]
-}
+```text
+mission-captures/
+└── <mission-uuid>/
+    └── capture-<timestamp>.jpg
 ```
 
-`bbox` menggunakan koordinat ukuran asli video, bukan ukuran tampilan dashboard.
+Saat Flight Detail dibuka, aplikasi membuat signed URL baru selama 1 jam menggunakan `createSignedUrl`. Karena path dan metadata disimpan di database, foto tetap dapat dibuka kembali setelah browser atau website ditutup.
 
-## 9. Perbaikan Presisi Bounding Box
+Capture yang dibuat sebelum database mengembalikan `mission_id` ditahan sementara di memori lalu di-upload otomatis ketika ID tersedia. Ini bukan penyimpanan permanen lokal.
 
-Bounding box tidak ditempel langsung sebagai elemen HTML biasa. Dashboard menggunakan canvas overlay.
+## Mission Logs
 
-Perhitungan yang dilakukan:
+Mission Logs menggunakan Supabase Realtime untuk tabel `missions`.
 
-1. Ambil ukuran asli video dari `video.videoWidth` dan `video.videoHeight`.
-2. Ambil ukuran video yang tampil melalui `getBoundingClientRect()`.
-3. Hitung rasio `object-cover` menggunakan nilai terbesar dari skala lebar dan tinggi.
-4. Hitung offset crop horizontal dan vertikal.
-5. Konversi `bbox` dari koordinat video ke koordinat layar.
-6. Gambar rectangle dan label confidence di canvas.
-7. Canvas mengikuti perubahan ukuran video dengan `ResizeObserver`.
+- Baris baru langsung muncul.
+- Durasi, jarak, altitude, dan status ikut diperbarui.
+- Maksimum 10 mission per halaman.
+- Search berdasarkan Mission ID.
+- Mission `Live` tampil merah dan membuka modal informasi bila diklik.
+- Mission `Success` dapat dibuka pada Flight Detail.
+- Mode **Delete mission** menampilkan checkbox hanya pada mission `Success`.
+- Hapus terpilih menghapus object Storage terlebih dahulu, lalu record mission. Mission `Live` tidak dapat dihapus.
 
-Pendekatan ini mencegah kotak bergeser saat:
+## Flight Detail
 
-- Ukuran browser berubah.
-- Layout berpindah dari desktop ke mobile.
-- Video memakai `object-cover`.
-- Rasio video webcam berbeda dengan rasio panel.
+Flight Detail hanya memakai data dari mission yang dipilih:
 
-## 10. Telemetri Dummy
+- Polyline rute dari `mission_track_points`.
+- Start dan finish dari track pertama serta terakhir.
+- Marked location dari `mission_marked_locations`.
+- Capture gambar dari `mission_captures` dan Supabase Storage.
+- Durasi, jarak, altitude, dan tanggal dari `missions`.
 
-Logika telemetri berada di `src/hooks/useTelemetry.js`.
+Data demo/fallback tidak digunakan untuk detail mission dari database. Rekaman lama ditampilkan apa adanya dan tidak dimodifikasi untuk menyesuaikan rute baru.
 
-Data awal:
+## Prasyarat
 
-```js
-{
-  latitude: -6.2,
-  longitude: 106.816666,
-  altitude: 120,
-  speed: 15,
-  heading: 285,
-  battery: 74,
-  signal: 98
-}
-```
-
-Setiap interval simulasi:
-
-- Latitude bertambah sedikit.
-- Longitude bertambah sedikit.
-- Altitude berubah pada rentang kecil.
-- Speed berubah secara periodik.
-- Heading berputar.
-- Battery berkurang perlahan.
-- Signal berubah pada rentang kecil.
-
-Data ini belum berasal dari sensor drone. Tujuannya untuk menguji tampilan, pembaruan state, dan sinkronisasi marker peta.
-
-## 11. Integrasi Leaflet dan OpenStreetMap
-
-Mission Overview menggunakan Leaflet sebagai peta navigasi.
-
-Alur peta:
-
-1. Container peta dibuat dengan `ref`.
-2. Leaflet map diinisialisasi satu kali.
-3. Tile OpenStreetMap dimuat melalui URL tile standar.
-4. Marker drone dibuat pada posisi awal.
-5. Marker dipindahkan saat latitude atau longitude berubah.
-6. Map melakukan pan menuju posisi terbaru.
-7. Instance map dihapus saat komponen unmount.
-
-Peta hanya digunakan sebagai monitor navigasi. Belum ada kontrol autopilot atau pengiriman waypoint ke drone.
-
-## 12. Cara Menjalankan
-
-### Persyaratan
-
-- Node.js versi LTS.
+- Node.js LTS.
 - npm.
-- Browser modern yang mendukung webcam dan WebGL.
-- Webcam laptop untuk pengujian kamera.
+- Project Supabase.
+- Browser Chromium untuk WebSerial dan kamera.
+- HTTPS untuk akses kamera pada deployment non-localhost.
 
-### Instalasi
+## Instalasi
 
 ```bash
 npm install
 ```
 
-### Development server
+Buat file `.env` pada root project:
+
+```env
+VITE_SUPABASE_URL=https://<project-ref>.supabase.co
+VITE_SUPABASE_ANON_KEY=<supabase-anon-key>
+```
+
+`.env` diabaikan Git. Jangan commit service role key atau kredensial rahasia.
+
+## Menyiapkan Supabase
+
+Migration berada pada `supabase/migrations/`.
+
+Urutan migration mencakup:
+
+1. Pembuatan tabel mission, RLS policy, bucket `mission-captures`, dan index.
+2. Penyesuaian tipe mission/status dari iterasi sebelumnya.
+3. Publication Supabase Realtime untuk `missions` dan tabel detail.
+4. Aturan satu mission `live`.
+5. Policy delete mission `success` dan object capture.
+
+Hubungkan Supabase CLI ke project lalu jalankan migration sesuai workflow tim/proyek Anda. Untuk menjalankan cleanup data demo yang tersedia di repository:
+
+```bash
+npm run db:clear
+```
+
+Perintah tersebut bersifat destruktif: menghapus data pada tabel mission terkait.
+
+## Menjalankan Aplikasi
+
+### Development
 
 ```bash
 npm run dev
 ```
 
-Buka alamat localhost yang diberikan Vite. Izinkan akses webcam ketika browser memintanya.
+Buka URL yang ditampilkan Vite, biasanya `http://localhost:5173`.
 
-### Production build
+### Build Produksi
 
 ```bash
 npm run build
 ```
 
-### Preview production build
+### Preview Build
 
 ```bash
 npm run preview
@@ -334,88 +206,119 @@ npm run preview
 npm run lint
 ```
 
-## 13. Skenario Demo untuk Dosen
+## Cara Uji Alur Mission
 
 1. Jalankan `npm run dev`.
-2. Buka dashboard Mission Overview.
-3. Jelaskan sidebar dan lima halaman utama.
-4. Klik tombol kamera.
-5. Izinkan akses webcam.
-6. Tunjukkan status kamera berubah menjadi `CONNECTED`.
-7. Aktifkan `AI DETECT`.
-8. Tunggu status COCO-SSD berubah menjadi `READY`.
-9. Arahkan kamera ke seseorang.
-10. Tunjukkan bounding box, label confidence, dan jumlah person.
-11. Jelaskan bahwa bounding box telah dikonversi dari koordinat frame asli ke ukuran panel.
-12. Tunjukkan telemetry yang bergerak.
-13. Tunjukkan marker drone yang mengikuti koordinat dummy.
-14. Buka Map & Search Area.
-15. Buka Detection Events.
-16. Buka Flight History.
-17. Buka System Settings.
-18. Jalankan `npm run lint` dan `npm run build` sebagai bukti validasi kode.
+2. Buka Mission Overview; simulasi MAVLink berjalan otomatis.
+3. Buka Flight History untuk melihat mission `Live` muncul secara realtime.
+4. Hubungkan kamera dan aktifkan deteksi AI bila ingin membuat capture evidence.
+5. Tandai lokasi dari kontrol mission untuk menyimpan marked location.
+6. Refresh halaman atau disconnect MAVLink untuk memfinalisasi mission menjadi `Success`.
+7. Buka Flight History; mission `Success` dapat dibuka.
+8. Periksa route, capture, dan marker pada Flight Detail.
+9. Tutup browser lalu buka lagi; log dan foto tetap tersedia karena disimpan di Supabase.
 
-## 14. Batasan Saat Ini
+## Struktur Project
 
-- COCO-SSD berjalan di browser sehingga performa bergantung pada CPU/GPU perangkat.
-- Model bukan sistem deteksi khusus SAR.
-- Data telemetri masih simulasi.
-- Koordinat GPS belum berasal dari modul GPS.
-- Kamera Runcam belum terhubung.
-- Peta Mission Overview sudah menggunakan OpenStreetMap, sedangkan beberapa halaman lain masih menggunakan visual peta dummy.
-- Belum ada backend atau database.
-- Belum ada autentikasi operator.
-- Belum ada penyimpanan event permanen.
-- Belum ada sistem kendali drone.
-- Belum ada integrasi thermal camera sungguhan.
-- Belum ada deteksi barang jatuh.
-- Belum ada analisis NDVI atau MDVI.
+```text
+src/
+├── App.jsx                         # Page state, navigasi, detail mission
+├── components/
+│   ├── MissionOverview.jsx          # Dashboard utama, kamera, telemetry, AI
+│   ├── Map-Area.jsx                 # Peta area pencarian
+│   ├── Flight-History.jsx           # Realtime logs, pagination, delete mode
+│   ├── FlightDetail.jsx             # Rekaman route, capture, marker mission
+│   ├── Settings.jsx                 # Preferensi dan hardware health
+│   ├── Sidebar.jsx                  # Navigasi utama
+│   └── Detection-Events.jsx         # Tampilan event deteksi
+├── hooks/
+│   ├── useTelemetry.js              # MAVLink, simulasi, lifecycle mission
+│   ├── useCamera.js                 # Kamera browser
+│   ├── useObjectDetection.js        # COCO-SSD
+│   ├── useWeather.js                # Cuaca dan koordinat wilayah
+│   └── useDroneRegion.js            # Region drone
+├── lib/
+│   └── supabase.js                  # Supabase client
+├── services/
+│   └── missionService.js            # Query mission, storage, signed URL, delete
+└── utils/
+    ├── mavlink.js                   # Parser dan encoder MAVLink
+    └── geoCoder.js                  # Resolusi nama wilayah
 
-## 15. Rencana Pengembangan
+supabase/
+├── migrations/                      # Schema, RLS, realtime, lifecycle rules
+└── cleanup-demo.sql                 # Cleanup data mission
+```
 
-### Tahap berikutnya
+## Teknologi
 
-1. Tambahkan backend untuk menyimpan event deteksi.
-2. Ganti telemetri dummy dengan data MAVLink atau API flight controller.
-3. Tambahkan koneksi GPS nyata.
-4. Tambahkan URL stream Runcam sesuai protokol transmitter.
-5. Tambahkan reconnect saat stream terputus.
-6. Tambahkan snapshot event deteksi.
-7. Tambahkan filter confidence dan class objek.
-8. Tambahkan peta pencarian berbasis polygon.
-9. Tambahkan histori penerbangan dari database.
-10. Tambahkan dokumentasi video demo.
+| Teknologi | Penggunaan |
+|---|---|
+| React 19 | Antarmuka komponen |
+| Vite | Development server dan bundling |
+| Tailwind CSS | Styling |
+| Leaflet | Peta interaktif |
+| OpenStreetMap | Tile peta standar |
+| TensorFlow.js + COCO-SSD | Deteksi manusia di browser |
+| Supabase PostgreSQL | Metadata mission dan telemetry |
+| Supabase Storage | Foto capture mission |
+| Supabase Realtime | Update Mission Logs |
+| Web Serial API | Telemetry MAVLink melalui serial/USB |
+| WebSocket | Telemetry MAVLink bridge |
+| MediaDevices API | Kamera browser |
 
-### Fitur opsional
+## Keamanan dan Operasional
 
-- Kamera termal nyata.
-- Deteksi korban pada kondisi malam.
-- Deteksi objek yang jatuh.
-- Analisis vegetasi NDVI/MDVI.
-- Export laporan PDF.
-- Notifikasi operator.
-- Multi-camera stream.
-- Mode offline untuk area tanpa koneksi internet.
+- Gunakan hanya `VITE_SUPABASE_ANON_KEY` di frontend.
+- Jangan pernah memasukkan service role key pada `.env` frontend.
+- Bucket capture bersifat private; UI menggunakan signed URL.
+- Policy `anon` saat ini dibuat untuk demo/prototipe. Production sebaiknya memakai Supabase Auth, role operator, dan policy per organisasi/mission.
+- Pastikan migration yang diperlukan telah diterapkan pada environment deployment.
+- Capture browser dan telemetry dapat berhenti bila tab/browser dipaksa ditutup sebelum request selesai. Untuk operasi kritis, gunakan source telemetry server-side atau bridge yang memiliki retry/buffer.
 
-## 16. Penjelasan Singkat untuk Presentasi
+## Batasan Saat Ini
 
-> Eagle Drone adalah dashboard web untuk membantu co-pilot atau navigator memonitor misi drone. Sistem menerima video dari webcam, memproses frame menggunakan TensorFlow.js dan COCO-SSD, kemudian menampilkan manusia yang terdeteksi melalui bounding box dan confidence. Telemetri penerbangan masih menggunakan data dummy yang bergerak untuk menguji antarmuka. Posisi drone ditampilkan pada peta Leaflet dengan tile OpenStreetMap. Sistem ini bersifat monitoring dan tidak mengendalikan autopilot.
+- Simulasi adalah sumber telemetri default; integrasi flight controller nyata bergantung pada sumber MAVLink perangkat.
+- Kamera browser bukan pengganti stream kamera drone/Runcam.
+- COCO-SSD mendeteksi objek di browser; hasil dan performa bergantung pada perangkat operator.
+- Tidak ada kontrol autopilot atau pengiriman command ke drone.
+- RLS demo belum cocok untuk multi-user production.
+- Tidak ada export laporan PDF atau sistem autentikasi operator penuh.
 
-## 17. Kesimpulan Progres Hari Ini
+## Troubleshooting
 
-Fondasi aplikasi telah selesai:
+### Mission Logs kosong
 
-- Project React + Vite tersedia.
-- Tailwind CSS terintegrasi.
-- Lima halaman dashboard tersedia.
-- Navigasi antar halaman tersedia.
-- Layout konsisten dan fullscreen.
-- Webcam laptop telah terhubung.
-- COCO-SSD telah digunakan untuk deteksi manusia.
-- Bounding box telah diperbaiki menggunakan canvas overlay.
-- Telemetri dummy telah dibuat bergerak.
-- Leaflet/OpenStreetMap telah digunakan.
-- Marker mengikuti GPS dummy.
-- Lint dan production build berhasil.
+1. Periksa `VITE_SUPABASE_URL` dan `VITE_SUPABASE_ANON_KEY`.
+2. Pastikan migration Supabase sudah diterapkan.
+3. Pastikan tabel `missions` masuk publication `supabase_realtime`.
+4. Periksa browser console untuk error RLS atau network.
 
-Tahap berikutnya adalah pengujian langsung menggunakan webcam, optimasi performa model, dan persiapan integrasi stream Runcam serta telemetri drone nyata.
+### Foto tidak muncul di Flight Detail
+
+1. Periksa object pada bucket `mission-captures`.
+2. Pastikan tabel `mission_captures.storage_path` sesuai path object Storage.
+3. Pastikan policy `SELECT` Storage tersedia untuk anon pada bucket tersebut.
+4. Buka ulang detail untuk membuat signed URL baru.
+
+### Camera tidak dapat dibuka
+
+- Berikan izin kamera pada browser.
+- Gunakan HTTPS selain pada `localhost`.
+- Pastikan perangkat kamera tidak sedang dipakai aplikasi lain.
+
+### WebSerial tidak tersedia
+
+- Gunakan Chrome atau Edge.
+- Pastikan koneksi dilakukan dari secure context.
+
+## Kontribusi
+
+1. Buat branch fitur dari branch kerja yang disepakati.
+2. Jalankan `npm run lint` dan `npm run build` sebelum push.
+3. Jangan commit `.env`, service role key, atau file `supabase/.temp/`.
+4. Sertakan migration bila mengubah schema, RLS, Storage policy, atau Realtime publication.
+
+## Lisensi
+
+Private project. Hak penggunaan mengikuti kebijakan pemilik repository.
