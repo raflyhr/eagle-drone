@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { encodeMavlink2Frame, MAVMSG, MavlinkParser } from '../utils/mavlink'
 import { getOfflineLocationName } from '../utils/geoCoder'
+import { isSupabaseConfigured, supabase } from '../lib/supabase'
+import { createMissionRecord, fetchMissionLogs, finalizeMissionOnUnload, formatMissionRecord, getTrackWritePolicy, insertMarkedLocation, insertTrackPoint, updateMissionRecord, uploadMissionCapture } from '../services/missionService'
 
 export function calculateDistanceMeters(lat1, lon1, lat2, lon2) {
   if (lat1 === undefined || lon1 === undefined || lat2 === undefined || lon2 === undefined) return 0
@@ -45,24 +47,7 @@ export default function useTelemetry() {
   const [connectionStatus, setConnectionStatus] = useState('disconnected') // 'disconnected' | 'connecting' | 'connected' | 'error'
   const [connectionType, setConnectionType] = useState('none') // 'none' | 'serial' | 'websocket' | 'simulation'
   const [errorMessage, setErrorMessage] = useState('')
-  const [missionLogs, setMissionLogs] = useState(() => {
-    try {
-      const saved = localStorage.getItem('eagle_mission_logs')
-      return saved ? JSON.parse(saved) : []
-    } catch {
-      return []
-    }
-  })
-
-  // Persist real mission logs to localStorage
-  useEffect(() => {
-    try {
-      localStorage.setItem('eagle_mission_logs', JSON.stringify(missionLogs))
-    } catch (err) {
-      console.warn('Failed to persist mission logs to localStorage:', err)
-    }
-  }, [missionLogs])
-
+  const [missionLogs, setMissionLogs] = useState([])
   const [currentMission, setCurrentMission] = useState(null)
 
   const serialPortRef = useRef(null)
@@ -77,8 +62,12 @@ export default function useTelemetry() {
   const missionPositionRef = useRef(null)
   const missionTrackRef = useRef([])
   const capturesRef = useRef([])
+  const pendingCapturesRef = useRef([])
   const markedLocationsRef = useRef([])
   const latestTelemetryRef = useRef(telemetry)
+  const missionDbIdRef = useRef(null)
+  const lastTrackWriteRef = useRef({ at: 0, point: null })
+  const lastMissionSummaryWriteRef = useRef(0)
   const simStateRef = useRef({
     lat: -7.5950,
     lon: 110.4485,
@@ -90,12 +79,32 @@ export default function useTelemetry() {
     centerLon: 110.4485,
   })
 
+  const persistCapture = useCallback((missionId, capture) => {
+    uploadMissionCapture(missionId, capture)
+      .then((stored) => {
+        if (!stored) return
+        capturesRef.current = capturesRef.current.map((item) => item.id === capture.id ? { ...item, databaseId: stored.id } : item)
+        setCurrentMission((mission) => mission ? { ...mission, captures: capturesRef.current } : mission)
+      })
+      .catch((error) => console.warn('Capture persistence unavailable:', error.message))
+  }, [])
+
   const updateCurrentMission = useCallback((next) => {
     if (!missionStartRef.current) {
       missionStartRef.current = Date.now()
       missionMaxAltitudeRef.current = next.altitude || 0
       missionPositionRef.current = { lat: next.latitude, lon: next.longitude }
       missionTrackRef.current = Number.isFinite(next.latitude) && Number.isFinite(next.longitude) ? [[next.latitude, next.longitude]] : []
+      const missionCode = `${connectionType === 'simulation' ? 'SIM' : 'SAR'}-${Date.now().toString().slice(-8)}`
+      createMissionRecord({
+        missionCode,
+        missionType: next.flightMode === 'AUTO' ? 'evacuation' : 'thermal_search',
+        status: 'live',
+        startedAt: new Date(missionStartRef.current).toISOString(),
+      }).then((id) => {
+        missionDbIdRef.current = id
+        pendingCapturesRef.current.splice(0).forEach((capture) => persistCapture(id, capture))
+      }).catch((error) => console.warn('Mission persistence unavailable:', error.message))
     }
 
     const last = missionPositionRef.current
@@ -106,23 +115,52 @@ export default function useTelemetry() {
       missionPositionRef.current = { lat: next.latitude, lon: next.longitude }
     }
 
+    if (missionDbIdRef.current) {
+      const trackPoint = {
+        recordedAt: new Date().toISOString(),
+        latitude: next.latitude,
+        longitude: next.longitude,
+        altitudeMeters: next.altitude,
+        speedMps: next.speed,
+        heading: next.heading,
+        batteryPercent: next.battery,
+      }
+      if (getTrackWritePolicy(lastTrackWriteRef.current.at, lastTrackWriteRef.current.point, trackPoint)) {
+        lastTrackWriteRef.current = { at: Date.now(), point: trackPoint }
+        insertTrackPoint(missionDbIdRef.current, trackPoint).catch((error) => console.warn('Track persistence unavailable:', error.message))
+      }
+    }
+
     missionMaxAltitudeRef.current = Math.max(missionMaxAltitudeRef.current, next.altitude || 0)
     const elapsed = Date.now() - missionStartRef.current
     const duration = new Date(elapsed).toISOString().slice(11, 19)
 
+    if (missionDbIdRef.current && Date.now() - lastMissionSummaryWriteRef.current > 3000) {
+      lastMissionSummaryWriteRef.current = Date.now()
+      updateMissionRecord(missionDbIdRef.current, {
+        durationSeconds: Math.round(elapsed / 1000),
+        distanceMeters: missionDistanceRef.current,
+        maxAltitudeMeters: missionMaxAltitudeRef.current,
+        startLatitude: missionTrackRef.current[0]?.[0],
+        startLongitude: missionTrackRef.current[0]?.[1],
+        finishLatitude: missionTrackRef.current.at(-1)?.[0],
+        finishLongitude: missionTrackRef.current.at(-1)?.[1],
+      }).catch((error) => console.warn('Mission summary persistence unavailable:', error.message))
+    }
+
     setCurrentMission({
-      id: 'LIVE-MAVLINK',
-      type: next.flightMode === 'AUTO' ? 'SAR Automation' : 'Thermal Search',
+      id: 'MISSION',
+      type: next.flightMode === 'AUTO' ? 'Evacuation' : 'Thermal Search',
       date: new Date(missionStartRef.current).toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' }),
       duration,
       distance: formatDistance(missionDistanceRef.current),
       maxAltitude: `${missionMaxAltitudeRef.current} m`,
-      status: connectionType === 'simulation' ? 'Simulation' : 'In Progress',
+      status: 'Live',
       captures: capturesRef.current,
       markedLocations: markedLocationsRef.current,
       trackPoints: missionTrackRef.current,
     })
-  }, [connectionType])
+  }, [connectionType, persistCapture])
 
   // Message Handler Callback for Parser
   const handleMavlinkMessage = useCallback((msg) => {
@@ -178,49 +216,118 @@ export default function useTelemetry() {
     parserRef.current = new MavlinkParser(handleMavlinkMessage)
   }, [handleMavlinkMessage])
 
+  useEffect(() => {
+    const loadMissionLogs = () => fetchMissionLogs()
+      .then((records) => setMissionLogs(records.map(formatMissionRecord)))
+      .catch(() => setMissionLogs([]))
+
+    loadMissionLogs()
+    if (!isSupabaseConfigured) return undefined
+
+    const channel = supabase
+      .channel('mission-logs')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'missions' }, loadMissionLogs)
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [])
+
+  useEffect(() => {
+    const finalizeOnPageHide = () => {
+      if (!missionStartRef.current || !missionDbIdRef.current) return
+      finalizeMissionOnUnload(missionDbIdRef.current, {
+        status: 'success',
+        finished_at: new Date().toISOString(),
+        duration_seconds: Math.round((Date.now() - missionStartRef.current) / 1000),
+        distance_meters: missionDistanceRef.current,
+        max_altitude_meters: missionMaxAltitudeRef.current,
+        start_lat: missionTrackRef.current[0]?.[0],
+        start_lng: missionTrackRef.current[0]?.[1],
+        finish_lat: missionTrackRef.current.at(-1)?.[0],
+        finish_lng: missionTrackRef.current.at(-1)?.[1],
+      })
+    }
+    window.addEventListener('pagehide', finalizeOnPageHide)
+    return () => window.removeEventListener('pagehide', finalizeOnPageHide)
+  }, [])
+
   const capturePhoto = useCallback((image, detections = []) => {
     if (!image) return false
+    const capturedAt = new Date().toISOString()
     const capture = {
       id: `capture-${Date.now()}`,
       image,
-      timestamp: new Date().toLocaleTimeString('en-US', { hour12: false }),
+      timestamp: new Date(capturedAt).toLocaleTimeString('en-US', { hour12: false }),
+      capturedAt,
       detections,
     }
     capturesRef.current = [capture, ...capturesRef.current]
     setCurrentMission((mission) => mission ? { ...mission, captures: capturesRef.current } : mission)
+    if (missionDbIdRef.current) persistCapture(missionDbIdRef.current, capture)
+    else pendingCapturesRef.current.push(capture)
     return true
-  }, [])
+  }, [persistCapture])
 
   const markLocation = useCallback(() => {
-    const { latitude, longitude, altitude } = latestTelemetryRef.current
+    const { latitude, longitude, altitude, speed, heading, battery } = latestTelemetryRef.current
     if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return false
+    const markedAt = new Date().toISOString()
     const marker = {
       id: `marker-${Date.now()}`,
       coordinate: [latitude, longitude],
       altitude,
-      captureId: capturesRef.current[0]?.id || null,
+      captureId: capturesRef.current[0]?.databaseId || null,
+      timestamp: new Date(markedAt).toLocaleTimeString('en-US', { hour12: false }),
+    }
+    const lastPoint = missionTrackRef.current.at(-1)
+    if (!lastPoint || lastPoint[0] !== latitude || lastPoint[1] !== longitude) {
+      missionTrackRef.current = [...missionTrackRef.current, [latitude, longitude]].slice(-2000)
     }
     markedLocationsRef.current = [marker, ...markedLocationsRef.current]
-    setCurrentMission((mission) => mission ? { ...mission, markedLocations: markedLocationsRef.current } : mission)
+    setCurrentMission((mission) => mission ? { ...mission, markedLocations: markedLocationsRef.current, trackPoints: missionTrackRef.current } : mission)
+    if (missionDbIdRef.current) {
+      insertTrackPoint(missionDbIdRef.current, {
+        recordedAt: markedAt,
+        latitude,
+        longitude,
+        altitudeMeters: altitude,
+        speedMps: speed,
+        heading,
+        batteryPercent: battery,
+      }).catch((error) => console.warn('Track persistence unavailable:', error.message))
+      insertMarkedLocation(missionDbIdRef.current, {
+        captureId: capturesRef.current[0]?.databaseId || null,
+        latitude,
+        longitude,
+        altitudeMeters: altitude,
+        markedAt,
+      }).catch((error) => console.warn('Location persistence unavailable:', error.message))
+    }
     return true
   }, [])
 
   // Disconnect function
   const disconnect = useCallback(async () => {
-    if (missionStartRef.current && Date.now() - missionStartRef.current > 3000) {
-      const finishedMission = {
-        id: `EGL-${Date.now().toString().slice(-6)}`,
-        type: latestTelemetryRef.current.flightMode === 'AUTO' ? 'SAR Automation' : 'Thermal Search',
-        date: new Date(missionStartRef.current).toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' }),
-        duration: new Date(Date.now() - missionStartRef.current).toISOString().slice(11, 19),
-        distance: formatDistance(missionDistanceRef.current),
-        maxAltitude: `${missionMaxAltitudeRef.current} m`,
-        status: 'Success',
-        captures: [...capturesRef.current],
-        markedLocations: [...markedLocationsRef.current],
-        trackPoints: [...missionTrackRef.current],
+    if (missionDbIdRef.current) {
+      try {
+        await updateMissionRecord(missionDbIdRef.current, {
+          status: 'success',
+          finishedAt: new Date().toISOString(),
+          durationSeconds: Math.round((Date.now() - missionStartRef.current) / 1000),
+          distanceMeters: missionDistanceRef.current,
+          maxAltitudeMeters: missionMaxAltitudeRef.current,
+          startLatitude: missionTrackRef.current[0]?.[0],
+          startLongitude: missionTrackRef.current[0]?.[1],
+          finishLatitude: missionTrackRef.current.at(-1)?.[0],
+          finishLongitude: missionTrackRef.current.at(-1)?.[1],
+        })
+        const records = await fetchMissionLogs()
+        setMissionLogs(records.map(formatMissionRecord))
+      } catch (error) {
+        console.warn('Mission finalization unavailable:', error.message)
       }
-      setMissionLogs((logs) => [finishedMission, ...logs])
     }
 
     if (simTimerRef.current) {
@@ -258,7 +365,11 @@ export default function useTelemetry() {
     missionPositionRef.current = null
     missionTrackRef.current = []
     capturesRef.current = []
+    pendingCapturesRef.current = []
     markedLocationsRef.current = []
+    missionDbIdRef.current = null
+    lastTrackWriteRef.current = { at: 0, point: null }
+    lastMissionSummaryWriteRef.current = 0
     setCurrentMission(null)
     setConnectionStatus('disconnected')
     setConnectionType('none')
@@ -375,6 +486,7 @@ export default function useTelemetry() {
 
   // Local MAVLink Simulation Mode Engine (Long-Range Dynamic Random Search Flight)
   const enableMavlinkSim = useCallback(async () => {
+    if (simTimerRef.current) return
     await disconnect()
     setConnectionStatus('connected')
     setConnectionType('simulation')
@@ -526,17 +638,9 @@ export default function useTelemetry() {
     enableMavlinkSim()
     return () => {
       if (simTimerRef.current) clearInterval(simTimerRef.current)
+      simTimerRef.current = null
     }
   }, [enableMavlinkSim])
-
-  const clearMissionLogs = useCallback(() => {
-    setMissionLogs([])
-    try {
-      localStorage.removeItem('eagle_mission_logs')
-    } catch {
-      // fallback
-    }
-  }, [])
 
   return {
     telemetry,
@@ -551,7 +655,6 @@ export default function useTelemetry() {
     connectWebSocket,
     enableMavlinkSim,
     disconnect,
-    clearMissionLogs,
   }
 }
 
