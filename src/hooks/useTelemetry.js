@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { encodeMavlink2Frame, MAVMSG, MavlinkParser } from '../utils/mavlink'
 import { getOfflineLocationName } from '../utils/geoCoder'
 import { isSupabaseConfigured, supabase } from '../lib/supabase'
-import { createMissionRecord, fetchMissionLogs, finalizeMissionOnUnload, formatMissionRecord, getTrackWritePolicy, insertMarkedLocation, insertTrackPoint, updateMissionRecord, uploadMissionCapture } from '../services/missionService'
+import { createMissionRecord, deleteTargetPoint, fetchMissionLogs, finalizeMissionOnUnload, formatMissionRecord, getTrackWritePolicy, insertMarkedLocation, insertTargetPoint, insertTrackPoint, updateMissionRecord, uploadMissionCapture } from '../services/missionService'
 
 export function calculateDistanceMeters(lat1, lon1, lat2, lon2) {
   if (lat1 === undefined || lon1 === undefined || lat2 === undefined || lon2 === undefined) return 0
@@ -64,6 +64,7 @@ export default function useTelemetry() {
   const capturesRef = useRef([])
   const pendingCapturesRef = useRef([])
   const markedLocationsRef = useRef([])
+  const targetPointsRef = useRef([])
   const latestTelemetryRef = useRef(telemetry)
   const missionDbIdRef = useRef(null)
   const lastTrackWriteRef = useRef({ at: 0, point: null })
@@ -89,6 +90,14 @@ export default function useTelemetry() {
       .catch((error) => console.warn('Capture persistence unavailable:', error.message))
   }, [])
 
+  const persistTargetPoint = useCallback((missionId, point) => {
+    insertTargetPoint(missionId, point).then((stored) => {
+      if (!stored) return
+      targetPointsRef.current = targetPointsRef.current.map((item) => item.id === point.id ? { ...item, databaseId: stored.id } : item)
+      setCurrentMission((mission) => mission ? { ...mission, targetPoints: targetPointsRef.current } : mission)
+    }).catch((error) => console.warn('Target point persistence unavailable:', error.message))
+  }, [])
+
   const updateCurrentMission = useCallback((next) => {
     if (!missionStartRef.current) {
       missionStartRef.current = Date.now()
@@ -104,6 +113,7 @@ export default function useTelemetry() {
       }).then((id) => {
         missionDbIdRef.current = id
         pendingCapturesRef.current.splice(0).forEach((capture) => persistCapture(id, capture))
+        targetPointsRef.current.filter((point) => !point.databaseId).forEach((point) => persistTargetPoint(id, point))
       }).catch((error) => console.warn('Mission persistence unavailable:', error.message))
     }
 
@@ -141,6 +151,7 @@ export default function useTelemetry() {
         durationSeconds: Math.round(elapsed / 1000),
         distanceMeters: missionDistanceRef.current,
         maxAltitudeMeters: missionMaxAltitudeRef.current,
+        currentAltitudeMeters: next.altitude,
         startLatitude: missionTrackRef.current[0]?.[0],
         startLongitude: missionTrackRef.current[0]?.[1],
         finishLatitude: missionTrackRef.current.at(-1)?.[0],
@@ -157,10 +168,11 @@ export default function useTelemetry() {
       maxAltitude: `${missionMaxAltitudeRef.current} m`,
       status: 'Live',
       captures: capturesRef.current,
-      markedLocations: markedLocationsRef.current,
+       markedLocations: markedLocationsRef.current,
+       targetPoints: targetPointsRef.current,
       trackPoints: missionTrackRef.current,
     })
-  }, [connectionType, persistCapture])
+  }, [connectionType, persistCapture, persistTargetPoint])
 
   // Message Handler Callback for Parser
   const handleMavlinkMessage = useCallback((msg) => {
@@ -203,7 +215,7 @@ export default function useTelemetry() {
       }
 
       latestTelemetryRef.current = next
-      if (msg.msgName === 'GLOBAL_POSITION_INT' || msg.msgName === 'GPS_RAW_INT') {
+      if (msg.msgName === 'GLOBAL_POSITION_INT') {
         updateCurrentMission(next)
       }
 
@@ -217,16 +229,27 @@ export default function useTelemetry() {
   }, [handleMavlinkMessage])
 
   useEffect(() => {
-    const loadMissionLogs = () => fetchMissionLogs()
+    fetchMissionLogs()
       .then((records) => setMissionLogs(records.map(formatMissionRecord)))
       .catch(() => setMissionLogs([]))
 
-    loadMissionLogs()
     if (!isSupabaseConfigured) return undefined
 
     const channel = supabase
       .channel('mission-logs')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'missions' }, loadMissionLogs)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'missions' }, (payload) => {
+        if (payload.eventType === 'DELETE') {
+          setMissionLogs((logs) => logs.filter((mission) => mission.databaseId !== payload.old.id))
+          return
+        }
+
+        const updatedMission = formatMissionRecord(payload.new)
+        setMissionLogs((logs) => {
+          const exists = logs.some((mission) => mission.databaseId === updatedMission.databaseId)
+          if (!exists) return [updatedMission, ...logs]
+          return logs.map((mission) => mission.databaseId === updatedMission.databaseId ? updatedMission : mission)
+        })
+      })
       .subscribe()
 
     return () => {
@@ -243,6 +266,7 @@ export default function useTelemetry() {
         duration_seconds: Math.round((Date.now() - missionStartRef.current) / 1000),
         distance_meters: missionDistanceRef.current,
         max_altitude_meters: missionMaxAltitudeRef.current,
+        current_altitude_meters: latestTelemetryRef.current.altitude,
         start_lat: missionTrackRef.current[0]?.[0],
         start_lng: missionTrackRef.current[0]?.[1],
         finish_lat: missionTrackRef.current.at(-1)?.[0],
@@ -308,6 +332,20 @@ export default function useTelemetry() {
     return true
   }, [])
 
+  const addTargetPoint = useCallback((point) => {
+    const target = { ...point, markedAt: new Date().toISOString() }
+    targetPointsRef.current = [target, ...targetPointsRef.current]
+    setCurrentMission((mission) => mission ? { ...mission, targetPoints: targetPointsRef.current } : mission)
+    if (missionDbIdRef.current) persistTargetPoint(missionDbIdRef.current, target)
+  }, [persistTargetPoint])
+
+  const removeTargetPoint = useCallback((id) => {
+    const point = targetPointsRef.current.find((item) => item.id === id)
+    targetPointsRef.current = targetPointsRef.current.filter((item) => item.id !== id)
+    setCurrentMission((mission) => mission ? { ...mission, targetPoints: targetPointsRef.current } : mission)
+    if (point?.databaseId) deleteTargetPoint(point.databaseId).catch((error) => console.warn('Target point deletion unavailable:', error.message))
+  }, [])
+
   // Disconnect function
   const disconnect = useCallback(async () => {
     if (missionDbIdRef.current) {
@@ -318,6 +356,7 @@ export default function useTelemetry() {
           durationSeconds: Math.round((Date.now() - missionStartRef.current) / 1000),
           distanceMeters: missionDistanceRef.current,
           maxAltitudeMeters: missionMaxAltitudeRef.current,
+          currentAltitudeMeters: latestTelemetryRef.current.altitude,
           startLatitude: missionTrackRef.current[0]?.[0],
           startLongitude: missionTrackRef.current[0]?.[1],
           finishLatitude: missionTrackRef.current.at(-1)?.[0],
@@ -367,6 +406,7 @@ export default function useTelemetry() {
     capturesRef.current = []
     pendingCapturesRef.current = []
     markedLocationsRef.current = []
+    targetPointsRef.current = []
     missionDbIdRef.current = null
     lastTrackWriteRef.current = { at: 0, point: null }
     lastMissionSummaryWriteRef.current = 0
@@ -522,6 +562,9 @@ export default function useTelemetry() {
 
     const initialTarget = getNextExploreTarget(centerLat, centerLon, 45)
 
+    const baseAltitude = 88 + Math.random() * 10
+    const altitudeAmplitude = 14 + Math.random() * 10
+
     simStateRef.current = {
       lat: centerLat,
       lon: centerLon,
@@ -532,6 +575,8 @@ export default function useTelemetry() {
       centerLon,
       maxRadiusMeters,
       getNextExploreTarget,
+      baseAltitude,
+      altitudeAmplitude,
     }
 
     simTimerRef.current = setInterval(() => {
@@ -610,7 +655,7 @@ export default function useTelemetry() {
       posView.setUint32(0, timeMs & 0xffffffff, true)
       const simLat = Math.round(st.lat * 1e7)
       const simLon = Math.round(st.lon * 1e7)
-      const simAltitude = Math.round(105 + Math.sin(timeMs / 7000) * 15)
+      const simAltitude = Math.round(st.baseAltitude + Math.sin(timeMs / 7000) * st.altitudeAmplitude)
       posView.setInt32(4, simLat, true)
       posView.setInt32(8, simLon, true)
       posView.setInt32(12, (simAltitude + 25) * 1000, true)
@@ -652,6 +697,8 @@ export default function useTelemetry() {
     currentMission,
     capturePhoto,
     markLocation,
+    addTargetPoint,
+    removeTargetPoint,
     connectSerial,
     connectWebSocket,
     enableMavlinkSim,
