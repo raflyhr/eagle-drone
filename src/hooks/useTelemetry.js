@@ -135,7 +135,7 @@ export default function useTelemetry() {
     const elapsed = Date.now() - missionStartRef.current
     const duration = new Date(elapsed).toISOString().slice(11, 19)
 
-    if (missionDbIdRef.current && Date.now() - lastMissionSummaryWriteRef.current > 3000) {
+    if (missionDbIdRef.current && Date.now() - lastMissionSummaryWriteRef.current >= 1000) {
       lastMissionSummaryWriteRef.current = Date.now()
       updateMissionRecord(missionDbIdRef.current, {
         durationSeconds: Math.round(elapsed / 1000),
@@ -610,10 +610,11 @@ export default function useTelemetry() {
       posView.setUint32(0, timeMs & 0xffffffff, true)
       const simLat = Math.round(st.lat * 1e7)
       const simLon = Math.round(st.lon * 1e7)
+      const simAltitude = Math.round(105 + Math.sin(timeMs / 7000) * 15)
       posView.setInt32(4, simLat, true)
       posView.setInt32(8, simLon, true)
-      posView.setInt32(12, 145000, true)
-      posView.setInt32(16, 120000, true)
+      posView.setInt32(12, (simAltitude + 25) * 1000, true)
+      posView.setInt32(16, simAltitude * 1000, true)
       posView.setInt16(20, Math.round(st.speed * Math.cos(headingRad) * 100), true)
       posView.setInt16(22, Math.round(st.speed * Math.sin(headingRad) * 100), true)
       posView.setInt16(24, 0, true)
