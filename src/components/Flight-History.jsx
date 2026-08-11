@@ -15,7 +15,13 @@ export default function FlightHistory({ missionLogs = [], onOpenMission }) {
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState('')
   const logs = useMemo(() => {
-    return missionLogs.filter((mission) => mission.id.toLowerCase().includes(query.toLowerCase()))
+    return [...missionLogs]
+      .filter((mission) => mission.id.toLowerCase().includes(query.toLowerCase()))
+      .sort((a, b) => {
+        if (a.status === 'Live' && b.status !== 'Live') return -1
+        if (a.status !== 'Live' && b.status === 'Live') return 1
+        return new Date(b.date).getTime() - new Date(a.date).getTime()
+      })
   }, [missionLogs, query])
   const pageSize = 10
   const successLogs = logs.filter((mission) => mission.status === 'Success')
@@ -93,7 +99,7 @@ export default function FlightHistory({ missionLogs = [], onOpenMission }) {
                     <th className="w-[15%] px-3 py-3">Mission Type</th>
                     <th className="w-[12%] px-3 py-3">Duration</th>
                     <th className="w-[12%] px-3 py-3">Distance</th>
-                    <th className="w-[14%] px-3 py-3">Max Altitude</th>
+                    <th className="w-[14%] px-3 py-3">Altitude</th>
                     <th className="w-[14%] px-3 py-3 text-right">Status</th>
                   </tr>
                 </thead>

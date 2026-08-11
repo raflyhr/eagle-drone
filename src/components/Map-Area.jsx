@@ -72,14 +72,14 @@ const defaultTelemetry = {
   signal: 98,
 }
 
-export default function MapArea({ onNavigate, telemetry: rawTelemetry, active, mapStyle = 'standard', onMapStyleChange }) {
+export default function MapArea({ onNavigate, telemetry: rawTelemetry, markedLocations = [], targetPoints = [], onAddTargetPoint, onRemoveTargetPoint, active, mapStyle = 'standard', onMapStyleChange }) {
   const telemetry = { ...defaultTelemetry, ...(rawTelemetry || {}) }
   const weather = useWeather(telemetry.latitude, telemetry.longitude)
   const droneRegionName = useDroneRegion(telemetry.latitude, telemetry.longitude)
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
   const [isLocked, setIsLocked] = useState(true)
   const [isMarkingMode, setIsMarkingMode] = useState(false)
-  const [customWaypoints, setCustomWaypoints] = useState([])
+  const customWaypoints = targetPoints
   const mapRef = useRef(null)
   const leafletRef = useRef(null)
   const markerRef = useRef(null)
@@ -88,6 +88,7 @@ export default function MapArea({ onNavigate, telemetry: rawTelemetry, active, m
   const baseLayerRef = useRef(null)
   const overlayLayerRef = useRef(null)
   const targetMarkersRef = useRef([])
+  const missionMarkersRef = useRef([])
   const startMarkerRef = useRef(null)
   const isMarkingModeRef = useRef(false)
 
@@ -127,11 +128,11 @@ export default function MapArea({ onNavigate, telemetry: rawTelemetry, active, m
   }
 
   const handleRemoveCustomWp = (id) => {
-    setCustomWaypoints((prev) => prev.filter((w) => w.id !== id))
+    onRemoveTargetPoint?.(id)
   }
 
   const handleClearCustomWps = () => {
-    setCustomWaypoints([])
+    customWaypoints.forEach((point) => onRemoveTargetPoint?.(point.id))
   }
 
   useEffect(() => {
@@ -151,17 +152,14 @@ export default function MapArea({ onNavigate, telemetry: rawTelemetry, active, m
 
       const clickedLat = Number(e.latlng.lat.toFixed(6))
       const clickedLon = Number(e.latlng.lng.toFixed(6))
-      setCustomWaypoints((prev) => [
-        ...prev,
-        {
-          id: `target-${Date.now()}`,
-          name: `Target #${prev.length + 1}`,
+       onAddTargetPoint?.({
+           id: `target-${Date.now()}`,
+           name: `Target #${customWaypoints.length + 1}`,
           lat: clickedLat,
           lon: clickedLon,
           isVictim: true,
           time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        },
-      ])
+       })
       setIsMarkingMode(false)
     })
 
@@ -218,6 +216,26 @@ export default function MapArea({ onNavigate, telemetry: rawTelemetry, active, m
       targetMarkersRef.current.push(marker)
     })
   }, [customWaypoints])
+
+  useEffect(() => {
+    if (!leafletRef.current) return
+    const map = leafletRef.current
+    missionMarkersRef.current.forEach((marker) => marker.remove())
+    missionMarkersRef.current = markedLocations.map((location, index) => L.marker(location.coordinate, { icon: createTargetPinIcon() })
+      .addTo(map)
+      .bindPopup(`<b>Marked Location ${index + 1}</b><br/>Coordinates: ${location.coordinate[0]}, ${location.coordinate[1]}<br/>Altitude: ${location.altitude || 0} m<br/>Timestamp: ${location.timestamp || '-'}`))
+
+    const allPoints = [...markedLocations.map((location) => location.coordinate), ...customWaypoints.map((point) => [point.lat, point.lon])]
+    if (active && allPoints.length) {
+      const bounds = L.latLngBounds([[telemetry.latitude, telemetry.longitude], ...allPoints])
+      map.fitBounds(bounds, { padding: [48, 48], maxZoom: 15 })
+    }
+
+    return () => {
+      missionMarkersRef.current.forEach((marker) => marker.remove())
+      missionMarkersRef.current = []
+    }
+  }, [active, markedLocations, customWaypoints, telemetry.latitude, telemetry.longitude])
 
   // Dynamic Tile Layer Switcher
   useEffect(() => {

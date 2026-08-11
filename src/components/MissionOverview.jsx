@@ -75,6 +75,7 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
     currentMission,
     disconnect: disconnectMavlink,
   } = telemetryState || {}
+  const targetPoints = currentMission?.targetPoints || []
 
   const weather = useWeather(telemetry.latitude, telemetry.longitude)
   const droneLocationName = useDroneRegion(telemetry.latitude, telemetry.longitude)
@@ -233,6 +234,7 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
   const baseLayerRef = useRef(null)
   const overlayLayerRef = useRef(null)
   const markedMarkersRef = useRef([])
+  const targetMarkersRef = useRef([])
 
   const fullscreenMapRef = useRef(null)
   const fullscreenLeafletRef = useRef(null)
@@ -242,6 +244,7 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
   const fullscreenBaseLayerRef = useRef(null)
   const fullscreenOverlayLayerRef = useRef(null)
   const fullscreenMarkedMarkersRef = useRef([])
+  const fullscreenTargetMarkersRef = useRef([])
 
   const [overlayVersion, setOverlayVersion] = useState(0)
 
@@ -419,7 +422,7 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
     markedMarkersRef.current = (currentMission?.markedLocations || []).map((location) => L.marker(location.coordinate, {
       icon: L.divIcon({
         className: '',
-        html: '<div style="width:25px;height:25px;border-radius:50%;background:#f59e0b;border:3px solid white;box-shadow:0 2px 8px #0f172a55;color:white;display:grid;place-items:center"><span class="material-symbols-outlined" style="font-size:15px">location_on</span></div>',
+        html: '<div style="width:25px;height:25px;border-radius:50%;background:#dc2626;border:3px solid white;box-shadow:0 2px 8px #0f172a55;color:white;display:grid;place-items:center"><span class="material-symbols-outlined" style="font-size:15px">location_on</span></div>',
         iconSize: [25, 25],
         iconAnchor: [12.5, 12.5],
       }),
@@ -429,6 +432,15 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
       markedMarkersRef.current = []
     }
   }, [currentMission?.markedLocations])
+
+  useEffect(() => {
+    if (!leafletRef.current) return
+    targetMarkersRef.current.forEach((marker) => marker.remove())
+    targetMarkersRef.current = targetPoints.map((point) => L.marker([point.lat, point.lon], {
+      icon: L.divIcon({ className: '', html: '<div style="width:22px;height:22px;border-radius:4px;background:#dc2626;border:2px solid white;box-shadow:0 2px 6px #0f172a55;color:white;display:grid;place-items:center"><span class="material-symbols-outlined" style="font-size:13px">location_on</span></div>', iconSize: [22, 22], iconAnchor: [11, 11] }),
+    }).bindTooltip(point.name).addTo(leafletRef.current))
+    return () => targetMarkersRef.current.forEach((marker) => marker.remove())
+  }, [targetPoints])
 
   // Update map marker position & heading
   useEffect(() => {
@@ -570,18 +582,28 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
   useEffect(() => {
     if (!fullscreenLeafletRef.current) return
     fullscreenMarkedMarkersRef.current.forEach((marker) => marker.remove())
-    fullscreenMarkedMarkersRef.current = (currentMission?.markedLocations || []).map((location) => L.circleMarker(location.coordinate, {
-      radius: 7,
-      color: '#ffffff',
-      weight: 2,
-      fillColor: '#f59e0b',
-      fillOpacity: 1,
+    fullscreenMarkedMarkersRef.current = (currentMission?.markedLocations || []).map((location) => L.marker(location.coordinate, {
+      icon: L.divIcon({
+        className: '',
+        html: '<div style="width:25px;height:25px;border-radius:5px;background:#dc2626;border:3px solid white;box-shadow:0 2px 8px #0f172a55;color:white;display:grid;place-items:center"><span class="material-symbols-outlined" style="font-size:15px">location_on</span></div>',
+        iconSize: [25, 25],
+        iconAnchor: [12.5, 12.5],
+      }),
     }).addTo(fullscreenLeafletRef.current))
     return () => {
       fullscreenMarkedMarkersRef.current.forEach((marker) => marker.remove())
       fullscreenMarkedMarkersRef.current = []
     }
   }, [currentMission?.markedLocations, isFullscreen, showFullscreenMap])
+
+  useEffect(() => {
+    if (!fullscreenLeafletRef.current) return
+    fullscreenTargetMarkersRef.current.forEach((marker) => marker.remove())
+    fullscreenTargetMarkersRef.current = targetPoints.map((point) => L.marker([point.lat, point.lon], {
+      icon: L.divIcon({ className: '', html: '<div style="width:22px;height:22px;border-radius:4px;background:#dc2626;border:2px solid white;box-shadow:0 2px 6px #0f172a55;color:white;display:grid;place-items:center"><span class="material-symbols-outlined" style="font-size:13px">location_on</span></div>', iconSize: [22, 22], iconAnchor: [11, 11] }),
+    }).bindTooltip(point.name).addTo(fullscreenLeafletRef.current))
+    return () => fullscreenTargetMarkersRef.current.forEach((marker) => marker.remove())
+  }, [targetPoints, isFullscreen, showFullscreenMap])
 
   // Update fullscreen map position & heading
   useEffect(() => {

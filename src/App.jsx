@@ -47,6 +47,10 @@ function App() {
           <MapArea
             onNavigate={navigate}
             telemetry={telemetryState.telemetry}
+            markedLocations={telemetryState.currentMission?.markedLocations || []}
+            targetPoints={telemetryState.currentMission?.targetPoints || []}
+            onAddTargetPoint={telemetryState.addTargetPoint}
+            onRemoveTargetPoint={telemetryState.removeTargetPoint}
             active={page === 'map'}
             mapStyle={mapStyle}
             onMapStyleChange={handleMapStyleChange}
@@ -62,7 +66,7 @@ function App() {
               if (mission.databaseId) {
                 try {
                   const detail = await fetchMissionDetail(mission.databaseId)
-                  if (detail) setSelectedMission({ ...formatMissionRecord(detail.mission), ...detail })
+                  if (detail) setSelectedMission({ ...mission, ...formatMissionRecord(detail.mission), ...detail })
                 } catch (error) {
                   console.warn('Mission detail unavailable:', error.message)
                 }

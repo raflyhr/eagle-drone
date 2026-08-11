@@ -21,9 +21,16 @@ export default function FlightDetail({ mission, onBack }) {
   const selectedMission = mission
   const captures = useMemo(() => selectedMission?.captures || [], [selectedMission?.captures])
   const markedLocations = useMemo(() => selectedMission?.markedLocations || [], [selectedMission?.markedLocations])
+  const targetPoints = useMemo(() => selectedMission?.targetPoints || [], [selectedMission?.targetPoints])
   const trackPoints = useMemo(() => selectedMission?.trackPoints || [], [selectedMission?.trackPoints])
-  const startPoint = trackPoints[0]
-  const finishPoint = trackPoints.at(-1)
+  const missionStartPoint = selectedMission?.mission?.start_lat !== undefined && selectedMission?.mission?.start_lng !== undefined
+    ? [Number(selectedMission.mission.start_lat), Number(selectedMission.mission.start_lng)]
+    : null
+  const missionFinishPoint = selectedMission?.mission?.finish_lat !== undefined && selectedMission?.mission?.finish_lng !== undefined
+    ? [Number(selectedMission.mission.finish_lat), Number(selectedMission.mission.finish_lng)]
+    : null
+  const startPoint = trackPoints[0] || missionStartPoint
+  const finishPoint = trackPoints.at(-1) || missionFinishPoint
   const coordinateValue = (point) => point ? point.map((value) => value.toFixed(5)).join(', ') : 'Waiting for GPS'
   const capturesPerPage = panelVisible ? 4 : 5
   const capturePageCount = Math.ceil(captures.length / capturesPerPage)
@@ -42,7 +49,7 @@ export default function FlightDetail({ mission, onBack }) {
     const map = L.map(mapContainerRef.current, { zoomControl: false })
     baseLayerRef.current = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap contributors', maxZoom: 19 }).addTo(map)
 
-    const path = L.polyline(trackPoints, { color: '#0284c7', weight: 4, opacity: 0.9 }).addTo(map)
+    L.polyline(trackPoints, { color: '#0284c7', weight: 4, opacity: 0.9 }).addTo(map)
     if (startPoint) L.circleMarker(startPoint, { radius: 7, color: '#ffffff', weight: 3, fillColor: '#16a34a', fillOpacity: 1 }).bindTooltip('Start').addTo(map)
     if (finishPoint) L.circleMarker(finishPoint, { radius: 7, color: '#ffffff', weight: 3, fillColor: '#dc2626', fillOpacity: 1 }).bindTooltip('Finish').addTo(map)
     markedLocations.forEach((location, index) => {
@@ -55,7 +62,11 @@ export default function FlightDetail({ mission, onBack }) {
         }),
       }).bindTooltip(`${location.id || `MK-${String(index + 1).padStart(2, '0')}`} · ${location.altitude} m`).addTo(map)
     })
-    if (trackPoints.length > 1) map.fitBounds(path.getBounds(), { padding: [35, 35] })
+    targetPoints.forEach((point) => {
+      L.marker([point.lat, point.lon], { icon: L.divIcon({ className: '', html: '<div style="width:24px;height:24px;border-radius:4px;background:#dc2626;border:2px solid white;box-shadow:0 3px 8px #0f172a44;color:white;display:grid;place-items:center"><span class="material-symbols-outlined" style="font-size:14px">location_on</span></div>', iconSize: [24, 24], iconAnchor: [12, 12] }) }).bindTooltip(point.name).addTo(map)
+    })
+    const allBounds = [...trackPoints, ...(startPoint ? [startPoint] : []), ...(finishPoint ? [finishPoint] : []), ...markedLocations.map((location) => location.coordinate), ...targetPoints.map((point) => [point.lat, point.lon])]
+    if (allBounds.length > 1) map.fitBounds(L.latLngBounds(allBounds), { padding: [35, 35] })
     else if (startPoint) map.setView(startPoint, 15)
     else map.setView([-2.5, 118], 5)
     mapRef.current = map
@@ -66,7 +77,12 @@ export default function FlightDetail({ mission, onBack }) {
       map.remove()
       mapRef.current = null
     }
-  }, [finishPoint, markedLocations, startPoint, trackPoints])
+  }, [finishPoint, markedLocations, startPoint, targetPoints, trackPoints])
+
+  useEffect(() => {
+    const timer = setTimeout(() => mapRef.current?.invalidateSize(), 120)
+    return () => clearTimeout(timer)
+  }, [isMapFullscreen, panelVisible])
 
   useEffect(() => {
     const map = mapRef.current
@@ -208,6 +224,13 @@ export default function FlightDetail({ mission, onBack }) {
               <Info label="Date" value={selectedMission?.date || 'Oct 24, 2026'} />
               <Info label="Duration" value={selectedMission?.duration || '02:14:33'} />
               <Info label="Max Altitude" value={selectedMission?.maxAltitude || '120 m'} />
+            </section>
+            <section className="space-y-2 border-t border-slate-100 pt-4">
+              <div className="flex items-center justify-between">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Target Points</p>
+                <span className="rounded-md bg-red-50 px-2 py-0.5 text-[10px] font-bold text-red-600">{targetPoints.length} points</span>
+              </div>
+              {targetPoints.map((point) => <button key={point.id} onClick={() => focusPerson({ coordinate: [point.lat, point.lon] })} className="w-full rounded-xl border border-slate-200 p-3 text-left hover:border-sky-300 hover:bg-sky-50/40"><span className="text-xs font-bold text-slate-800">{point.name}</span><p className="mt-1 font-mono text-[10px] text-slate-500">{point.lat}, {point.lon}</p></button>)}
             </section>
             <section className="space-y-2 border-t border-slate-100 pt-4">
               <div className="flex items-center justify-between">
