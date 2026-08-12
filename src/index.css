@@ -41,7 +41,7 @@ button {
 
 .dashboard-grid-container {
   display: grid;
-  grid-template-rows: 1.35fr 1fr;
+  grid-template-rows: 2.15fr 0.55fr;
   height: 100%;
   width: 100%;
   min-height: 0;

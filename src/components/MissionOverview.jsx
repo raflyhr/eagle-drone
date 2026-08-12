@@ -646,16 +646,16 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
       <div className="flex-1 min-h-0 overflow-hidden p-3.5 md:p-4 lg:p-5">
         <div className="dashboard-grid-container mx-auto max-w-[1700px] gap-3 lg:gap-3.5">
           {/* TOP ROW: Dominant & Tall (Camera Col 9 + Weather Col 3) */}
-          <div className="grid grid-cols-12 gap-3 lg:gap-3.5 h-full min-h-0">
+          <div className="grid grid-cols-12 gap-2 lg:gap-2.5 h-full min-h-0">
             {/* TOP-LEFT: Main Drone Camera Viewfinder Feed */}
-            <div className="col-span-12 lg:col-span-9 h-full min-h-0 flex flex-col">
+            <div className="col-span-12 lg:col-span-9 h-full min-h-0 flex items-center justify-center">
               <div
                 ref={videoPanelRef}
                 onMouseMove={handleVideoMouseMove}
                 onMouseLeave={handleVideoMouseLeave}
-                className={`group relative flex flex-1 h-full min-h-0 flex-col overflow-hidden rounded-2xl ${
+                className={`group relative flex h-full max-w-full aspect-[4/3] flex-col overflow-hidden rounded-2xl ${
                   cameraStatus === 'connected' ? 'bg-slate-950' : 'bg-slate-100/90'
-                } shadow-sm border border-slate-200/80 [&:fullscreen]:h-screen [&:fullscreen]:w-screen [&:fullscreen]:rounded-none`}
+                } shadow-sm border border-slate-200/80 [&:fullscreen]:aspect-auto [&:fullscreen]:h-screen [&:fullscreen]:w-screen [&:fullscreen]:max-w-none [&:fullscreen]:rounded-none`}
               >
                 {/* Video Frame Container */}
                 <div ref={videoFrameRef} className="relative flex-1 h-full min-h-0 w-full bg-slate-950 overflow-hidden">
@@ -665,7 +665,7 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
                     autoPlay
                     muted
                     playsInline
-                    className={`h-full w-full object-cover ${cameraStatus === 'connected' ? 'block' : 'hidden'}`}
+                    className={`h-full w-full object-cover object-center ${cameraStatus === 'connected' ? 'block' : 'hidden'}`}
                   />
                   {cameraStatus === 'connected' && (
                     <canvas className="pointer-events-none absolute inset-0 z-20" />
@@ -787,7 +787,7 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
                         }`}
                       >
                         <div className="min-w-0 flex-1 pr-2">
-                          <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400 block mb-0.5">Drone Location</span>
+<span className="text-[8px] font-bold uppercase tracking-wide text-slate-400 block">Location</span>
                           <p className="text-[11px] font-bold text-slate-900 truncate" title={droneLocationName}>
                             {droneLocationName}
                           </p>
@@ -800,17 +800,17 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
                   {/* Floating Video Control Bar (Auto-hides on idle) */}
                   {cameraStatus === 'connected' && (
                     <div
-                      className={`absolute bottom-3 inset-x-3 z-30 flex items-center justify-between transition-all duration-300 ${
+                      className={`absolute bottom-2 inset-x-2 z-30 flex items-center justify-between gap-2 transition-all duration-300 ${
                         showControls ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2 pointer-events-none'
                       }`}
                     >
                       {/* Left Controls: Stop Camera, AI Detect, Camera Selector */}
-                      <div className="flex items-center gap-2 pointer-events-auto bg-slate-900 border border-slate-800 rounded-lg p-1.5 shadow-lg">
+                      <div className="flex items-center gap-1.5 pointer-events-auto bg-slate-900/95 border border-slate-800 rounded-lg p-1 shadow-lg">
                         {/* Stop Camera Button */}
                         <button
                           type="button"
                           onClick={toggleCamera}
-                          className="flex items-center gap-1.5 rounded-md bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 text-xs font-bold transition shrink-0 cursor-pointer shadow-xs"
+                          className="flex items-center gap-1 rounded-md bg-red-600 hover:bg-red-700 text-white px-2.5 py-1.5 text-[11px] font-bold transition shrink-0 cursor-pointer shadow-xs"
                           title="Disconnect Camera Stream"
                         >
                           <Icon className="text-[14px]">videocam_off</Icon>
@@ -859,13 +859,13 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
                       </div>
 
                       {/* Right Controls: Camera Selector, Fullscreen Map Toggle & Fullscreen Button */}
-                      <div className="flex items-center gap-2 pointer-events-auto bg-slate-900 border border-slate-800 rounded-lg p-1.5 shadow-lg">
+                      <div className="flex items-center gap-1.5 pointer-events-auto bg-slate-900/95 border border-slate-800 rounded-lg p-1 shadow-lg">
                         {/* Camera Switcher Selector (Always shown on the right side) */}
                         <div className="flex items-center gap-1.5 bg-slate-800 border border-slate-700 rounded-md px-2.5 py-1 text-xs font-medium text-slate-200">
                           <select
                             value={selectedDeviceId}
                             onChange={(e) => selectCamera(e.target.value)}
-                            className="bg-slate-800 text-xs font-semibold text-white focus:outline-none cursor-pointer max-w-[140px] sm:max-w-[200px] truncate"
+                            className="min-w-0 bg-slate-800 text-[11px] font-semibold text-white focus:outline-none cursor-pointer max-w-[110px] truncate"
                           >
                             {devices.length > 0 ? (
                               devices.map((dev, idx) => (
@@ -894,7 +894,7 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
                           <button
                             type="button"
                             onClick={() => setShowFullscreenMap((v) => !v)}
-                            className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-bold transition shrink-0 cursor-pointer ${
+className={`flex items-center gap-1 rounded-md px-2.5 py-1.5 text-[11px] font-bold transition shrink-0 cursor-pointer ${
                               showFullscreenMap
                                 ? 'bg-slate-800 text-slate-300 border border-slate-700 hover:bg-slate-700 hover:text-white'
                                 : 'bg-emerald-600 text-white shadow-xs'
@@ -1035,24 +1035,24 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
 
           {/* TOP-RIGHT: Weather Card */}
             <div className="col-span-12 lg:col-span-3 h-full min-h-0 flex flex-col">
-              <div className="bento-card flex flex-1 h-full min-h-0 flex-col justify-between p-3.5 sm:p-4 gap-2 rounded-2xl">
+              <div className="bento-card flex flex-1 h-full min-h-0 flex-col p-2.5 gap-2 rounded-2xl">
                 <div className="flex items-center justify-between pb-1.5 border-b border-slate-100 shrink-0">
-                  <span className="text-xs font-bold text-slate-600 tracking-wider uppercase">TODAY&apos;S WEATHER</span>
+                  <span className="text-[10px] font-bold text-slate-600 tracking-wide uppercase">Weather</span>
                   <button
                     type="button"
                     onClick={() => setShowLocationModal(true)}
-                    className="group inline-flex items-center justify-end max-w-[170px] transition cursor-pointer text-right"
+                    className="group inline-flex min-w-0 max-w-[140px] items-center justify-end transition cursor-pointer text-right"
                     title="Click to change location"
                   >
-                    <span className="text-xs font-bold text-slate-700 group-hover:text-slate-950 truncate border-b border-slate-700 group-hover:border-slate-950 pb-[1px]">
+                    <span className="truncate border-b border-slate-300 text-[10px] font-semibold text-slate-700 group-hover:text-slate-950">
                       {weather.locationName}
                     </span>
                   </button>
                 </div>
 
-                <div className="flex flex-col items-center justify-center text-center my-auto py-1">
-                  <div className="relative mb-1 flex items-center justify-center">
-                    <svg className="w-32 h-26 sm:w-36 sm:h-28 drop-shadow-md" viewBox="0 0 120 100" fill="none">
+                <div className="flex flex-1 flex-col items-center justify-center text-center py-1">
+                  <div className="relative mb-0.5 flex items-center justify-center">
+                    <svg className="h-20 w-24 sm:h-24 sm:w-28" viewBox="0 0 120 100" fill="none">
                       <circle cx="60" cy="50" r="24" fill="url(#sunOnlyGrad)" />
                       <circle cx="60" cy="50" r="32" stroke="#fbbf24" strokeWidth="2" strokeDasharray="3 6" opacity="0.8" />
                       <defs>
@@ -1066,12 +1066,12 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
                   </div>
 
                   <div className="flex items-baseline justify-center gap-1">
-                    <span className="data-font text-5xl sm:text-6xl font-black text-slate-900 tracking-tight leading-none">
+                    <span className="data-font text-3xl sm:text-4xl font-black text-slate-900 tracking-tight leading-none">
                       {weather.temperature}
                     </span>
-                    <span className="text-2xl font-bold text-slate-400">°C</span>
+                    <span className="text-base font-bold text-slate-400">°C</span>
                   </div>
-                  <p className="mt-1 text-sm sm:text-base font-extrabold text-slate-800">{weather.condition}</p>
+                  <p className="mt-0.5 text-xs font-bold text-slate-800">{weather.condition}</p>
                 </div>
 
                 <div className="flex flex-col gap-1.5 pt-1.5 border-t border-slate-100 shrink-0">
@@ -1099,7 +1099,7 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
           </div>
 
           {/* BOTTOM ROW: Compact & Clean (Map Col 3 + Telemetry Console Col 6 + Heading Col 3) */}
-          <div className="grid grid-cols-12 gap-3 lg:gap-3.5 h-full min-h-0">
+          <div className="grid grid-cols-12 gap-2 lg:gap-2.5 h-full min-h-0">
             {/* BOTTOM-LEFT: Mini Map Card */}
             <div className="col-span-12 md:col-span-4 lg:col-span-3 h-full min-h-0 flex flex-col">
               <div
@@ -1114,7 +1114,7 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
                     <button
                       type="button"
                       onClick={() => onMapStyleChange?.('standard')}
-                      className={`rounded-md px-2 py-1 text-[11px] font-bold transition cursor-pointer ${
+                      className={`rounded-md px-1.5 py-0.5 text-[9px] font-bold transition cursor-pointer ${
                         mapStyle === 'standard'
                           ? 'bg-slate-900 text-white shadow-xs'
                           : 'text-slate-700 hover:bg-slate-100'
@@ -1126,7 +1126,7 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
                     <button
                       type="button"
                       onClick={() => onMapStyleChange?.('satellite')}
-                      className={`rounded-md px-2 py-1 text-[11px] font-bold transition cursor-pointer ${
+                      className={`rounded-md px-1.5 py-0.5 text-[9px] font-bold transition cursor-pointer ${
                         mapStyle === 'satellite'
                           ? 'bg-slate-900 text-white shadow-xs'
                           : 'text-slate-700 hover:bg-slate-100'
@@ -1138,7 +1138,7 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
                     <button
                       type="button"
                       onClick={() => onMapStyleChange?.('terrain')}
-                      className={`rounded-md px-2 py-1 text-[11px] font-bold transition cursor-pointer ${
+                      className={`rounded-md px-1.5 py-0.5 text-[9px] font-bold transition cursor-pointer ${
                         mapStyle === 'terrain'
                           ? 'bg-slate-900 text-white shadow-xs'
                           : 'text-slate-700 hover:bg-slate-100'
@@ -1180,7 +1180,7 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
                   </button>
                 </div>
 
-                <div className="absolute bottom-2.5 inset-x-2.5 z-20 rounded-lg bg-white p-2.5 shadow-md border border-slate-200 flex items-center justify-between">
+                <div className="absolute bottom-2 inset-x-2 z-20 rounded-lg bg-white p-2 shadow-md border border-slate-200 flex items-center justify-between">
                   <div className="min-w-0 flex-1 pr-2">
                     <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400 block mb-0.5">Drone Location</span>
                     <p className="text-xs font-bold text-slate-900 truncate" title={droneLocationName}>
@@ -1194,19 +1194,19 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
 
             {/* BOTTOM-CENTER: Flight Dynamics & MAVLink Telemetry Console */}
             <div className="col-span-12 md:col-span-8 lg:col-span-6 h-full min-h-0 flex flex-col">
-              <div className="bento-card flex flex-1 h-full min-h-0 flex-col justify-between p-3.5 sm:p-4 gap-2.5 rounded-2xl">
+              <div className="bento-card flex flex-1 h-full min-h-0 flex-col p-2 sm:p-2.5 gap-1.5 rounded-2xl">
                 {/* Top Header: Drone Status + Battery */}
-                <div className="flex items-center justify-between gap-3 pb-2 border-b border-slate-100 shrink-0">
-                  <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Drone Status</span>
-                  <div className="flex items-center gap-3">
-                    <span className="text-xs font-medium text-slate-500">Battery</span>
-                    <div className="h-1.5 w-24 overflow-hidden rounded-full bg-slate-200">
+                <div className="flex flex-wrap items-center justify-between gap-2 pb-1.5 border-b border-slate-100 shrink-0">
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Drone Status</span>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-[10px] font-medium text-slate-500">Battery</span>
+                    <div className="h-1.5 w-16 sm:w-20 overflow-hidden rounded-full bg-slate-200">
                       <div
                         className="h-full rounded-full bg-slate-700 transition-all"
                         style={{ width: `${telemetry.battery || 74}%` }}
                       />
                     </div>
-                    <div className="flex items-baseline gap-1.5 data-font text-xs">
+                    <div className="flex items-baseline gap-1 data-font text-[10px]">
                       <span className="font-bold text-slate-900">{telemetry.battery}%</span>
                       <span className="text-[10px] text-slate-400">{telemetry.voltage}V</span>
                     </div>
@@ -1214,64 +1214,61 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
                 </div>
 
                 {/* 4 Telemetry Metrics Grid */}
-                <div className="grid grid-cols-2 gap-2.5 flex-1 min-h-0 items-stretch">
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-1.5 flex-1 min-h-0 auto-rows-fr">
                   {/* Metric 1: Altitude */}
-                  <div className="bento-subcard p-2.5 sm:p-3 flex flex-col justify-between">
+                  <div className="bento-subcard min-h-0 overflow-hidden p-1.5 sm:p-2 flex flex-col justify-between gap-0.5">
                     <div className="flex items-center justify-between">
                       <span className="text-[9px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-wider">ALTITUDE</span>
                       <Icon className="text-[18px] text-slate-400">unfold_more</Icon>
                     </div>
                     <div className="flex items-baseline gap-1 my-0.5">
-                      <span className="data-font text-2xl sm:text-3xl font-black text-slate-900 leading-none">{telemetry.altitude}</span>
-                      <span className="text-xs sm:text-sm font-bold text-slate-400">m</span>
+                      <span className="data-font text-lg sm:text-xl font-black text-slate-900 leading-none">{telemetry.altitude}</span>
+                      <span className="text-[10px] sm:text-xs font-bold text-slate-400">m</span>
                     </div>
-                    <div className="flex items-center justify-between text-[10px] font-semibold text-slate-400 pt-1 border-t border-slate-100">
-                      <span>MAVLink Global Position</span>
-                      <span className="text-slate-600 font-medium">Relative</span>
+                    <div className="flex items-center justify-between gap-2 text-[9px] font-semibold text-slate-400 pt-1 border-t border-slate-100">
+                       <span>Altitude</span>
+                       <span className="text-slate-600 font-medium">Rel</span>
                     </div>
                   </div>
 
                   {/* Metric 2: Ground Speed */}
-                  <div className="bento-subcard p-2.5 sm:p-3 flex flex-col justify-between">
+                  <div className="bento-subcard min-h-0 overflow-hidden p-1.5 sm:p-2 flex flex-col justify-between gap-0.5">
                     <div className="flex items-center justify-between">
                       <span className="text-[9px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-wider">GROUND SPEED</span>
                       <Icon className="text-[18px] text-slate-400">speed</Icon>
                     </div>
                     <div className="flex items-baseline gap-1 my-0.5">
-                      <span className="data-font text-2xl sm:text-3xl font-black text-slate-900 leading-none">{telemetry.speed}</span>
-                      <span className="text-xs sm:text-sm font-bold text-slate-400">m/s</span>
+                      <span className="data-font text-lg sm:text-xl font-black text-slate-900 leading-none">{telemetry.speed}</span>
+                      <span className="text-[10px] sm:text-xs font-bold text-slate-400">m/s</span>
                     </div>
-                    <div className="flex items-center justify-between text-[10px] font-semibold text-slate-400 pt-1 border-t border-slate-100">
+                    <div className="flex items-center justify-between gap-2 text-[9px] font-semibold text-slate-400 pt-1 border-t border-slate-100">
                       <span className="data-font font-bold text-slate-700">{(telemetry.speed * 3.6).toFixed(1)} km/h</span>
-                      <span className="text-slate-600 font-medium">VFR HUD</span>
+                       <span className="text-slate-600 font-medium">HUD</span>
                     </div>
                   </div>
 
                   {/* Metric 3: Attitude Pitch & Roll */}
-                  <div className="bento-subcard p-2.5 sm:p-3 flex flex-col justify-between">
+                  <div className="bento-subcard min-h-0 overflow-hidden p-1.5 sm:p-2 flex flex-col justify-between gap-0.5">
                     <div className="flex items-center justify-between">
                       <span className="text-[9px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-wider">ATTITUDE</span>
-                      <Icon className="text-[18px] text-slate-400">3d_rotation</Icon>
+                      <Icon className="text-[15px] text-slate-400">3d_rotation</Icon>
                     </div>
-                    <div className="flex items-center justify-between my-0.5">
-                      <div className="text-center">
-                        <span className="text-[9px] font-bold text-slate-400 block">PITCH</span>
-                        <span className="data-font text-base sm:text-lg font-black text-slate-900">{telemetry.pitch}°</span>
+                    <div className="flex flex-1 items-center justify-between gap-2 py-0.5">
+                      <div className="min-w-0 flex-1 text-center">
+                        <span className="block text-[8px] font-bold uppercase leading-none text-slate-400">Pitch</span>
+                        <span className="data-font block truncate text-sm sm:text-base font-black leading-tight text-slate-900">{telemetry.pitch}°</span>
                       </div>
-                      <div className="h-6 w-px bg-slate-200" />
-                      <div className="text-center">
-                        <span className="text-[9px] font-bold text-slate-400 block">ROLL</span>
-                        <span className="data-font text-base sm:text-lg font-black text-slate-900">{telemetry.roll}°</span>
+                      <div className="h-7 w-px shrink-0 bg-slate-200" />
+                      <div className="min-w-0 flex-1 text-center">
+                        <span className="block text-[8px] font-bold uppercase leading-none text-slate-400">Roll</span>
+                        <span className="data-font block truncate text-sm sm:text-base font-black leading-tight text-slate-900">{telemetry.roll}°</span>
                       </div>
                     </div>
-                    <div className="flex items-center justify-between text-[10px] font-semibold text-slate-400 pt-1 border-t border-slate-100">
-                      <span>MAVLink #30 ATTITUDE</span>
-                      <span className="text-slate-600 font-medium">3D Gyro</span>
-                    </div>
+                    <div className="truncate border-t border-slate-100 pt-0.5 text-[8px] font-semibold leading-none text-slate-400">Pitch / Roll · 3D</div>
                   </div>
 
                   {/* Metric 4: GPS Coordinates */}
-                  <div className="bento-subcard p-2.5 sm:p-3 flex flex-col justify-between">
+                  <div className="bento-subcard min-h-0 overflow-hidden p-1.5 sm:p-2 flex flex-col justify-between gap-0.5">
                     <div className="flex items-center justify-between">
                       <span className="text-[9px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-wider">GPS FIX & SATS</span>
                       <Icon className="text-[18px] text-slate-400">gps_fixed</Icon>
@@ -1281,9 +1278,9 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
                         {telemetry.latitude.toFixed(5)}, {telemetry.longitude.toFixed(5)}
                       </p>
                     </div>
-                    <div className="flex items-center justify-between text-[10px] font-semibold text-slate-400 pt-1 border-t border-slate-100">
-                      <span>{telemetry.satellites} Satellites</span>
-                      <span className="text-slate-600 font-medium">{telemetry.gpsFix}</span>
+                    <div className="flex items-center justify-between gap-2 border-t border-slate-100 pt-0.5 text-[8px] font-semibold leading-none text-slate-400">
+                      <span className="truncate">{telemetry.satellites} Sats</span>
+                      <span className="truncate text-right text-slate-600 font-medium">{telemetry.gpsFix}</span>
                     </div>
                   </div>
                 </div>
@@ -1292,7 +1289,7 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
 
             {/* BOTTOM-RIGHT: Drone Heading */}
             <div className="col-span-12 md:col-span-12 lg:col-span-3 h-full min-h-0 flex flex-col">
-              <div className="bento-card flex flex-1 h-full min-h-0 flex-col items-center justify-between p-3.5 sm:p-4 text-center gap-1 rounded-2xl">
+              <div className="bento-card flex flex-1 h-full min-h-0 flex-col items-center justify-between p-2 text-center gap-0.5 rounded-2xl">
                 <div className="flex items-center justify-between w-full pb-1 border-b border-slate-100 shrink-0">
                   <span className="text-[10px] sm:text-xs font-bold text-slate-600 uppercase tracking-wider">HEADING</span>
                   <span className="data-font text-xs font-bold text-slate-700">
@@ -1300,7 +1297,7 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
                   </span>
                 </div>
 
-                <div className="relative my-auto flex h-[105px] w-[105px] sm:h-[114px] sm:w-[114px] items-center justify-center">
+                <div className="relative my-auto flex h-20 w-20 items-center justify-center">
                   <div
                     className="absolute inset-0 transition-transform duration-700 ease-out"
                     style={{ transform: `rotate(${-telemetry.heading}deg)` }}
@@ -1326,9 +1323,7 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
                   <p className="data-font text-[10px] sm:text-[11px] font-bold text-slate-700 truncate w-full" title={weather.dmsLocation}>
                     {weather.dmsLocation}
                   </p>
-                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">
-                    MAVLINK HEADING COMPASS
-                  </span>
+                   <span className="text-[8px] font-bold text-slate-400 uppercase tracking-wide">Heading</span>
                 </div>
               </div>
             </div>
