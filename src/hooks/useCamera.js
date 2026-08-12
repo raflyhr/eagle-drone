@@ -76,8 +76,8 @@ export default function useCamera() {
       try {
         const constraints = {
           video: targetDeviceId
-            ? { deviceId: { exact: targetDeviceId }, width: { ideal: 1280 }, height: { ideal: 720 } }
-            : { width: { ideal: 1280 }, height: { ideal: 720 } },
+            ? { deviceId: { exact: targetDeviceId }, width: { ideal: 1280 }, height: { ideal: 960 }, aspectRatio: { ideal: 4 / 3 } }
+            : { width: { ideal: 1280 }, height: { ideal: 960 }, aspectRatio: { ideal: 4 / 3 } },
           audio: false,
         }
 
