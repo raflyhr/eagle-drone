@@ -121,3 +121,95 @@ button {
 ::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
 }
+
+/* Responsive Aspect Ratio Layout Modes for Mission Overview Dashboard */
+.top-row-layout,
+.bottom-row-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+/* 16:9 Aspect Ratio (Wider viewports): Symmetrical 3-Column Top & Bottom Alignment */
+@media (min-aspect-ratio: 1.68) and (min-width: 1024px) {
+  .top-row-layout {
+    display: grid !important;
+    grid-template-columns: minmax(300px, 1fr) auto minmax(300px, 1fr) !important;
+    align-items: stretch;
+  }
+  .bottom-row-layout {
+    display: grid !important;
+    grid-template-columns: minmax(300px, 1fr) calc((100vh - 275px) * 4 / 3) minmax(300px, 1fr) !important;
+    align-items: stretch;
+  }
+
+  .weather-dock-16-9 {
+    display: flex !important;
+  }
+  .camera-top-box {
+    grid-column: 2 !important;
+    margin: 0 auto;
+    width: auto !important;
+  }
+  .right-dock-wrapper-16-10 {
+    display: none !important;
+  }
+  .metrics-dock-16-9 {
+    display: flex !important;
+  }
+
+  /* Bottom Row 16:9 Alignments */
+  .bottom-map-card {
+    grid-column: 1 !important;
+    width: 100% !important;
+  }
+  .bottom-console-card {
+    grid-column: 2 !important;
+    width: 100% !important;
+  }
+  .bottom-heading-card {
+    grid-column: 3 !important;
+    width: 100% !important;
+  }
+}
+
+/* 16:10 Aspect Ratio (Taller viewports): 2-Column Top Row (Camera Left 14/24 | Combined Right Dock 10/24) */
+@media (max-aspect-ratio: 1.68) and (min-width: 1024px) {
+  .top-row-layout {
+    display: grid !important;
+    grid-template-columns: repeat(24, minmax(0, 1fr)) !important;
+    align-items: stretch;
+  }
+  .bottom-row-layout {
+    display: grid !important;
+    grid-template-columns: repeat(24, minmax(0, 1fr)) !important;
+    align-items: stretch;
+  }
+
+  .weather-dock-16-9 {
+    display: none !important;
+  }
+  .camera-top-box {
+    grid-column: span 14 / span 14 !important;
+    width: 100% !important;
+  }
+  .right-dock-wrapper-16-10 {
+    display: flex !important;
+    grid-column: span 10 / span 10 !important;
+  }
+  .metrics-dock-16-9 {
+    display: none !important;
+  }
+
+  /* Bottom Row 16:10 Alignments */
+  .bottom-map-card {
+    grid-column: span 7 / span 7 !important;
+  }
+  .bottom-console-card {
+    grid-column: span 12 / span 12 !important;
+  }
+  .bottom-heading-card {
+    grid-column: span 5 / span 5 !important;
+  }
+}
+

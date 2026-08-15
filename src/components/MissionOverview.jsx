@@ -645,14 +645,107 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
       {/* Main Bento Grid Canvas */}
       <div className="flex-1 min-h-0 lg:overflow-hidden p-2.5 sm:p-3 lg:p-3.5 flex flex-col">
         <div className="dashboard-grid-container mx-auto max-w-[1700px] gap-2 lg:gap-2.5 flex-1 w-full min-h-0">
-          {/* TOP ROW: Dynamic 4:3 Camera + Expanding Right Dock */}
-          <div className="flex flex-col lg:flex-row gap-2.5 lg:gap-3 shrink-0 min-h-0 items-stretch">
-            {/* TOP-LEFT: Main Drone Camera Viewfinder Feed (Fixed 4:3 Aspect Ratio) */}
+          {/* TOP ROW: Responsive Dual-Mode (16:10 2-Column vs 16:9 3-Column Centered) */}
+          <div className="top-row-layout gap-2.5 lg:gap-3 shrink-0 min-h-0">
+            {/* Left Flank for 16:9 Layout Mode: Weather Card */}
+            <div className="weather-dock-16-9 bento-card flex-1 min-h-0 flex-col p-3 sm:p-3.5 rounded-2xl justify-between gap-2.5 shadow-xs overflow-hidden">
+              {/* Header */}
+              <div className="flex items-center justify-between pb-1.5 border-b border-slate-100 shrink-0">
+                <div>
+                  <span className="text-[10px] font-black text-slate-900 tracking-wider uppercase block leading-none">Weather</span>
+                  <span className="text-[8px] font-semibold text-slate-400 block mt-0.5">Flight Environment</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowLocationModal(true)}
+                  className="group inline-flex min-w-0 max-w-[170px] items-center gap-1 transition cursor-pointer text-right bg-slate-50 hover:bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-lg shadow-2xs active:scale-95"
+                  title="Click to change location"
+                >
+                  <Icon className="text-[13px] text-slate-400 group-hover:text-slate-700 transition">location_on</Icon>
+                  <span className="truncate text-[9px] font-bold text-slate-700 group-hover:text-slate-950">
+                    {weather.locationName}
+                  </span>
+                </button>
+              </div>
+
+              {/* Hero Temperature & Condition Section (Exact 50% Top Half) */}
+              <div className="flex-1 basis-1/2 min-h-0 flex flex-col justify-between bg-slate-50 border border-slate-100 p-3 sm:p-3.5 rounded-xl overflow-hidden">
+                <div className="flex items-center justify-between gap-3 my-auto">
+                  <div className="flex items-center gap-2.5">
+                    <svg className="h-10 w-10 sm:h-12 sm:w-12 text-amber-500 shrink-0" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M12 7c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5zM2 13h2c.55 0 1-.45 1-1s-.45-1-1-1H2c-.55 0-1 .45-1 1s.45 1 1 1zm18 0h2c.55 0 1-.45 1-1s-.45-1-1-1h-2c-.55 0-1 .45-1 1s.45 1 1 1zM11 2v2c0 .55.45 1 1 1s1-.45 1-1V2c0-.55-.45-1-1-1s-1 .45-1 1zm0 18v2c0 .55.45 1 1 1s1-.45 1-1v-2c0-.55-.45-1-1-1s-1 .45-1 1zM5.99 4.58c-.39-.39-1.03-.39-1.41 0s-.39 1.03 0 1.41l1.06 1.06c.39.39 1.03.39 1.41 0s.39-1.03 0-1.41L5.99 4.58zm12.37 12.37c-.39-.39-1.03-.39-1.41 0s-.39 1.03 0 1.41l1.06 1.06c.39.39 1.03.39 1.41 0s.39-1.03 0-1.41l-1.06-1.06zm1.06-10.96c.39-.39.39-1.03 0-1.41s-1.03-.39-1.41 0l-1.06 1.06c-.39.39-.39 1.03 0 1.41s1.03.39 1.41 0l1.06-1.06zM7.05 18.36c.39-.39.39-1.03 0-1.41s-1.03-.39-1.41 0l-1.06 1.06c-.39.39-.39 1.03 0 1.41s1.03.39 1.41 0l1.06-1.06z" />
+                    </svg>
+                    <div className="flex items-baseline gap-1">
+                      <span className="data-font text-3xl sm:text-4xl font-black text-slate-900 tracking-tight leading-none">
+                        {weather.temperature}
+                      </span>
+                      <span className="text-sm font-bold text-slate-400">°C</span>
+                    </div>
+                  </div>
+
+                  <div className="text-right min-w-0">
+                    <p className="text-xs sm:text-sm font-extrabold text-slate-900 truncate">{weather.condition}</p>
+                    {weather.apparentTemperature && (
+                      <span className="inline-block text-[9px] font-bold text-slate-600 bg-white border border-slate-200/80 px-2 py-0.5 rounded-md mt-1 shadow-2xs">
+                        Feels like {weather.apparentTemperature}°C
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Environmental Metrics Section (Exact 50% Bottom Half) */}
+              <div className="flex-1 basis-1/2 min-h-0 flex flex-col gap-2">
+                {/* Upper Row: Humidity & Wind Dir (2 Columns) */}
+                <div className="flex-1 min-h-0 grid grid-cols-2 gap-2">
+                  <div className="bento-subcard p-2 sm:p-2.5 flex flex-col justify-between border border-slate-200 h-full min-h-0">
+                    <div className="flex items-center justify-between text-[9px] font-extrabold text-slate-400 uppercase tracking-wider">
+                      <span>Humidity</span>
+                      <Icon className="text-[14px] text-slate-500">water_drop</Icon>
+                    </div>
+                    <div className="my-auto py-0.5">
+                      <span className="data-font text-xs sm:text-sm font-black text-slate-900 block">{weather.humidity || 60}%</span>
+                      <span className="text-[8px] sm:text-[9px] font-semibold text-slate-400 block">Relative</span>
+                    </div>
+                  </div>
+
+                  <div className="bento-subcard p-2 sm:p-2.5 flex flex-col justify-between border border-slate-200 h-full min-h-0">
+                    <div className="flex items-center justify-between text-[9px] font-extrabold text-slate-400 uppercase tracking-wider">
+                      <span>Wind Dir</span>
+                      <Icon className="text-[14px] text-slate-500">explore</Icon>
+                    </div>
+                    <div className="my-auto py-0.5">
+                      <span className="data-font text-xs sm:text-sm font-black text-slate-900 block">{weather.windDirection}°</span>
+                      <span className="text-[8px] sm:text-[9px] font-bold text-slate-500 block uppercase">{weather.windCardinal}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Lower Row: Wind Speed (Full Width) */}
+                <div className="flex-1 min-h-0 bento-subcard p-2 sm:p-2.5 flex flex-col justify-between border border-slate-200 h-full min-h-0">
+                  <div className="flex items-center justify-between text-[9px] font-extrabold text-slate-400 uppercase tracking-wider">
+                    <span>Wind Speed</span>
+                    <Icon className="text-[14px] text-slate-500">air</Icon>
+                  </div>
+                  <div className="my-auto py-0.5 flex items-baseline justify-between gap-2">
+                    <div className="flex items-baseline gap-1">
+                      <span className="data-font text-base sm:text-xl font-black text-slate-900 leading-none">{weather.windSpeed}</span>
+                      <span className="text-xs font-bold text-slate-400">m/s</span>
+                    </div>
+                    <span className="inline-block text-[9px] sm:text-[10px] font-bold text-slate-700 bg-slate-100 border border-slate-200/80 px-2 py-0.5 rounded-md data-font shrink-0">
+                      {weather.windSpeedKmH || (weather.windSpeed * 3.6).toFixed(1)} km/h
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* CENTER / LEFT: Main Drone Camera Viewfinder Feed (Fixed 4:3 Aspect Ratio) */}
             <div
               ref={videoPanelRef}
               onMouseMove={handleVideoMouseMove}
               onMouseLeave={handleVideoMouseLeave}
-              className={`group relative flex aspect-[4/3] w-full lg:w-auto shrink-0 max-w-full lg:max-w-[65%] flex-col overflow-hidden rounded-2xl ${
+              className={`camera-top-box group relative flex aspect-[4/3] w-full shrink-0 flex-col overflow-hidden rounded-2xl ${
                 cameraStatus === 'connected' ? 'bg-slate-950' : 'bg-slate-100'
               } shadow-sm border border-slate-200 [&:fullscreen]:aspect-auto [&:fullscreen]:h-screen [&:fullscreen]:w-screen [&:fullscreen]:max-w-none [&:fullscreen]:rounded-none`}
               style={
@@ -1039,157 +1132,184 @@ className={`flex items-center gap-1 rounded-md px-2.5 py-1.5 text-[11px] font-bo
               </div>
             </div>
 
-            {/* TOP-RIGHT SECTION: Weather Card + Altitude & Ground Speed Cards (Expanding Flex) */}
-            <div className="flex-1 min-w-0 flex flex-col gap-2.5 lg:gap-3 h-full min-h-0">
-            {/* Top Half: Weather Card */}
-            <div className="bento-card flex-1 min-h-0 flex flex-col p-3.5 sm:p-4 rounded-2xl justify-between gap-3 shadow-xs">
-              {/* Header */}
-              <div className="flex items-center justify-between pb-2 border-b border-slate-100 shrink-0">
-                <div className="flex items-center gap-2">
-                  <Icon className="text-[20px] text-amber-500">wb_sunny</Icon>
+            {/* RIGHT DOCK WRAPPER (FOR 16:10 MODE): Weather Card (Top) + Metrics Grid (Bottom) */}
+            <div className="right-dock-wrapper-16-10 flex-col gap-2.5 lg:gap-3 h-full min-h-0">
+              {/* Weather Card */}
+              <div className="bento-card flex-1 min-h-0 flex flex-col p-3 sm:p-3.5 rounded-2xl justify-between gap-2.5 shadow-xs overflow-hidden">
+                {/* Header */}
+                <div className="flex items-center justify-between pb-1.5 border-b border-slate-100 shrink-0">
                   <div>
-                    <span className="text-[11px] font-black text-slate-900 tracking-wider uppercase block leading-none">Weather</span>
-                    <span className="text-[9px] font-semibold text-slate-400 block mt-0.5">Flight Environment</span>
+                    <span className="text-[10px] font-black text-slate-900 tracking-wider uppercase block leading-none">Weather</span>
+                    <span className="text-[8px] font-semibold text-slate-400 block mt-0.5">Flight Environment</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowLocationModal(true)}
+                    className="group inline-flex min-w-0 max-w-[170px] items-center gap-1 transition cursor-pointer text-right bg-slate-50 hover:bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-lg shadow-2xs active:scale-95"
+                    title="Click to change location"
+                  >
+                    <Icon className="text-[13px] text-slate-400 group-hover:text-slate-700 transition">location_on</Icon>
+                    <span className="truncate text-[9px] font-bold text-slate-700 group-hover:text-slate-950">
+                      {weather.locationName}
+                    </span>
+                  </button>
+                </div>
+
+                {/* Hero Temperature & Condition Section (Exact 50% Top Half) */}
+                <div className="flex-1 basis-1/2 min-h-0 flex flex-col justify-between bg-slate-50 border border-slate-100 p-3 sm:p-3.5 rounded-xl overflow-hidden">
+                  <div className="flex items-center justify-between gap-3 my-auto">
+                    <div className="flex items-center gap-2.5">
+                      <svg className="h-10 w-10 sm:h-12 sm:w-12 text-amber-500 shrink-0" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 7c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5zM2 13h2c.55 0 1-.45 1-1s-.45-1-1-1H2c-.55 0-1 .45-1 1s.45 1 1 1zm18 0h2c.55 0 1-.45 1-1s-.45-1-1-1h-2c-.55 0-1 .45-1 1s.45 1 1 1zM11 2v2c0 .55.45 1 1 1s1-.45 1-1V2c0-.55-.45-1-1-1s-1 .45-1 1zm0 18v2c0 .55.45 1 1 1s1-.45 1-1v-2c0-.55-.45-1-1-1s-1 .45-1 1zM5.99 4.58c-.39-.39-1.03-.39-1.41 0s-.39 1.03 0 1.41l1.06 1.06c.39.39 1.03.39 1.41 0s.39-1.03 0-1.41L5.99 4.58zm12.37 12.37c-.39-.39-1.03-.39-1.41 0s-.39 1.03 0 1.41l1.06 1.06c.39.39 1.03.39 1.41 0s.39-1.03 0-1.41l-1.06-1.06zm1.06-10.96c.39-.39.39-1.03 0-1.41s-1.03-.39-1.41 0l-1.06 1.06c-.39.39-.39 1.03 0 1.41s1.03.39 1.41 0l1.06-1.06zM7.05 18.36c.39-.39.39-1.03 0-1.41s-1.03-.39-1.41 0l-1.06 1.06c-.39.39-.39 1.03 0 1.41s1.03.39 1.41 0l1.06-1.06z" />
+                      </svg>
+                      <div className="flex items-baseline gap-1">
+                        <span className="data-font text-3xl sm:text-4xl font-black text-slate-900 tracking-tight leading-none">
+                          {weather.temperature}
+                        </span>
+                        <span className="text-sm font-bold text-slate-400">°C</span>
+                      </div>
+                    </div>
+
+                    <div className="text-right min-w-0">
+                      <p className="text-xs sm:text-sm font-extrabold text-slate-900 truncate">{weather.condition}</p>
+                      {weather.apparentTemperature && (
+                        <span className="inline-block text-[9px] font-bold text-slate-600 bg-white border border-slate-200/80 px-2 py-0.5 rounded-md mt-1 shadow-2xs">
+                          Feels like {weather.apparentTemperature}°C
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setShowLocationModal(true)}
-                  className="group inline-flex min-w-0 max-w-[210px] items-center gap-1.5 transition cursor-pointer text-right bg-slate-50 hover:bg-slate-100 border border-slate-200 px-2.5 py-1 rounded-xl shadow-2xs active:scale-95"
-                  title="Click to change location"
-                >
-                  <Icon className="text-[14px] text-slate-400 group-hover:text-slate-700 transition">location_on</Icon>
-                  <span className="truncate text-[10px] font-bold text-slate-700 group-hover:text-slate-950">
-                    {weather.locationName}
-                  </span>
-                </button>
+
+                {/* Environmental Metrics Section (Exact 50% Bottom Half) */}
+                <div className="flex-1 basis-1/2 min-h-0 flex flex-col gap-2">
+                  {/* Upper Row: Humidity & Wind Dir (2 Columns) */}
+                  <div className="flex-1 min-h-0 grid grid-cols-2 gap-2">
+                    <div className="bento-subcard p-2 sm:p-2.5 flex flex-col justify-between border border-slate-200 h-full min-h-0">
+                      <div className="flex items-center justify-between text-[9px] font-extrabold text-slate-400 uppercase tracking-wider">
+                        <span>Humidity</span>
+                        <Icon className="text-[14px] text-slate-500">water_drop</Icon>
+                      </div>
+                      <div className="my-auto py-0.5">
+                        <span className="data-font text-xs sm:text-sm font-black text-slate-900 block">{weather.humidity || 60}%</span>
+                        <span className="text-[8px] sm:text-[9px] font-semibold text-slate-400 block">Relative</span>
+                      </div>
+                    </div>
+
+                    <div className="bento-subcard p-2 sm:p-2.5 flex flex-col justify-between border border-slate-200 h-full min-h-0">
+                      <div className="flex items-center justify-between text-[9px] font-extrabold text-slate-400 uppercase tracking-wider">
+                        <span>Wind Dir</span>
+                        <Icon className="text-[14px] text-slate-500">explore</Icon>
+                      </div>
+                      <div className="my-auto py-0.5">
+                        <span className="data-font text-xs sm:text-sm font-black text-slate-900 block">{weather.windDirection}°</span>
+                        <span className="text-[8px] sm:text-[9px] font-bold text-slate-500 block uppercase">{weather.windCardinal}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Lower Row: Wind Speed (Full Width) */}
+                  <div className="flex-1 min-h-0 bento-subcard p-2 sm:p-2.5 flex flex-col justify-between border border-slate-200 h-full min-h-0">
+                    <div className="flex items-center justify-between text-[9px] font-extrabold text-slate-400 uppercase tracking-wider">
+                      <span>Wind Speed</span>
+                      <Icon className="text-[14px] text-slate-500">air</Icon>
+                    </div>
+                    <div className="my-auto py-0.5 flex items-baseline justify-between gap-2">
+                      <div className="flex items-baseline gap-1">
+                        <span className="data-font text-base sm:text-xl font-black text-slate-900 leading-none">{weather.windSpeed}</span>
+                        <span className="text-xs font-bold text-slate-400">m/s</span>
+                      </div>
+                      <span className="inline-block text-[9px] sm:text-[10px] font-bold text-slate-700 bg-slate-100 border border-slate-200/80 px-2 py-0.5 rounded-md data-font shrink-0">
+                        {weather.windSpeedKmH || (weather.windSpeed * 3.6).toFixed(1)} km/h
+                      </span>
+                    </div>
+                  </div>
+                </div>
               </div>
 
-              {/* Main Bento Content: Equal 50/50 Split Matching Bottom Cards Grid */}
-              <div className="grid grid-cols-2 gap-2.5 lg:gap-3 flex-1 min-h-0 items-stretch">
-                {/* Left Half: Hero Temperature & Condition */}
-                <div className="flex flex-col justify-between bg-slate-50 border border-slate-100 p-3 sm:p-3.5 rounded-xl">
-                  <div className="flex items-center gap-3">
-                    <svg className="h-12 w-12 sm:h-14 sm:w-14 text-amber-500 shrink-0" viewBox="0 0 24 24" fill="currentColor">
-                      <path d="M12 7c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5zM2 13h2c.55 0 1-.45 1-1s-.45-1-1-1H2c-.55 0-1 .45-1 1s.45 1 1 1zm18 0h2c.55 0 1-.45 1-1s-.45-1-1-1h-2c-.55 0-1 .45-1 1s.45 1 1 1zM11 2v2c0 .55.45 1 1 1s1-.45 1-1V2c0-.55-.45-1-1-1s-1 .45-1 1zm0 18v2c0 .55.45 1 1 1s1-.45 1-1v-2c0-.55-.45-1-1-1s-1 .45-1 1zM5.99 4.58c-.39-.39-1.03-.39-1.41 0s-.39 1.03 0 1.41l1.06 1.06c.39.39 1.03.39 1.41 0s.39-1.03 0-1.41L5.99 4.58zm12.37 12.37c-.39-.39-1.03-.39-1.41 0s-.39 1.03 0 1.41l1.06 1.06c.39.39 1.03.39 1.41 0s.39-1.03 0-1.41l-1.06-1.06zm1.06-10.96c.39-.39.39-1.03 0-1.41s-1.03-.39-1.41 0l-1.06 1.06c-.39.39-.39 1.03 0 1.41s1.03.39 1.41 0l1.06-1.06zM7.05 18.36c.39-.39.39-1.03 0-1.41s-1.03-.39-1.41 0l-1.06 1.06c-.39.39-.39 1.03 0 1.41s1.03.39 1.41 0l1.06-1.06z" />
-                    </svg>
-                    <div className="flex items-baseline gap-1">
-                      <span className="data-font text-3xl sm:text-4xl lg:text-5xl font-black text-slate-900 tracking-tight leading-none">
-                        {weather.temperature}
-                      </span>
-                      <span className="text-base sm:text-lg font-bold text-slate-400">°C</span>
-                    </div>
+              <div className="grid grid-cols-2 gap-2.5 lg:gap-3 flex-1 min-h-0">
+                <div className="bento-card flex flex-col justify-between p-3.5 sm:p-4 rounded-2xl min-h-0 overflow-hidden shadow-xs">
+                  <div className="flex items-center justify-between pb-1.5 border-b border-slate-100 shrink-0">
+                    <span className="text-[10px] font-extrabold text-slate-700 uppercase tracking-wider">ALTITUDE</span>
+                    <Icon className="text-[16px] text-slate-400">unfold_more</Icon>
                   </div>
-
-                  <div className="mt-2 flex flex-wrap items-center gap-1.5 sm:gap-2">
-                    <p className="text-xs sm:text-sm font-extrabold text-slate-900 truncate">{weather.condition}</p>
-                    {weather.apparentTemperature && (
-                      <span className="inline-block text-[10px] font-bold text-slate-600 bg-white border border-slate-200/80 px-2 py-0.5 rounded-md shadow-2xs shrink-0">
-                        Feels like {weather.apparentTemperature}°C
+                  <div className="my-auto py-1 flex flex-col items-center justify-center text-center gap-1">
+                    <div className="flex items-baseline justify-center gap-1.5">
+                      <span className="data-font text-4xl sm:text-5xl font-extrabold text-slate-900 leading-none tracking-tight">
+                        {telemetry.altitude}
                       </span>
-                    )}
+                      <span className="text-sm sm:text-base font-extrabold text-slate-400">m</span>
+                    </div>
+                    <p className="text-xs font-semibold text-slate-500 mt-0.5">Relative Altitude</p>
+                  </div>
+                  <div className="flex items-center justify-between pt-1.5 border-t border-slate-100 text-[9px] font-bold text-slate-400 shrink-0">
+                    <span>AGL MODE</span>
+                    <span className="text-slate-700 font-semibold uppercase">GPS REL</span>
                   </div>
                 </div>
 
-                {/* Right Half: 4 Environmental Stat Cards in 2x2 Grid (Aligns 50/50 with Ground Speed Card below) */}
-                <div className="grid grid-cols-2 gap-2 h-full">
-                  {/* Wind Card */}
-                  <div className="bento-subcard p-2.5 sm:p-3 flex flex-col justify-between h-full border border-slate-200 hover:border-slate-300 transition">
-                    <div className="flex items-center justify-between text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">
-                      <span>Wind Speed</span>
-                      <Icon className="text-[15px] text-slate-500">air</Icon>
-                    </div>
-                    <div className="my-auto py-0.5">
-                      <span className="data-font text-sm sm:text-base font-black text-slate-900 block">{weather.windSpeed} m/s</span>
-                      <span className="text-[9px] font-bold text-slate-400 block data-font">{weather.windSpeedKmH || (weather.windSpeed * 3.6).toFixed(1)} km/h</span>
-                    </div>
+                <div className="bento-card flex flex-col justify-between p-3.5 sm:p-4 rounded-2xl min-h-0 overflow-hidden shadow-xs">
+                  <div className="flex items-center justify-between pb-1.5 border-b border-slate-100 shrink-0">
+                    <span className="text-[10px] font-extrabold text-slate-700 uppercase tracking-wider">GROUND SPEED</span>
+                    <Icon className="text-[16px] text-slate-400">speed</Icon>
                   </div>
-
-                  {/* Direction Card */}
-                  <div className="bento-subcard p-2.5 sm:p-3 flex flex-col justify-between h-full border border-slate-200 hover:border-slate-300 transition">
-                    <div className="flex items-center justify-between text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">
-                      <span>Wind Dir</span>
-                      <Icon className="text-[15px] text-slate-500">explore</Icon>
+                  <div className="my-auto py-1 flex flex-col items-center justify-center text-center gap-1">
+                    <div className="flex items-baseline justify-center gap-1.5">
+                      <span className="data-font text-4xl sm:text-5xl font-extrabold text-slate-900 leading-none tracking-tight">
+                        {telemetry.speed}
+                      </span>
+                      <span className="text-sm sm:text-base font-extrabold text-slate-400">m/s</span>
                     </div>
-                    <div className="my-auto py-0.5">
-                      <span className="data-font text-sm sm:text-base font-black text-slate-900 block">{weather.windDirection}°</span>
-                      <span className="text-[9px] font-bold text-slate-500 block uppercase tracking-wide">{weather.windCardinal}</span>
-                    </div>
+                    <span className="inline-block text-xs font-bold text-slate-700 bg-slate-100 border border-slate-200/80 px-2.5 py-0.5 rounded-md mt-0.5 data-font shadow-2xs">
+                      {(telemetry.speed * 3.6).toFixed(1)} km/h
+                    </span>
                   </div>
-
-                  {/* Humidity Card */}
-                  <div className="bento-subcard p-2.5 sm:p-3 flex flex-col justify-between h-full border border-slate-200 hover:border-slate-300 transition">
-                    <div className="flex items-center justify-between text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">
-                      <span>Humidity</span>
-                      <Icon className="text-[15px] text-slate-500">water_drop</Icon>
-                    </div>
-                    <div className="my-auto py-0.5">
-                      <span className="data-font text-sm sm:text-base font-black text-slate-900 block">{weather.humidity || 60}%</span>
-                      <span className="text-[9px] font-semibold text-slate-400 block">Relative</span>
-                    </div>
-                  </div>
-
-                  {/* Precip Card */}
-                  <div className="bento-subcard p-2.5 sm:p-3 flex flex-col justify-between h-full border border-slate-200 hover:border-slate-300 transition">
-                    <div className="flex items-center justify-between text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">
-                      <span>Precip</span>
-                      <Icon className="text-[15px] text-slate-500">umbrella</Icon>
-                    </div>
-                    <div className="my-auto py-0.5">
-                      <span className="data-font text-sm sm:text-base font-black text-slate-900 block">{weather.precipitation || 0} mm</span>
-                      <span className="text-[9px] font-semibold text-slate-400 block">Precipitation</span>
-                    </div>
+                  <div className="flex items-center justify-between pt-1.5 border-t border-slate-100 text-[9px] font-bold text-slate-400 shrink-0">
+                    <span>HUD SPEED</span>
+                    <span className="text-slate-700 font-semibold uppercase">LIVE STREAM</span>
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* Bottom Half: 2 Equal Side-by-Side Bento Cards (Altitude & Ground Speed - Perfect Sweet Spot Layout) */}
-            <div className="grid grid-cols-2 gap-2.5 lg:gap-3 flex-1 min-h-0">
-              {/* Card 1: Altitude */}
-              <div className="bento-card flex flex-col justify-between p-3.5 sm:p-4 rounded-2xl min-h-0 overflow-hidden shadow-xs">
+            {/* METRICS DOCK (FOR 16:9 MODE): Altitude Card (Top) + Ground Speed Card (Bottom) Stacked */}
+            <div className="metrics-dock-16-9 flex-1 min-h-0 flex-col gap-2.5 lg:gap-3 h-full justify-between">
+              <div className="bento-card flex-1 flex flex-col justify-between p-3.5 sm:p-4 rounded-2xl min-h-0 overflow-hidden shadow-xs">
                 <div className="flex items-center justify-between pb-1.5 border-b border-slate-100 shrink-0">
                   <span className="text-[10px] font-extrabold text-slate-700 uppercase tracking-wider">ALTITUDE</span>
                   <Icon className="text-[16px] text-slate-400">unfold_more</Icon>
                 </div>
-
                 <div className="my-auto py-1 flex flex-col items-center justify-center text-center gap-1">
                   <div className="flex items-baseline justify-center gap-1.5">
-                    <span className="data-font text-4xl sm:text-5xl font-extrabold text-slate-900 leading-none tracking-tight">
+                    <span className="data-font text-3xl sm:text-4xl font-extrabold text-slate-900 leading-none tracking-tight">
                       {telemetry.altitude}
                     </span>
-                    <span className="text-sm sm:text-base font-extrabold text-slate-400">m</span>
+                    <span className="text-sm font-extrabold text-slate-400">m</span>
                   </div>
-                  <p className="text-xs font-semibold text-slate-500 mt-0.5">
-                    Relative Altitude
-                  </p>
+                  <p className="text-xs font-semibold text-slate-500 mt-0.5">Relative Altitude</p>
                 </div>
-
                 <div className="flex items-center justify-between pt-1.5 border-t border-slate-100 text-[9px] font-bold text-slate-400 shrink-0">
                   <span>AGL MODE</span>
                   <span className="text-slate-700 font-semibold uppercase">GPS REL</span>
                 </div>
               </div>
 
-              {/* Card 2: Ground Speed */}
-              <div className="bento-card flex flex-col justify-between p-3.5 sm:p-4 rounded-2xl min-h-0 overflow-hidden shadow-xs">
+              <div className="bento-card flex-1 flex flex-col justify-between p-3.5 sm:p-4 rounded-2xl min-h-0 overflow-hidden shadow-xs">
                 <div className="flex items-center justify-between pb-1.5 border-b border-slate-100 shrink-0">
                   <span className="text-[10px] font-extrabold text-slate-700 uppercase tracking-wider">GROUND SPEED</span>
                   <Icon className="text-[16px] text-slate-400">speed</Icon>
                 </div>
-
                 <div className="my-auto py-1 flex flex-col items-center justify-center text-center gap-1">
                   <div className="flex items-baseline justify-center gap-1.5">
-                    <span className="data-font text-4xl sm:text-5xl font-extrabold text-slate-900 leading-none tracking-tight">
+                    <span className="data-font text-3xl sm:text-4xl font-extrabold text-slate-900 leading-none tracking-tight">
                       {telemetry.speed}
                     </span>
-                    <span className="text-sm sm:text-base font-extrabold text-slate-400">m/s</span>
+                    <span className="text-sm font-extrabold text-slate-400">m/s</span>
                   </div>
                   <span className="inline-block text-xs font-bold text-slate-700 bg-slate-100 border border-slate-200/80 px-2.5 py-0.5 rounded-md mt-0.5 data-font shadow-2xs">
                     {(telemetry.speed * 3.6).toFixed(1)} km/h
                   </span>
                 </div>
-
                 <div className="flex items-center justify-between pt-1.5 border-t border-slate-100 text-[9px] font-bold text-slate-400 shrink-0">
                   <span>HUD SPEED</span>
                   <span className="text-slate-700 font-semibold uppercase">LIVE STREAM</span>
@@ -1197,12 +1317,11 @@ className={`flex items-center gap-1 rounded-md px-2.5 py-1.5 text-[11px] font-bo
               </div>
             </div>
           </div>
-          </div>
 
-          {/* BOTTOM ROW: Exact Aligned Grid (Map 7/24 + Telemetry 12/24 + Heading 5/24) */}
-          <div className="grid grid-cols-1 lg:grid-cols-[repeat(24,_minmax(0,_1fr))] gap-2.5 lg:gap-3 flex-1 min-h-0">
-            {/* BOTTOM-LEFT: Mini Map Card (7/24 width -> Exactly 50% width of 14/24 Camera feed) */}
-            <div className="col-span-1 lg:col-span-[7] h-full min-h-0 flex flex-col">
+          {/* BOTTOM ROW: Aligned Grid (Matches Top Dock Columns 1:1) */}
+          <div className="bottom-row-layout gap-2.5 lg:gap-3 flex-1 min-h-0">
+            {/* BOTTOM-LEFT: Mini Map Card (Matches Weather Card Width 1:1) */}
+            <div className="bottom-map-card h-full min-h-0 flex flex-col">
               <div
                 className="bento-card relative flex flex-1 h-full min-h-0 flex-col overflow-hidden rounded-2xl group transition"
               >
@@ -1293,8 +1412,8 @@ className={`flex items-center gap-1 rounded-md px-2.5 py-1.5 text-[11px] font-bo
               </div>
             </div>
 
-            {/* BOTTOM-CENTER: Flight Dynamics Console (12/24 width -> Fills area between Map and Heading) */}
-            <div className="col-span-1 lg:col-span-[12] h-full min-h-0 flex flex-col">
+            {/* BOTTOM-CENTER: Flight Dynamics Console (Matches Camera Feed Width 1:1) */}
+            <div className="bottom-console-card h-full min-h-0 flex flex-col">
               <div className="bento-card flex flex-1 h-full min-h-0 flex-col p-2 sm:p-2.5 gap-1.5 rounded-2xl">
                 {/* Top Header: Drone Status + Battery */}
                 <div className="flex flex-wrap items-center justify-between gap-2 pb-1.5 border-b border-slate-100 shrink-0">
@@ -1359,8 +1478,8 @@ className={`flex items-center gap-1 rounded-md px-2.5 py-1.5 text-[11px] font-bo
               </div>
             </div>
 
-            {/* BOTTOM-RIGHT: Drone Heading (5/24 width -> Exactly matches width of Ground Speed card above) */}
-            <div className="col-span-1 lg:col-span-[5] h-full min-h-0 flex flex-col">
+            {/* BOTTOM-RIGHT: Drone Heading Compass (Matches Metrics Dock Width 1:1) */}
+            <div className="bottom-heading-card h-full min-h-0 flex flex-col">
               <div className="bento-card flex flex-1 h-full min-h-0 flex-col items-center justify-between p-2 text-center gap-0.5 rounded-2xl">
                 <div className="flex items-center justify-between w-full pb-1 border-b border-slate-100 shrink-0">
                   <span className="text-[10px] sm:text-xs font-bold text-slate-600 uppercase tracking-wider">HEADING</span>
