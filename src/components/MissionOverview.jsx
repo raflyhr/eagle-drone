@@ -621,7 +621,7 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
   }, [telemetry.latitude, telemetry.longitude, telemetry.heading, isFullscreen, showFullscreenMap])
 
   return (
-    <main className="ml-[72px] flex-1 flex flex-col h-screen overflow-hidden bg-[#f5f7fa] text-[#0f172a]">
+    <main className="ml-[72px] flex-1 flex flex-col h-screen lg:overflow-hidden overflow-y-auto bg-[#f5f7fa] text-[#0f172a]">
       {/* Top Header Bar */}
       <header className="flex h-16 shrink-0 items-center justify-between border-b border-[#eef2f6] bg-white px-6">
         <div className="flex items-center gap-3">
@@ -643,20 +643,27 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
       </header>
 
       {/* Main Bento Grid Canvas */}
-      <div className="flex-1 min-h-0 overflow-hidden p-3.5 md:p-4 lg:p-5 flex flex-col">
-        <div className="dashboard-grid-container mx-auto max-w-[1700px] gap-3 lg:gap-3.5 flex-1 w-full min-h-0">
-          {/* TOP ROW: Dominant & Tall (Camera 14/24 + Right Section 10/24) */}
-          <div className="grid grid-cols-1 lg:grid-cols-[repeat(24,_minmax(0,_1fr))] gap-2.5 lg:gap-3 shrink-0">
-            {/* TOP-LEFT: Main Drone Camera Viewfinder Feed (14/24 width) */}
-            <div className="col-span-1 lg:col-span-[14] flex items-center justify-center min-h-0">
-              <div
-                ref={videoPanelRef}
-                onMouseMove={handleVideoMouseMove}
-                onMouseLeave={handleVideoMouseLeave}
-                className={`group relative flex w-full aspect-[4/3] max-h-[calc(100vh-230px)] flex-col overflow-hidden rounded-2xl ${
-                  cameraStatus === 'connected' ? 'bg-slate-950' : 'bg-slate-100'
-                } shadow-sm border border-slate-200 [&:fullscreen]:aspect-auto [&:fullscreen]:h-screen [&:fullscreen]:w-screen [&:fullscreen]:max-w-none [&:fullscreen]:rounded-none`}
-              >
+      <div className="flex-1 min-h-0 lg:overflow-hidden p-2.5 sm:p-3 lg:p-3.5 flex flex-col">
+        <div className="dashboard-grid-container mx-auto max-w-[1700px] gap-2 lg:gap-2.5 flex-1 w-full min-h-0">
+          {/* TOP ROW: Dynamic 4:3 Camera + Expanding Right Dock */}
+          <div className="flex flex-col lg:flex-row gap-2.5 lg:gap-3 shrink-0 min-h-0 items-stretch">
+            {/* TOP-LEFT: Main Drone Camera Viewfinder Feed (Fixed 4:3 Aspect Ratio) */}
+            <div
+              ref={videoPanelRef}
+              onMouseMove={handleVideoMouseMove}
+              onMouseLeave={handleVideoMouseLeave}
+              className={`group relative flex aspect-[4/3] w-full lg:w-auto shrink-0 max-w-full lg:max-w-[65%] flex-col overflow-hidden rounded-2xl ${
+                cameraStatus === 'connected' ? 'bg-slate-950' : 'bg-slate-100'
+              } shadow-sm border border-slate-200 [&:fullscreen]:aspect-auto [&:fullscreen]:h-screen [&:fullscreen]:w-screen [&:fullscreen]:max-w-none [&:fullscreen]:rounded-none`}
+              style={
+                isFullscreen
+                  ? undefined
+                  : {
+                      height: 'calc(100vh - 275px)',
+                      maxHeight: 'calc(100vh - 275px)',
+                    }
+              }
+            >
                 {/* Video Frame Container */}
                 <div ref={videoFrameRef} className="relative flex-1 h-full min-h-0 w-full bg-slate-950 overflow-hidden">
                   {/* Live WebCam Stream */}
@@ -1031,10 +1038,9 @@ className={`flex items-center gap-1 rounded-md px-2.5 py-1.5 text-[11px] font-bo
                   )}
               </div>
             </div>
-          </div>
 
-          {/* TOP-RIGHT SECTION: Weather Card + Altitude & Ground Speed Cards (10/24 width) */}
-          <div className="col-span-1 lg:col-span-[10] flex flex-col gap-2.5 lg:gap-3 h-full min-h-0">
+            {/* TOP-RIGHT SECTION: Weather Card + Altitude & Ground Speed Cards (Expanding Flex) */}
+            <div className="flex-1 min-w-0 flex flex-col gap-2.5 lg:gap-3 h-full min-h-0">
             {/* Top Half: Weather Card */}
             <div className="bento-card flex-1 min-h-0 flex flex-col p-3.5 sm:p-4 rounded-2xl justify-between gap-3 shadow-xs">
               {/* Header */}
@@ -1363,7 +1369,7 @@ className={`flex items-center gap-1 rounded-md px-2.5 py-1.5 text-[11px] font-bo
                   </span>
                 </div>
 
-                <div className="relative my-auto flex h-20 w-20 items-center justify-center">
+                <div className="relative my-auto flex h-18 w-18 sm:h-20 sm:w-20 items-center justify-center">
                   <div
                     className="absolute inset-0 transition-transform duration-700 ease-out"
                     style={{ transform: `rotate(${-telemetry.heading}deg)` }}
