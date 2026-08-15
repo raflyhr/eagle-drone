@@ -897,70 +897,16 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
                     </div>
                   )}
 
-                  {/* Floating Video Control Bar (Auto-hides on idle) */}
+                  {/* Floating Video Control Overlays (Auto-hides on idle) */}
                   {cameraStatus === 'connected' && (
-                    <div
-                      className={`absolute bottom-2 inset-x-2 z-30 flex items-center justify-between gap-2 transition-all duration-300 ${
-                        showControls ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2 pointer-events-none'
-                      }`}
-                    >
-                      {/* Left Controls: Stop Camera, AI Detect, Camera Selector */}
-                      <div className="flex items-center gap-1.5 pointer-events-auto bg-slate-900 border border-slate-800 rounded-lg p-1 shadow-lg">
-                        {/* Stop Camera Button */}
-                        <button
-                          type="button"
-                          onClick={toggleCamera}
-                          className="flex items-center gap-1 rounded-md bg-red-600 hover:bg-red-700 text-white px-2.5 py-1.5 text-[11px] font-bold transition shrink-0 cursor-pointer shadow-xs"
-                          title="Disconnect Camera Stream"
-                        >
-                          <Icon className="text-[14px]">videocam_off</Icon>
-                          <span>Disconnect</span>
-                        </button>
-
-                        {/* AI Detection Toggle Button */}
-                        <button
-                          type="button"
-                          onClick={() => setAiActive((v) => !v)}
-                          className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-bold transition shrink-0 cursor-pointer ${
-                            aiActive
-                              ? 'bg-emerald-600 text-white shadow-xs'
-                              : 'bg-slate-800 text-slate-300 border border-slate-700 hover:bg-slate-700 hover:text-white'
-                          }`}
-                        >
-                          <Icon className="text-[14px]">center_focus_strong</Icon>
-                          <span>AI Detect {aiActive ? `(${detections.length})` : 'Off'}</span>
-                        </button>
-
-                        {/* Capture Photo Button (Icon only when not in fullscreen, full text label in fullscreen) */}
-                        <button
-                          type="button"
-                          onClick={handleCapturePhoto}
-                          className={`flex items-center justify-center gap-1.5 rounded-md bg-sky-600 text-xs font-bold text-white transition hover:bg-sky-700 cursor-pointer ${
-                            isFullscreen ? 'px-3 py-1.5' : 'px-2 py-1.5'
-                          }`}
-                          title="Capture current camera frame"
-                        >
-                          <Icon className="text-[16px]">photo_camera</Icon>
-                          {isFullscreen && <span>{captureFeedback ? 'Photo saved' : 'Capture Photo'}</span>}
-                        </button>
-
-                        {/* Mark Location Button (Icon only when not in fullscreen, full text label in fullscreen) */}
-                        <button
-                          type="button"
-                          onClick={handleMarkLocation}
-                          className={`flex items-center justify-center gap-1.5 rounded-md bg-slate-800 border border-slate-700 text-xs font-bold text-white transition hover:bg-slate-700 cursor-pointer ${
-                            isFullscreen ? 'px-3 py-1.5' : 'px-2 py-1.5'
-                          }`}
-                          title="Mark current drone location"
-                        >
-                          <Icon className="text-[16px]">location_on</Icon>
-                          {isFullscreen && <span>{locationFeedback ? 'Location Marked' : 'Mark Location'}</span>}
-                        </button>
-                      </div>
-
-                      {/* Right Controls: Camera Selector, Fullscreen Map Toggle & Fullscreen Button */}
-                      <div className="flex items-center gap-1.5 pointer-events-auto bg-slate-900 border border-slate-800 rounded-lg p-1 shadow-lg">
-                        {/* Camera Switcher Selector (Always shown on the right side) */}
+                    <>
+                      {/* Center-Top Controls: Camera Selector, Fullscreen Map Toggle & Fullscreen Button */}
+                      <div
+                        className={`absolute top-2.5 left-1/2 -translate-x-1/2 z-30 flex items-center gap-1.5 pointer-events-auto bg-slate-900/90 backdrop-blur-md border border-slate-800 rounded-lg p-1 shadow-xl w-max max-w-[calc(100%-1.25rem)] overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden transition-all duration-300 ${
+                          showControls ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2 pointer-events-none'
+                        }`}
+                      >
+                        {/* Camera Switcher Selector */}
                         <div className="flex items-center gap-1.5 bg-slate-800 border border-slate-700 rounded-md px-2.5 py-1 text-xs font-medium text-slate-200">
                           <select
                             value={selectedDeviceId}
@@ -994,7 +940,7 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
                           <button
                             type="button"
                             onClick={() => setShowFullscreenMap((v) => !v)}
-className={`flex items-center gap-1 rounded-md px-2.5 py-1.5 text-[11px] font-bold transition shrink-0 cursor-pointer ${
+                            className={`flex items-center gap-1 rounded-md px-2.5 py-1.5 text-[11px] font-bold transition shrink-0 cursor-pointer ${
                               showFullscreenMap
                                 ? 'bg-slate-800 text-slate-300 border border-slate-700 hover:bg-slate-700 hover:text-white'
                                 : 'bg-emerald-600 text-white shadow-xs'
@@ -1023,7 +969,65 @@ className={`flex items-center gap-1 rounded-md px-2.5 py-1.5 text-[11px] font-bo
                           <span className="hidden sm:inline">Fullscreen</span>
                         </button>
                       </div>
-                    </div>
+
+                      {/* Center-Bottom Controls: Disconnect, AI Detect, Snapshot & Mark Location */}
+                      <div
+                        className={`absolute bottom-2.5 left-1/2 -translate-x-1/2 z-30 flex items-center gap-1.5 pointer-events-auto bg-slate-900/90 backdrop-blur-md border border-slate-800 rounded-lg p-1 shadow-xl w-max max-w-[calc(100%-1.25rem)] overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden transition-all duration-300 ${
+                          showControls ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2 pointer-events-none'
+                        }`}
+                      >
+                        {/* Stop Camera Button */}
+                        <button
+                          type="button"
+                          onClick={toggleCamera}
+                          className="flex items-center gap-1 rounded-md bg-red-600 hover:bg-red-700 text-white px-2.5 py-1.5 text-[11px] font-bold transition shrink-0 cursor-pointer shadow-xs"
+                          title="Disconnect Camera Stream"
+                        >
+                          <Icon className="text-[14px]">videocam_off</Icon>
+                          <span>Disconnect</span>
+                        </button>
+
+                        {/* AI Detection Toggle Button */}
+                        <button
+                          type="button"
+                          onClick={() => setAiActive((v) => !v)}
+                          className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-bold transition shrink-0 cursor-pointer ${
+                            aiActive
+                              ? 'bg-emerald-600 text-white shadow-xs'
+                              : 'bg-slate-800 text-slate-300 border border-slate-700 hover:bg-slate-700 hover:text-white'
+                          }`}
+                        >
+                          <Icon className="text-[14px]">center_focus_strong</Icon>
+                          <span>AI Detect {aiActive ? `(${detections.length})` : 'Off'}</span>
+                        </button>
+
+                        {/* Capture Photo Button */}
+                        <button
+                          type="button"
+                          onClick={handleCapturePhoto}
+                          className={`flex items-center justify-center gap-1.5 rounded-md bg-sky-600 text-xs font-bold text-white transition hover:bg-sky-700 cursor-pointer ${
+                            isFullscreen ? 'px-3 py-1.5' : 'px-2 py-1.5'
+                          }`}
+                          title="Capture current camera frame"
+                        >
+                          <Icon className="text-[16px]">photo_camera</Icon>
+                          {isFullscreen && <span>{captureFeedback ? 'Photo saved' : 'Capture Photo'}</span>}
+                        </button>
+
+                        {/* Mark Location Button */}
+                        <button
+                          type="button"
+                          onClick={handleMarkLocation}
+                          className={`flex items-center justify-center gap-1.5 rounded-md bg-slate-800 border border-slate-700 text-xs font-bold text-white transition hover:bg-slate-700 cursor-pointer ${
+                            isFullscreen ? 'px-3 py-1.5' : 'px-2 py-1.5'
+                          }`}
+                          title="Mark current drone location"
+                        >
+                          <Icon className="text-[16px]">location_on</Icon>
+                          {isFullscreen && <span>{locationFeedback ? 'Location Marked' : 'Mark Location'}</span>}
+                        </button>
+                      </div>
+                    </>
                   )}
 
                   {/* Camera Offline / Selection Standby View */}
