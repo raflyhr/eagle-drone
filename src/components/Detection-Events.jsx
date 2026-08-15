@@ -10,7 +10,7 @@ const events = [
     eta: '00:02:14',
     status: 'CRITICAL',
     statusIcon: 'warning',
-    statusClass: 'border-red-200 bg-red-50 text-red-700',
+    statusClass: 'border-slate-800 bg-slate-900 text-white',
     tags: ['THERMAL', 'STATIONARY'],
   },
   {
@@ -20,7 +20,7 @@ const events = [
     eta: '00:15:42',
     status: 'REVIEW',
     statusIcon: 'visibility',
-    statusClass: 'border-amber-200 bg-amber-50 text-amber-700',
+    statusClass: 'border-slate-300 bg-slate-100 text-slate-800',
     tags: ['IR/NIR', 'MOVEMENT: LOW'],
   },
   {
@@ -62,7 +62,7 @@ export default function DetectionEvents() {
                     <Icon className="text-[14px]">{evt.statusIcon}</Icon>
                     {evt.status}
                   </span>
-                  <div className="absolute right-3 top-3 rounded-lg bg-black/50 px-2 py-0.5 text-[11px] font-semibold text-white backdrop-blur-md">
+                  <div className="absolute right-3 top-3 rounded-lg bg-slate-900 px-2 py-0.5 text-[11px] font-semibold text-white">
                     {evt.confidence}
                   </div>
                 </div>

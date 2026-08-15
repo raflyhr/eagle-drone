@@ -40,8 +40,8 @@ button {
 }
 
 .dashboard-grid-container {
-  display: grid;
-  grid-template-rows: 2.15fr 0.55fr;
+  display: flex;
+  flex-direction: column;
   height: 100%;
   width: 100%;
   min-height: 0;
