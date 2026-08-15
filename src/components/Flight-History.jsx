@@ -74,10 +74,10 @@ export default function FlightHistory({ missionLogs = [], onOpenMission }) {
                 {deleteMode ? (
                   <>
                     <button type="button" onClick={() => { setDeleteMode(false); setSelectedIds([]) }} className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-600 hover:bg-slate-50">Cancel</button>
-                    {selectedIds.length > 0 && <button type="button" onClick={() => setDeleteTargets(successLogs.filter((mission) => selectedIds.includes(mission.databaseId)))} className="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-bold text-red-700 hover:bg-red-100">Delete selected ({selectedIds.length})</button>}
+                    {selectedIds.length > 0 && <button type="button" onClick={() => setDeleteTargets(successLogs.filter((mission) => selectedIds.includes(mission.databaseId)))} className="rounded-lg border border-red-600 bg-red-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-red-700">Delete selected ({selectedIds.length})</button>}
                   </>
                 ) : (
-                  <button type="button" onClick={() => setDeleteMode(true)} className="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-bold text-red-700 hover:bg-red-100">Delete mission</button>
+                  <button type="button" onClick={() => setDeleteMode(true)} className="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-bold text-red-700 hover:bg-red-100 transition cursor-pointer">Delete mission</button>
                 )}
                 <input
                   type="text"
@@ -111,7 +111,7 @@ export default function FlightHistory({ missionLogs = [], onOpenMission }) {
                         return
                       }
                       onOpenMission?.(mission)
-                    }} className="cursor-pointer transition hover:bg-sky-50/50">
+                    }} className="cursor-pointer transition hover:bg-slate-50">
                       <td className="px-3 py-3.5" onClick={(event) => event.stopPropagation()}>{deleteMode && mission.status === 'Success' && <input type="checkbox" checked={selectedIds.includes(mission.databaseId)} onChange={() => setSelectedIds((ids) => ids.includes(mission.databaseId) ? ids.filter((id) => id !== mission.databaseId) : [...ids, mission.databaseId])} aria-label={`Select ${mission.id}`} />}</td>
                       <td className="data-font font-bold px-3 py-3.5 text-slate-900">{mission.id}</td>
                       <td className="px-3 py-3.5 text-slate-600">{mission.date}</td>
@@ -122,8 +122,8 @@ export default function FlightHistory({ missionLogs = [], onOpenMission }) {
                       <td className="px-3 py-3.5 text-right">
                         <span className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-bold ${
                           mission.status === 'Success'
-                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-100'
-                            : 'bg-red-50 text-red-700 border border-red-100'
+                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                            : 'bg-red-50 text-red-700 border border-red-200'
                         }`}>
                           <Icon className="text-[14px]">
                             {mission.status === 'Success' ? 'check_circle' : 'radio_button_checked'}
@@ -147,9 +147,9 @@ export default function FlightHistory({ missionLogs = [], onOpenMission }) {
           </div>
         </div>
         {liveNoticeMission && (
-          <div className="fixed inset-0 z-[1000] grid place-items-center bg-slate-950/40 p-6 backdrop-blur-sm" onClick={() => setLiveNoticeMission(null)}>
+          <div className="fixed inset-0 z-[1000] grid place-items-center bg-slate-900/60 p-6" onClick={() => setLiveNoticeMission(null)}>
             <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl" onClick={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="live-mission-title">
-              <div className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-red-50 text-red-600"><Icon className="text-[27px]">radio_button_checked</Icon></div>
+              <div className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-red-50 border border-red-200 text-red-600"><Icon className="text-[27px]">radio_button_checked</Icon></div>
               <h3 id="live-mission-title" className="mt-4 text-center text-base font-bold text-slate-900">Mission Still Live</h3>
               <p className="mt-2 text-center text-xs leading-5 text-slate-500">Harap menunggu status Success untuk melihat detail lebih lanjut.</p>
               <p className="mt-3 text-center font-mono text-xs font-bold text-slate-700">{liveNoticeMission.id}</p>
@@ -158,14 +158,14 @@ export default function FlightHistory({ missionLogs = [], onOpenMission }) {
           </div>
         )}
         {deleteTargets.length > 0 && (
-          <div className="fixed inset-0 z-[1000] grid place-items-center bg-slate-950/40 p-6 backdrop-blur-sm">
+          <div className="fixed inset-0 z-[1000] grid place-items-center bg-slate-900/60 p-6">
             <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-2xl">
               <h3 className="text-sm font-bold text-slate-900">Delete mission logs?</h3>
               <p className="mt-2 text-xs leading-5 text-slate-600">Hapus {deleteTargets.length} log beserta rute, foto, dan marker? Aksi ini tidak dapat dibatalkan.</p>
-              {deleteError && <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">{deleteError}</p>}
+              {deleteError && <p className="mt-3 rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-xs font-semibold text-red-700">{deleteError}</p>}
               <div className="mt-5 flex justify-end gap-2">
                 <button type="button" disabled={deleting} onClick={() => { setDeleteTargets([]); setDeleteError('') }} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-50">Cancel</button>
-                <button type="button" disabled={deleting} onClick={confirmDelete} className="rounded-lg border border-red-200 bg-red-600 px-3 py-2 text-xs font-bold text-white hover:bg-red-700 disabled:opacity-50">{deleting ? 'Deleting...' : 'Delete'}</button>
+                <button type="button" disabled={deleting} onClick={confirmDelete} className="rounded-lg border border-red-600 bg-red-600 px-3 py-2 text-xs font-bold text-white hover:bg-red-700 disabled:opacity-50">{deleting ? 'Deleting...' : 'Delete'}</button>
               </div>
             </div>
           </div>

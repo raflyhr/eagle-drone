@@ -592,7 +592,7 @@ export default function MapArea({ onNavigate, telemetry: rawTelemetry, markedLoc
                     key={wp.id}
                     className="flex items-center gap-2.5 rounded-md p-2 border border-slate-200 bg-slate-50 transition"
                   >
-                    <Icon className="text-red-600 text-[20px] shrink-0">location_on</Icon>
+                    <Icon className="text-slate-800 text-[20px] shrink-0">location_on</Icon>
                     <div className="flex-1 min-w-0">
                       <p className="text-xs font-bold text-slate-900 truncate">
                         {wp.name}
@@ -613,7 +613,7 @@ export default function MapArea({ onNavigate, telemetry: rawTelemetry, markedLoc
                       <button
                         type="button"
                         onClick={() => handleRemoveCustomWp(wp.id)}
-                        className="flex h-6 w-6 items-center justify-center rounded text-slate-400 hover:bg-red-50 hover:text-red-600 border border-transparent hover:border-red-200 transition cursor-pointer"
+                        className="flex h-6 w-6 items-center justify-center rounded text-slate-500 hover:bg-slate-200 hover:text-slate-900 border border-transparent hover:border-slate-300 transition cursor-pointer"
                         title="Delete Target Point"
                       >
                         <Icon className="text-[15px]">delete</Icon>
