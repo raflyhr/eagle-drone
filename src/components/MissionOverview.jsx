@@ -1621,7 +1621,7 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
               <div className="p-3.5 rounded-lg border border-slate-200 hover:border-slate-300 bg-slate-50/30 transition space-y-2.5">
 
                 <div>
-                  <h4 className="text-xs font-bold text-slate-900">3. WebSocket MAVLink Server</h4>
+                  <h4 className="text-xs font-bold text-slate-900">4. WebSocket MAVLink Server</h4>
                   <p className="text-[11px] text-slate-500 mt-0.5">Connect to MAVLink WebSocket bridge (e.g. ws://localhost:8080)</p>
                 </div>
                 <div className="flex items-center gap-2">
