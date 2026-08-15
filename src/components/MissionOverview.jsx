@@ -353,7 +353,7 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
       context.fillStyle = '#ffffff'
       context.fillText(label, boxX + 6, Math.max(14, boxY - 6))
     })
-  }, [cameraStatus, aiActive, detections, overlayVersion, videoRef])
+  }, [cameraStatus, aiActive, detections, overlayVersion, videoRef, isFullscreen])
 
   const trailRef = useRef([])
 
@@ -763,24 +763,18 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
               className={`camera-top-box group relative flex aspect-[4/3] w-full shrink-0 flex-col overflow-hidden rounded-2xl ${
                 cameraStatus === 'connected' ? 'bg-slate-950' : 'bg-slate-100'
               } shadow-sm border border-slate-200 [&:fullscreen]:aspect-auto [&:fullscreen]:h-screen [&:fullscreen]:w-screen [&:fullscreen]:max-w-none [&:fullscreen]:rounded-none`}
-              style={
-                isFullscreen
-                  ? undefined
-                  : {
-                      height: 'calc(100vh - 275px)',
-                      maxHeight: 'calc(100vh - 275px)',
-                    }
-              }
             >
                 {/* Video Frame Container */}
                 <div ref={videoFrameRef} className="relative flex-1 h-full min-h-0 w-full bg-slate-950 overflow-hidden">
-                  {/* Live WebCam Stream */}
+                  {/* Live WebCam Stream (Native Uncropped Resolution in Fullscreen) */}
                   <video
                     ref={videoRef}
                     autoPlay
                     muted
                     playsInline
-                    className={`h-full w-full object-cover object-center ${cameraStatus === 'connected' ? 'block' : 'hidden'}`}
+                    className={`h-full w-full object-cover object-center ${
+                      cameraStatus === 'connected' ? 'block' : 'hidden'
+                    }`}
                   />
                   {cameraStatus === 'connected' && (
                     <canvas className="pointer-events-none absolute inset-0 z-20" />
@@ -1342,8 +1336,10 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
 
           {/* BOTTOM ROW: Aligned Grid (Matches Top Dock Columns 1:1) */}
           <div className="bottom-row-layout gap-2.5 lg:gap-3 flex-1 min-h-0">
-            {/* BOTTOM-LEFT: Mini Map Card (Matches Weather Card Width 1:1) */}
-            <div className="bottom-map-card h-full min-h-0 flex flex-col">
+            {/* Wrapper for Left Group (Map + Console) for 16:10 Mode */}
+            <div className="bottom-left-group h-full min-h-0">
+              {/* BOTTOM-LEFT: Mini Map Card (Matches Weather Card Width 1:1) */}
+              <div className="bottom-map-card h-full min-h-0 flex flex-col">
               <div
                 className="bento-card relative flex flex-1 h-full min-h-0 flex-col overflow-hidden rounded-2xl group transition"
               >
@@ -1499,6 +1495,7 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
                 </div>
               </div>
             </div>
+          </div>
 
             {/* BOTTOM-RIGHT: Drone Heading Compass (Matches Metrics Dock Width 1:1) */}
             <div className="bottom-heading-card h-full min-h-0 flex flex-col">
