@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import useCamera from '../hooks/useCamera'
@@ -357,6 +357,17 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
 
   const trailRef = useRef([])
 
+  // Reset flight trail map polyline (clears previous flight path history)
+  const resetMapTrail = useCallback(() => {
+    trailRef.current = []
+    if (pathRef.current) {
+      pathRef.current.setLatLngs([])
+    }
+    if (fullscreenPathRef.current) {
+      fullscreenPathRef.current.setLatLngs([])
+    }
+  }, [])
+
   // Initialize mini Leaflet Map
   useEffect(() => {
     if (!mapRef.current || leafletRef.current) return
@@ -463,11 +474,16 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
     const newPos = [telemetry.latitude, telemetry.longitude]
     markerRef.current.setLatLng(newPos)
     markerRef.current.setIcon(createDroneHeadingIcon(telemetry.heading || 0, 28))
-    leafletRef.current.panTo(newPos, { animate: true, duration: 0.8 })
 
+    const isFirstFix = trailRef.current.length === 0
     const lastPos = trailRef.current[trailRef.current.length - 1]
-    if (!lastPos) {
+
+    if (isFirstFix) {
       trailRef.current = [newPos]
+      if (startMarkerRef.current) {
+        startMarkerRef.current.setLatLng(newPos)
+      }
+      leafletRef.current.setView(newPos, 15, { animate: true })
     } else {
       const dLat = lastPos[0] - newPos[0]
       const dLon = lastPos[1] - newPos[1]
@@ -476,10 +492,16 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
       if (jumpDist > 0.005) {
         // Teleportation / Initial jump reset
         trailRef.current = [newPos]
+        if (startMarkerRef.current) {
+          startMarkerRef.current.setLatLng(newPos)
+        }
+        leafletRef.current.setView(newPos, 15, { animate: true })
       } else if (jumpDist > 0.00001) {
         trailRef.current.push(newPos)
+        leafletRef.current.panTo(newPos, { animate: true, duration: 0.8 })
       }
     }
+
     if (startMarkerRef.current && trailRef.current[0]) {
       startMarkerRef.current.setLatLng(trailRef.current[0])
     }
@@ -1575,6 +1597,7 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
                 <button
                   type="button"
                   onClick={() => {
+                    resetMapTrail()
                     enableMavlinkSim?.()
                     setShowMavlinkModal(false)
                   }}
@@ -1592,6 +1615,7 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
                 <button
                   type="button"
                   onClick={async () => {
+                    resetMapTrail()
                     await connectBetaflightMsp?.(115200)
                     setShowMavlinkModal(false)
                   }}
@@ -1610,6 +1634,7 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
                 <button
                   type="button"
                   onClick={async () => {
+                    resetMapTrail()
                     await connectSerial?.(57600)
                     setShowMavlinkModal(false)
                   }}
@@ -1636,6 +1661,7 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
                   <button
                     type="button"
                     onClick={async () => {
+                      resetMapTrail()
                       await connectWebSocket?.(wsUrlInput)
                       setShowMavlinkModal(false)
                     }}
@@ -1653,13 +1679,14 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
                 <button
                   type="button"
                   onClick={() => {
+                    resetMapTrail()
                     disconnectMavlink?.()
                     setShowMavlinkModal(false)
                   }}
                   className="rounded-lg bg-red-50 text-red-600 border border-red-200 px-3 py-1.5 text-xs font-semibold hover:bg-red-100 transition cursor-pointer"
                 >
                   Disconnect
-                  </button>
+                </button>
               </div>
             )}
           </div>
