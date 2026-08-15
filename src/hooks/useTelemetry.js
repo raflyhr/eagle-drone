@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { encodeMavlink2Frame, MAVMSG, MavlinkParser } from '../utils/mavlink'
+import { encodeMspRequest, MSP, MspParser } from '../utils/msp'
 import { getOfflineLocationName } from '../utils/geoCoder'
 import { isSupabaseConfigured, supabase } from '../lib/supabase'
 import { createMissionRecord, deleteTargetPoint, fetchMissionLogs, finalizeMissionOnUnload, formatMissionRecord, getTrackWritePolicy, insertMarkedLocation, insertTargetPoint, insertTrackPoint, updateMissionRecord, uploadMissionCapture } from '../services/missionService'
@@ -52,8 +53,11 @@ export default function useTelemetry() {
 
   const serialPortRef = useRef(null)
   const readerRef = useRef(null)
+  const writerRef = useRef(null)
   const socketRef = useRef(null)
   const parserRef = useRef(null)
+  const mspPollTimerRef = useRef(null)
+  const mspBoxNamesRef = useRef([])
   const simTimerRef = useRef(null)
   const seqRef = useRef(0)
   const missionStartRef = useRef(null)
@@ -190,8 +194,8 @@ export default function useTelemetry() {
         if (msg.voltageBattery !== undefined) next.voltage = msg.voltageBattery
         if (msg.currentBattery !== undefined) next.current = msg.currentBattery
       } else if (msg.msgName === 'GPS_RAW_INT') {
-        if (msg.lat) next.latitude = Number(msg.lat.toFixed(6))
-        if (msg.lon) next.longitude = Number(msg.lon.toFixed(6))
+        if (msg.lat !== undefined) next.latitude = Number(msg.lat.toFixed(6))
+        if (msg.lon !== undefined) next.longitude = Number(msg.lon.toFixed(6))
         if (msg.alt !== undefined) next.altitude = Math.round(msg.alt)
         if (msg.satellitesVisible !== undefined) next.satellites = msg.satellitesVisible
         if (msg.fixLabel) next.gpsFix = msg.fixLabel
@@ -203,8 +207,8 @@ export default function useTelemetry() {
           next.heading = Math.round(msg.yaw)
         }
       } else if (msg.msgName === 'GLOBAL_POSITION_INT' || msg.msgName === 'VFR_HUD') {
-        if (msg.lat) next.latitude = Number(msg.lat.toFixed(6))
-        if (msg.lon) next.longitude = Number(msg.lon.toFixed(6))
+        if (msg.lat !== undefined) next.latitude = Number(msg.lat.toFixed(6))
+        if (msg.lon !== undefined) next.longitude = Number(msg.lon.toFixed(6))
         if (msg.alt !== undefined || msg.relativeAlt !== undefined) {
           next.altitude = Math.round(msg.relativeAlt ?? msg.alt)
         }
@@ -223,7 +227,48 @@ export default function useTelemetry() {
     })
   }, [updateCurrentMission])
 
-  // Initialize parser
+  const handleMspMessage = useCallback((msg) => {
+    setTelemetry((prev) => {
+      const next = { ...prev, packetCount: prev.packetCount + 1, lastHeartbeat: Date.now() }
+
+      if (msg.type === 'attitude') {
+        next.pitch = Number(msg.pitch.toFixed(1))
+        next.roll = Number(msg.roll.toFixed(1))
+        next.heading = Math.round(msg.heading)
+        next.yaw = Math.round(msg.heading)
+      } else if (msg.type === 'altitude') {
+        next.altitude = Number(msg.altitude.toFixed(1))
+      } else if (msg.type === 'gps') {
+        if (Number.isFinite(msg.latitude)) next.latitude = Number(msg.latitude.toFixed(6))
+        if (Number.isFinite(msg.longitude)) next.longitude = Number(msg.longitude.toFixed(6))
+        if (msg.altitude !== undefined) next.altitude = msg.altitude
+        if (msg.speed !== undefined) next.speed = Number(msg.speed.toFixed(1))
+        if (msg.heading !== undefined) next.heading = Math.round(msg.heading)
+        next.satellites = msg.satellites ?? next.satellites
+        next.gpsFix = msg.fix ? 'GPS Fix' : 'No Fix'
+      } else if (msg.type === 'analog') {
+        if (msg.voltage !== undefined) next.voltage = Number(msg.voltage.toFixed(1))
+        if (msg.current !== undefined) next.current = Number(msg.current.toFixed(1))
+      } else if (msg.type === 'battery') {
+        if (msg.voltage !== undefined) next.voltage = Number(msg.voltage.toFixed(1))
+        if (msg.current !== undefined) next.current = Number(msg.current.toFixed(1))
+        if (msg.battery !== undefined) next.battery = msg.battery
+      } else if (msg.type === 'status') {
+        const activeModes = mspBoxNamesRef.current.filter((_, index) => msg.modeFlags & (1 << index))
+        next.flightMode = activeModes[0] || (msg.armingFlags ? 'ARMED' : prev.flightMode)
+      } else if (msg.type === 'boxNames') {
+        mspBoxNamesRef.current = msg.names
+      }
+
+      latestTelemetryRef.current = next
+      if (msg.type === 'gps' && Number.isFinite(next.latitude) && Number.isFinite(next.longitude)) {
+        updateCurrentMission(next)
+      }
+      return next
+    })
+  }, [updateCurrentMission])
+
+  // Initialize MAVLink parser
   useEffect(() => {
     parserRef.current = new MavlinkParser(handleMavlinkMessage)
   }, [handleMavlinkMessage])
@@ -374,6 +419,11 @@ export default function useTelemetry() {
       simTimerRef.current = null
     }
 
+    if (mspPollTimerRef.current) {
+      clearInterval(mspPollTimerRef.current)
+      mspPollTimerRef.current = null
+    }
+
     if (readerRef.current) {
       try {
         await readerRef.current.cancel()
@@ -382,6 +432,15 @@ export default function useTelemetry() {
         console.warn('Error releasing serial reader:', err)
       }
       readerRef.current = null
+    }
+
+    if (writerRef.current) {
+      try {
+        writerRef.current.releaseLock()
+      } catch (err) {
+        console.warn('Error releasing serial writer:', err)
+      }
+      writerRef.current = null
     }
 
     if (serialPortRef.current) {
@@ -469,6 +528,67 @@ export default function useTelemetry() {
       return false
     }
   }, [disconnect])
+
+  const connectBetaflightMsp = useCallback(async (baudRate = 115200) => {
+    if (!('serial' in navigator)) {
+      setConnectionStatus('error')
+      setErrorMessage('WebSerial API is not supported in this browser (use Chrome/Edge).')
+      return false
+    }
+
+    try {
+      await disconnect()
+      setConnectionStatus('connecting')
+      setConnectionType('betaflight')
+      const port = await navigator.serial.requestPort()
+      await port.open({ baudRate: Number(baudRate) })
+      serialPortRef.current = port
+      parserRef.current = new MspParser(handleMspMessage)
+      writerRef.current = port.writable?.getWriter() || null
+
+      const readLoop = async () => {
+        while (port.readable && serialPortRef.current === port) {
+          const reader = port.readable.getReader()
+          readerRef.current = reader
+          try {
+            while (true) {
+              const { value, done } = await reader.read()
+              if (done) break
+              if (value) parserRef.current?.parseBytes(value)
+            }
+          } finally {
+            reader.releaseLock()
+            readerRef.current = null
+          }
+        }
+      }
+
+      const send = async (command) => {
+        if (writerRef.current) await writerRef.current.write(encodeMspRequest(command))
+      }
+      const commands = [MSP.ATTITUDE, MSP.ALTITUDE, MSP.RAW_GPS, MSP.BATTERY_STATE, MSP.STATUS_EX, MSP.ANALOG]
+      let index = 0
+      mspPollTimerRef.current = setInterval(() => {
+        send(commands[index % commands.length]).catch((error) => console.warn('Betaflight MSP request failed:', error.message))
+        index += 1
+      }, 100)
+
+      setConnectionStatus('connected')
+      readLoop().catch((error) => {
+        if (serialPortRef.current === port) {
+          setConnectionStatus('error')
+          setErrorMessage(error.message || 'Betaflight USB connection stopped.')
+        }
+      })
+      await Promise.all([send(MSP.API_VERSION), send(MSP.FC_VARIANT), send(MSP.FC_VERSION), send(MSP.BOXNAMES), send(MSP.BOXIDS)])
+      return true
+    } catch (err) {
+      console.error('Failed to open Betaflight MSP port:', err)
+      setConnectionStatus('error')
+      setErrorMessage(err.message || 'Failed to connect to Betaflight USB.')
+      return false
+    }
+  }, [disconnect, handleMspMessage])
 
   // Connect via WebSocket MAVLink Bridge
   const connectWebSocket = useCallback(async (wsUrl = 'ws://localhost:8080') => {
@@ -700,6 +820,7 @@ export default function useTelemetry() {
     addTargetPoint,
     removeTargetPoint,
     connectSerial,
+    connectBetaflightMsp,
     connectWebSocket,
     enableMavlinkSim,
     disconnect,

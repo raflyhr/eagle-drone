@@ -68,6 +68,7 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
     connectionStatus = 'connected',
     connectionType = 'simulation',
     connectSerial,
+    connectBetaflightMsp,
     connectWebSocket,
     enableMavlinkSim,
     capturePhoto,
@@ -636,7 +637,7 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
             className="flex items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs text-slate-600 transition hover:bg-slate-100 cursor-pointer"
           >
             <span className="font-medium">
-              MAVLink <span className="text-slate-400">/</span> <strong className="font-semibold text-slate-800">{connectionStatus === 'connected' ? connectionType.toUpperCase() : 'Disconnected'}</strong>
+              Telemetry <span className="text-slate-400">/</span> <strong className="font-semibold text-slate-800">{connectionStatus === 'connected' ? connectionType.toUpperCase() : 'Disconnected'}</strong>
             </span>
           </button>
         </div>
@@ -1338,7 +1339,7 @@ className={`flex items-center gap-1 rounded-md px-2.5 py-1.5 text-[11px] font-bo
             {/* Modal Header */}
             <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 bg-slate-50/50">
               <div>
-                <h3 className="text-sm font-bold text-slate-900">MAVLink Telemetry Connection</h3>
+                <h3 className="text-sm font-bold text-slate-900">Telemetry Connection</h3>
                 <p className="text-xs text-slate-500 mt-0.5">Select connection method for hardware devices or flight simulator</p>
               </div>
               <button
@@ -1370,10 +1371,27 @@ className={`flex items-center gap-1 rounded-md px-2.5 py-1.5 text-[11px] font-bo
                 </button>
               </div>
 
-              {/* Option 2: WebSerial API */}
               <div className="flex items-center justify-between p-3.5 rounded-lg border border-slate-200 hover:border-slate-300 bg-slate-50/30 transition">
                 <div className="pr-3">
-                  <h4 className="text-xs font-bold text-slate-900">2. USB Serial / Pixhawk (WebSerial)</h4>
+                  <h4 className="text-xs font-bold text-slate-900">2. Betaflight USB (MSP)</h4>
+                  <p className="text-[11px] text-slate-500 mt-0.5">Read telemetry from Betaflight flight controller COM port</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    await connectBetaflightMsp?.(115200)
+                    setShowMavlinkModal(false)
+                  }}
+                  className="shrink-0 rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-800 transition cursor-pointer"
+                >
+                  Connect BF
+                </button>
+              </div>
+
+              {/* Option 3: WebSerial API */}
+              <div className="flex items-center justify-between p-3.5 rounded-lg border border-slate-200 hover:border-slate-300 bg-slate-50/30 transition">
+                <div className="pr-3">
+                  <h4 className="text-xs font-bold text-slate-900">3. MAVLink USB / Pixhawk</h4>
                   <p className="text-[11px] text-slate-500 mt-0.5">Direct connection to SiK Telemetry Radio or Pixhawk USB cable</p>
                 </div>
                 <button
@@ -1388,7 +1406,7 @@ className={`flex items-center gap-1 rounded-md px-2.5 py-1.5 text-[11px] font-bo
                 </button>
               </div>
 
-              {/* Option 3: WebSocket Server */}
+              {/* Option 4: WebSocket Server */}
               <div className="p-3.5 rounded-lg border border-slate-200 hover:border-slate-300 bg-slate-50/30 transition space-y-2.5">
                 <div>
                   <h4 className="text-xs font-bold text-slate-900">3. WebSocket MAVLink Server</h4>
