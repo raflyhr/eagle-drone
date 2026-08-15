@@ -1336,10 +1336,8 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
 
           {/* BOTTOM ROW: Aligned Grid (Matches Top Dock Columns 1:1) */}
           <div className="bottom-row-layout gap-2.5 lg:gap-3 flex-1 min-h-0">
-            {/* Wrapper for Left Group (Map + Console) for 16:10 Mode */}
-            <div className="bottom-left-group h-full min-h-0">
-              {/* BOTTOM-LEFT: Mini Map Card (Matches Weather Card Width 1:1) */}
-              <div className="bottom-map-card h-full min-h-0 flex flex-col">
+            {/* BOTTOM-LEFT: Mini Map Card (Matches 1/2 Camera Feed Width 1:1) */}
+            <div className="bottom-map-card h-full min-h-0 flex flex-col">
               <div
                 className="bento-card relative flex flex-1 h-full min-h-0 flex-col overflow-hidden rounded-2xl group transition"
               >
@@ -1495,45 +1493,51 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
                 </div>
               </div>
             </div>
-          </div>
 
-            {/* BOTTOM-RIGHT: Drone Heading Compass (Matches Metrics Dock Width 1:1) */}
+            {/* BOTTOM-RIGHT: Drone Heading Compass (Matches Ground Speed Width 1:1) */}
             <div className="bottom-heading-card h-full min-h-0 flex flex-col">
-              <div className="bento-card flex flex-1 h-full min-h-0 flex-col items-center justify-between p-2 text-center gap-0.5 rounded-2xl">
+              <div className="bento-card flex flex-1 h-full min-h-0 flex-col items-center justify-between px-3.5 py-2.5 sm:px-4 sm:py-3 text-center gap-0.5 rounded-2xl overflow-hidden shadow-xs">
                 <div className="flex items-center justify-between w-full pb-1 border-b border-slate-100 shrink-0">
-                  <span className="text-[10px] sm:text-xs font-bold text-slate-600 uppercase tracking-wider">HEADING</span>
+                  <span className="text-[10px] font-extrabold text-slate-700 uppercase tracking-wider">HEADING</span>
                   <span className="data-font text-xs font-bold text-slate-700">
                     {telemetry.heading}° {degreesToCardinal(telemetry.heading)}
                   </span>
                 </div>
 
-                <div className="relative my-auto flex h-18 w-18 sm:h-20 sm:w-20 items-center justify-center">
+                <div className="relative my-auto flex h-22 w-22 sm:h-26 sm:w-26 lg:h-28 lg:w-28 items-center justify-center">
                   <div
                     className="absolute inset-0 transition-transform duration-700 ease-out"
                     style={{ transform: `rotate(${-telemetry.heading}deg)` }}
                   >
                     <svg className="h-full w-full" viewBox="0 0 140 140">
-                      <circle cx="70" cy="70" r="64" stroke="#e2e8f0" strokeWidth="1.2" fill="none" />
-                      <circle cx="70" cy="70" r="54" stroke="#f1f5f9" strokeWidth="1" fill="none" />
-                      <text x="70" y="24" textAnchor="middle" fill="#ef4444" fontSize="13" fontWeight="900">N</text>
-                      <text x="122" y="74" textAnchor="middle" fill="#334155" fontSize="11" fontWeight="800">E</text>
-                      <text x="70" y="126" textAnchor="middle" fill="#334155" fontSize="11" fontWeight="800">S</text>
-                      <text x="18" y="74" textAnchor="middle" fill="#334155" fontSize="11" fontWeight="800">W</text>
+                      <circle cx="70" cy="70" r="64" stroke="#cbd5e1" strokeWidth="1.5" fill="none" />
+                      <circle cx="70" cy="70" r="52" stroke="#f1f5f9" strokeWidth="1" strokeDasharray="3 3" fill="none" />
+                      
+                      {/* Cardinal Ticks */}
+                      <line x1="70" y1="6" x2="70" y2="12" stroke="#ef4444" strokeWidth="2.5" />
+                      <line x1="134" y1="70" x2="128" y2="70" stroke="#64748b" strokeWidth="2" />
+                      <line x1="70" y1="134" x2="70" y2="128" stroke="#64748b" strokeWidth="2" />
+                      <line x1="6" y1="70" x2="12" y2="70" stroke="#64748b" strokeWidth="2" />
+
+                      {/* Cardinal Labels */}
+                      <text x="70" y="26" textAnchor="middle" fill="#ef4444" fontSize="14" fontWeight="900">N</text>
+                      <text x="120" y="74" textAnchor="middle" fill="#334155" fontSize="13" fontWeight="800">E</text>
+                      <text x="70" y="123" textAnchor="middle" fill="#334155" fontSize="13" fontWeight="800">S</text>
+                      <text x="20" y="74" textAnchor="middle" fill="#334155" fontSize="13" fontWeight="800">W</text>
                     </svg>
                   </div>
 
                   <div className="pointer-events-none z-10 flex items-center justify-center">
-                    <svg className="h-9 w-9 text-slate-800 drop-shadow-sm" viewBox="0 0 24 24" fill="none">
-                      <polygon points="12,2 18,20 12,16 6,20" fill="#0f172a" stroke="#ffffff" strokeWidth="1.2" />
+                    <svg className="h-10 w-10 sm:h-11 sm:w-11 text-slate-900 drop-shadow-md" viewBox="0 0 24 24" fill="none">
+                      <polygon points="12,2 18,20 12,16 6,20" fill="#0f172a" stroke="#ffffff" strokeWidth="1.5" />
                     </svg>
                   </div>
                 </div>
 
-                <div className="w-full pt-1.5 border-t border-slate-100 flex flex-col items-center gap-0.5 shrink-0">
+                <div className="w-full pt-1.5 border-t border-slate-100 flex flex-col items-center shrink-0">
                   <p className="data-font text-[10px] sm:text-[11px] font-bold text-slate-700 truncate w-full" title={weather.dmsLocation}>
                     {weather.dmsLocation}
                   </p>
-                   <span className="text-[8px] font-bold text-slate-400 uppercase tracking-wide">Heading</span>
                 </div>
               </div>
             </div>
