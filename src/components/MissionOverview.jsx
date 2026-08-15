@@ -225,6 +225,20 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
 
   const { detections } = useObjectDetection(videoRef, aiActive && cameraStatus === 'connected')
   const videoPanelRef = useRef(null)
+  const [panelWidth, setPanelWidth] = useState(0)
+
+  useEffect(() => {
+    if (!videoPanelRef.current) return
+    const observer = new ResizeObserver(([entry]) => {
+      if (entry?.contentRect) {
+        setPanelWidth(entry.contentRect.width)
+      }
+    })
+    observer.observe(videoPanelRef.current)
+    return () => observer.disconnect()
+  }, [])
+
+  const isCompactCamera = panelWidth > 0 && panelWidth < 680
   const videoFrameRef = useRef(null)
   const mapRef = useRef(null)
   const leafletRef = useRef(null)
@@ -900,11 +914,13 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
                   {/* Floating Video Control Overlays (Auto-hides on idle) */}
                   {cameraStatus === 'connected' && (
                     <>
-                      {/* Center-Top Controls: Camera Selector, Fullscreen Map Toggle & Fullscreen Button */}
+                      {/* Camera Selector & Fullscreen Control Overlay */}
                       <div
-                        className={`absolute top-2.5 left-1/2 -translate-x-1/2 z-30 flex items-center gap-1.5 pointer-events-auto bg-slate-900/90 backdrop-blur-md border border-slate-800 rounded-lg p-1 shadow-xl w-max max-w-[calc(100%-1.25rem)] overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden transition-all duration-300 ${
-                          showControls ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2 pointer-events-none'
-                        }`}
+                        className={`z-30 flex items-center gap-1.5 pointer-events-auto bg-slate-900/90 backdrop-blur-md border border-slate-800 rounded-lg p-1 shadow-xl w-max max-w-[calc(100%-1.25rem)] overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden transition-all duration-300 ${
+                          isCompactCamera
+                            ? 'absolute top-2.5 left-1/2 -translate-x-1/2'
+                            : 'absolute bottom-2.5 right-2.5'
+                        } ${showControls ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
                       >
                         {/* Camera Switcher Selector */}
                         <div className="flex items-center gap-1.5 bg-slate-800 border border-slate-700 rounded-md px-2.5 py-1 text-xs font-medium text-slate-200">
@@ -970,11 +986,13 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
                         </button>
                       </div>
 
-                      {/* Center-Bottom Controls: Disconnect, AI Detect, Snapshot & Mark Location */}
+                      {/* Disconnect, AI Detect & Action Controls Overlay */}
                       <div
-                        className={`absolute bottom-2.5 left-1/2 -translate-x-1/2 z-30 flex items-center gap-1.5 pointer-events-auto bg-slate-900/90 backdrop-blur-md border border-slate-800 rounded-lg p-1 shadow-xl w-max max-w-[calc(100%-1.25rem)] overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden transition-all duration-300 ${
-                          showControls ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2 pointer-events-none'
-                        }`}
+                        className={`z-30 flex items-center gap-1.5 pointer-events-auto bg-slate-900/90 backdrop-blur-md border border-slate-800 rounded-lg p-1 shadow-xl w-max max-w-[calc(100%-1.25rem)] overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden transition-all duration-300 ${
+                          isCompactCamera
+                            ? 'absolute bottom-2.5 left-1/2 -translate-x-1/2'
+                            : 'absolute bottom-2.5 left-2.5'
+                        } ${showControls ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
                       >
                         {/* Stop Camera Button */}
                         <button

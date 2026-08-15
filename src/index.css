@@ -213,3 +213,43 @@ button {
   }
 }
 
+/* Container Query & Responsive Positions for Camera Control Overlays */
+.camera-top-box {
+  container-type: inline-size;
+  container-name: camerabox;
+}
+
+/* Default (Narrow / Responsive Camera Box): Right Menu -> Top-Center, Left Menu -> Bottom-Center */
+.camera-controls-right {
+  position: absolute;
+  top: 0.625rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 30;
+}
+
+.camera-controls-left {
+  position: absolute;
+  bottom: 0.625rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 30;
+}
+
+/* Spacious Camera Box (>= 620px wide): Right Menu -> Bottom-Right, Left Menu -> Bottom-Left */
+@container camerabox (min-width: 620px) {
+  .camera-controls-right {
+    top: auto;
+    bottom: 0.625rem;
+    left: auto;
+    right: 0.625rem;
+    transform: none;
+  }
+
+  .camera-controls-left {
+    bottom: 0.625rem;
+    left: 0.625rem;
+    transform: none;
+  }
+}
+
