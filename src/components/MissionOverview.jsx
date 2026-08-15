@@ -694,45 +694,45 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
                 </div>
               </div>
 
-              {/* Environmental Metrics Section (Exact 50% Bottom Half) */}
-              <div className="flex-1 basis-1/2 min-h-0 flex flex-col gap-2">
+              {/* Environmental Metrics Section (Exact 50% Bottom Half - Immune to clipping) */}
+              <div className="flex-1 basis-1/2 min-h-0 flex flex-col gap-1.5 justify-between">
                 {/* Upper Row: Humidity & Wind Dir (2 Columns) */}
-                <div className="flex-1 min-h-0 grid grid-cols-2 gap-2">
+                <div className="flex-1 min-h-0 grid grid-cols-2 gap-1.5">
                   <div className="bento-subcard p-2 sm:p-2.5 flex flex-col justify-between border border-slate-200 h-full min-h-0">
-                    <div className="flex items-center justify-between text-[9px] font-extrabold text-slate-400 uppercase tracking-wider">
+                    <div className="flex items-center justify-between text-[9px] font-extrabold text-slate-400 uppercase tracking-wider leading-none">
                       <span>Humidity</span>
-                      <Icon className="text-[14px] text-slate-500">water_drop</Icon>
+                      <Icon className="text-[13px] text-slate-500">water_drop</Icon>
                     </div>
-                    <div className="my-auto py-0.5">
-                      <span className="data-font text-xs sm:text-sm font-black text-slate-900 block">{weather.humidity || 60}%</span>
-                      <span className="text-[8px] sm:text-[9px] font-semibold text-slate-400 block">Relative</span>
+                    <div className="flex items-baseline justify-between gap-1 mt-1">
+                      <span className="data-font text-xs sm:text-sm font-black text-slate-900 leading-none">{weather.humidity || 60}%</span>
+                      <span className="text-[8px] sm:text-[9px] font-semibold text-slate-400 leading-none">Relative</span>
                     </div>
                   </div>
 
                   <div className="bento-subcard p-2 sm:p-2.5 flex flex-col justify-between border border-slate-200 h-full min-h-0">
-                    <div className="flex items-center justify-between text-[9px] font-extrabold text-slate-400 uppercase tracking-wider">
+                    <div className="flex items-center justify-between text-[9px] font-extrabold text-slate-400 uppercase tracking-wider leading-none">
                       <span>Wind Dir</span>
-                      <Icon className="text-[14px] text-slate-500">explore</Icon>
+                      <Icon className="text-[13px] text-slate-500">explore</Icon>
                     </div>
-                    <div className="my-auto py-0.5">
-                      <span className="data-font text-xs sm:text-sm font-black text-slate-900 block">{weather.windDirection}°</span>
-                      <span className="text-[8px] sm:text-[9px] font-bold text-slate-500 block uppercase">{weather.windCardinal}</span>
+                    <div className="flex items-baseline justify-between gap-1 mt-1">
+                      <span className="data-font text-xs sm:text-sm font-black text-slate-900 leading-none">{weather.windDirection}°</span>
+                      <span className="text-[8px] sm:text-[9px] font-bold text-slate-500 uppercase leading-none">{weather.windCardinal}</span>
                     </div>
                   </div>
                 </div>
 
                 {/* Lower Row: Wind Speed (Full Width) */}
                 <div className="flex-1 min-h-0 bento-subcard p-2 sm:p-2.5 flex flex-col justify-between border border-slate-200 h-full min-h-0">
-                  <div className="flex items-center justify-between text-[9px] font-extrabold text-slate-400 uppercase tracking-wider">
+                  <div className="flex items-center justify-between text-[9px] font-extrabold text-slate-400 uppercase tracking-wider leading-none">
                     <span>Wind Speed</span>
-                    <Icon className="text-[14px] text-slate-500">air</Icon>
+                    <Icon className="text-[13px] text-slate-500">air</Icon>
                   </div>
-                  <div className="my-auto py-0.5 flex items-baseline justify-between gap-2">
+                  <div className="flex items-baseline justify-between gap-2 mt-1">
                     <div className="flex items-baseline gap-1">
-                      <span className="data-font text-base sm:text-xl font-black text-slate-900 leading-none">{weather.windSpeed}</span>
-                      <span className="text-xs font-bold text-slate-400">m/s</span>
+                      <span className="data-font text-sm sm:text-base font-black text-slate-900 leading-none">{weather.windSpeed}</span>
+                      <span className="text-[10px] font-bold text-slate-400 leading-none">m/s</span>
                     </div>
-                    <span className="inline-block text-[9px] sm:text-[10px] font-bold text-slate-700 bg-slate-100 border border-slate-200/80 px-2 py-0.5 rounded-md data-font shrink-0">
+                    <span className="inline-block text-[8px] sm:text-[9px] font-bold text-slate-700 bg-slate-100 border border-slate-200/80 px-1.5 py-0.5 rounded-md data-font leading-none shrink-0">
                       {weather.windSpeedKmH || (weather.windSpeed * 3.6).toFixed(1)} km/h
                     </span>
                   </div>
@@ -1181,47 +1181,46 @@ className={`flex items-center gap-1 rounded-md px-2.5 py-1.5 text-[11px] font-bo
                   </div>
                 </div>
 
-                {/* Environmental Metrics Section (Exact 50% Bottom Half) */}
-                <div className="flex-1 basis-1/2 min-h-0 flex flex-col gap-2">
-                  {/* Upper Row: Humidity & Wind Dir (2 Columns) */}
-                  <div className="flex-1 min-h-0 grid grid-cols-2 gap-2">
-                    <div className="bento-subcard p-2 sm:p-2.5 flex flex-col justify-between border border-slate-200 h-full min-h-0">
-                      <div className="flex items-center justify-between text-[9px] font-extrabold text-slate-400 uppercase tracking-wider">
-                        <span>Humidity</span>
-                        <Icon className="text-[14px] text-slate-500">water_drop</Icon>
-                      </div>
-                      <div className="my-auto py-0.5">
-                        <span className="data-font text-xs sm:text-sm font-black text-slate-900 block">{weather.humidity || 60}%</span>
-                        <span className="text-[8px] sm:text-[9px] font-semibold text-slate-400 block">Relative</span>
-                      </div>
+                {/* Environmental Metrics Section (16:10 Mode: Horizontal 3-Column Grid) */}
+                <div className="grid grid-cols-3 gap-2 shrink-0">
+                  {/* Metric 1: Wind Speed */}
+                  <div className="bento-subcard p-3 sm:p-3.5 flex flex-col justify-between border border-slate-200 min-h-[86px] sm:min-h-[94px]">
+                    <div className="flex items-center justify-between text-[10px] sm:text-[11px] font-extrabold text-slate-400 uppercase tracking-wider leading-none">
+                      <span>Wind Speed</span>
+                      <Icon className="text-[16px] text-slate-500">air</Icon>
                     </div>
-
-                    <div className="bento-subcard p-2 sm:p-2.5 flex flex-col justify-between border border-slate-200 h-full min-h-0">
-                      <div className="flex items-center justify-between text-[9px] font-extrabold text-slate-400 uppercase tracking-wider">
-                        <span>Wind Dir</span>
-                        <Icon className="text-[14px] text-slate-500">explore</Icon>
+                    <div className="flex items-baseline justify-between gap-1 mt-1">
+                      <div className="flex items-baseline gap-1">
+                        <span className="data-font text-base sm:text-lg font-black text-slate-900 leading-none">{weather.windSpeed}</span>
+                        <span className="text-[10px] font-bold text-slate-400 leading-none">m/s</span>
                       </div>
-                      <div className="my-auto py-0.5">
-                        <span className="data-font text-xs sm:text-sm font-black text-slate-900 block">{weather.windDirection}°</span>
-                        <span className="text-[8px] sm:text-[9px] font-bold text-slate-500 block uppercase">{weather.windCardinal}</span>
-                      </div>
+                      <span className="inline-block text-[9px] sm:text-[10px] font-bold text-slate-700 bg-slate-100 border border-slate-200/80 px-1.5 py-0.5 rounded-md data-font leading-none shrink-0">
+                        {weather.windSpeedKmH || (weather.windSpeed * 3.6).toFixed(1)} km/h
+                      </span>
                     </div>
                   </div>
 
-                  {/* Lower Row: Wind Speed (Full Width) */}
-                  <div className="flex-1 min-h-0 bento-subcard p-2 sm:p-2.5 flex flex-col justify-between border border-slate-200 h-full min-h-0">
-                    <div className="flex items-center justify-between text-[9px] font-extrabold text-slate-400 uppercase tracking-wider">
-                      <span>Wind Speed</span>
-                      <Icon className="text-[14px] text-slate-500">air</Icon>
+                  {/* Metric 2: Wind Dir */}
+                  <div className="bento-subcard p-3 sm:p-3.5 flex flex-col justify-between border border-slate-200 min-h-[86px] sm:min-h-[94px]">
+                    <div className="flex items-center justify-between text-[10px] sm:text-[11px] font-extrabold text-slate-400 uppercase tracking-wider leading-none">
+                      <span>Wind Dir</span>
+                      <Icon className="text-[16px] text-slate-500">explore</Icon>
                     </div>
-                    <div className="my-auto py-0.5 flex items-baseline justify-between gap-2">
-                      <div className="flex items-baseline gap-1">
-                        <span className="data-font text-base sm:text-xl font-black text-slate-900 leading-none">{weather.windSpeed}</span>
-                        <span className="text-xs font-bold text-slate-400">m/s</span>
-                      </div>
-                      <span className="inline-block text-[9px] sm:text-[10px] font-bold text-slate-700 bg-slate-100 border border-slate-200/80 px-2 py-0.5 rounded-md data-font shrink-0">
-                        {weather.windSpeedKmH || (weather.windSpeed * 3.6).toFixed(1)} km/h
-                      </span>
+                    <div className="flex items-baseline justify-between gap-1 mt-1">
+                      <span className="data-font text-base sm:text-lg font-black text-slate-900 leading-none">{weather.windDirection}°</span>
+                      <span className="text-[10px] sm:text-[11px] font-bold text-slate-500 uppercase leading-none">{weather.windCardinal}</span>
+                    </div>
+                  </div>
+
+                  {/* Metric 3: Humidity */}
+                  <div className="bento-subcard p-3 sm:p-3.5 flex flex-col justify-between border border-slate-200 min-h-[86px] sm:min-h-[94px]">
+                    <div className="flex items-center justify-between text-[10px] sm:text-[11px] font-extrabold text-slate-400 uppercase tracking-wider leading-none">
+                      <span>Humidity</span>
+                      <Icon className="text-[16px] text-slate-500">water_drop</Icon>
+                    </div>
+                    <div className="flex items-baseline justify-between gap-1 mt-1">
+                      <span className="data-font text-base sm:text-lg font-black text-slate-900 leading-none">{weather.humidity || 60}%</span>
+                      <span className="text-[10px] font-semibold text-slate-400 leading-none">Relative</span>
                     </div>
                   </div>
                 </div>
