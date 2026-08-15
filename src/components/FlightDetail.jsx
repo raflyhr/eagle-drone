@@ -136,7 +136,7 @@ export default function FlightDetail({ mission, onBack }) {
         <section className={`${panelVisible ? 'col-span-9' : 'col-span-12'} grid min-h-0 grid-rows-[55%_45%] gap-4`}>
           <div ref={mapPanelRef} className="bento-card relative min-h-0 overflow-hidden bg-white [&:fullscreen]:h-screen [&:fullscreen]:w-screen [&:fullscreen]:rounded-none">
             <div ref={mapContainerRef} className="absolute inset-0" />
-            <div className="pointer-events-none absolute left-3 top-3 z-[500] rounded-lg border border-slate-200 bg-white/95 px-3 py-2 shadow-sm">
+            <div className="pointer-events-none absolute left-3 top-3 z-[500] rounded-lg border border-slate-200 bg-white px-3 py-2 shadow-sm">
               <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Recorded Flight Path</p>
               <p className="mt-0.5 text-xs font-bold text-slate-800">{selectedMission?.distance || '0.00 km'} · {selectedMission?.duration || '00:00:00'}</p>
             </div>
@@ -228,19 +228,19 @@ export default function FlightDetail({ mission, onBack }) {
             <section className="space-y-2 border-t border-slate-100 pt-4">
               <div className="flex items-center justify-between">
                 <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Target Points</p>
-                <span className="rounded-md bg-red-50 px-2 py-0.5 text-[10px] font-bold text-red-600">{targetPoints.length} points</span>
+                <span className="rounded-md bg-slate-100 border border-slate-200 px-2 py-0.5 text-[10px] font-bold text-slate-800">{targetPoints.length} points</span>
               </div>
-              {targetPoints.map((point) => <button key={point.id} onClick={() => focusPerson({ coordinate: [point.lat, point.lon] })} className="w-full rounded-xl border border-slate-200 p-3 text-left hover:border-sky-300 hover:bg-sky-50/40"><span className="text-xs font-bold text-slate-800">{point.name}</span><p className="mt-1 font-mono text-[10px] text-slate-500">{point.lat}, {point.lon}</p></button>)}
+              {targetPoints.map((point) => <button key={point.id} onClick={() => focusPerson({ coordinate: [point.lat, point.lon] })} className="w-full rounded-xl border border-slate-200 p-3 text-left hover:border-slate-300 hover:bg-slate-100"><span className="text-xs font-bold text-slate-800">{point.name}</span><p className="mt-1 font-mono text-[10px] text-slate-500">{point.lat}, {point.lon}</p></button>)}
             </section>
             <section className="space-y-2 border-t border-slate-100 pt-4">
               <div className="flex items-center justify-between">
                 <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Marked Locations</p>
-                <span className="rounded-md bg-red-50 px-2 py-0.5 text-[10px] font-bold text-red-600">{markedLocations.length} points</span>
+                <span className="rounded-md bg-slate-100 border border-slate-200 px-2 py-0.5 text-[10px] font-bold text-slate-800">{markedLocations.length} points</span>
               </div>
               {markedLocations.map((location, index) => {
                 const capture = captures.find((item) => item.id === location.captureId)
                 return (
-                  <button key={location.id} onClick={() => focusPerson(location)} className="w-full rounded-xl border border-slate-200 p-3 text-left transition hover:border-sky-300 hover:bg-sky-50/40">
+                  <button key={location.id} onClick={() => focusPerson(location)} className="w-full rounded-xl border border-slate-200 p-3 text-left transition hover:border-slate-300 hover:bg-slate-100">
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-bold text-slate-800">{location.id || `MK-${String(index + 1).padStart(2, '0')}`}</span>
                       <span className="text-[10px] font-bold text-slate-400">{location.altitude} m</span>
@@ -255,9 +255,9 @@ export default function FlightDetail({ mission, onBack }) {
         </aside>}
       </div>
       {selectedCapture && (
-        <div onClick={() => setSelectedCapture(null)} className="fixed inset-0 z-[1000] grid place-items-center bg-slate-950/80 p-6 backdrop-blur-sm">
+        <div onClick={() => setSelectedCapture(null)} className="fixed inset-0 z-[1000] grid place-items-center bg-slate-900/90 p-6">
           <div onClick={(event) => event.stopPropagation()} className="relative max-h-full w-full max-w-5xl overflow-auto rounded-2xl bg-white p-4 shadow-2xl">
-            <button onClick={() => setSelectedCapture(null)} className="absolute right-6 top-6 z-10 grid h-9 w-9 place-items-center rounded-full bg-slate-950/80 text-white hover:bg-slate-950" title="Close photo">
+            <button onClick={() => setSelectedCapture(null)} className="absolute right-6 top-6 z-10 grid h-9 w-9 place-items-center rounded-full bg-slate-900 text-white hover:bg-slate-950" title="Close photo">
               <Icon>close</Icon>
             </button>
             <img src={selectedCapture.image || selectedCapture.src} alt={selectedCapture.label || 'Drone capture'} className="max-h-[72vh] w-full rounded-xl object-contain bg-slate-950" />
@@ -266,7 +266,7 @@ export default function FlightDetail({ mission, onBack }) {
                 <p className="text-sm font-bold text-slate-900">{selectedCapture.label || 'Captured frame'}</p>
                 <p className="mt-1 font-mono text-xs text-slate-500">{selectedCapture.timestamp || selectedCapture.time}</p>
               </div>
-              {selectedCapture.detections?.length > 0 && <span className="rounded-lg bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700">AI: {selectedCapture.detections.map((item) => `${item.label} ${item.confidence}%`).join(', ')}</span>}
+              {selectedCapture.detections?.length > 0 && <span className="rounded-lg bg-slate-100 border border-slate-200 px-3 py-2 text-xs font-bold text-slate-800">AI: {selectedCapture.detections.map((item) => `${item.label} ${item.confidence}%`).join(', ')}</span>}
             </div>
           </div>
         </div>

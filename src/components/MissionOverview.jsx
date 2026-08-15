@@ -226,6 +226,20 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
 
   const { detections } = useObjectDetection(videoRef, aiActive && cameraStatus === 'connected')
   const videoPanelRef = useRef(null)
+  const [panelWidth, setPanelWidth] = useState(0)
+
+  useEffect(() => {
+    if (!videoPanelRef.current) return
+    const observer = new ResizeObserver(([entry]) => {
+      if (entry?.contentRect) {
+        setPanelWidth(entry.contentRect.width)
+      }
+    })
+    observer.observe(videoPanelRef.current)
+    return () => observer.disconnect()
+  }, [])
+
+  const isCompactCamera = panelWidth > 0 && panelWidth < 680
   const videoFrameRef = useRef(null)
   const mapRef = useRef(null)
   const leafletRef = useRef(null)
@@ -622,7 +636,7 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
   }, [telemetry.latitude, telemetry.longitude, telemetry.heading, isFullscreen, showFullscreenMap])
 
   return (
-    <main className="ml-[72px] flex-1 flex flex-col h-screen overflow-hidden bg-[#f5f7fa] text-[#0f172a]">
+    <main className="ml-[72px] flex-1 flex flex-col h-screen lg:overflow-hidden overflow-y-auto bg-[#f5f7fa] text-[#0f172a]">
       {/* Top Header Bar */}
       <header className="flex h-16 shrink-0 items-center justify-between border-b border-[#eef2f6] bg-white px-6">
         <div className="flex items-center gap-3">
@@ -644,20 +658,120 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
       </header>
 
       {/* Main Bento Grid Canvas */}
-      <div className="flex-1 min-h-0 overflow-hidden p-3.5 md:p-4 lg:p-5">
-        <div className="dashboard-grid-container mx-auto max-w-[1700px] gap-3 lg:gap-3.5">
-          {/* TOP ROW: Dominant & Tall (Camera Col 9 + Weather Col 3) */}
-          <div className="grid grid-cols-12 gap-2 lg:gap-2.5 h-full min-h-0">
-            {/* TOP-LEFT: Main Drone Camera Viewfinder Feed */}
-            <div className="col-span-12 lg:col-span-9 h-full min-h-0 flex items-center justify-center">
-              <div
-                ref={videoPanelRef}
-                onMouseMove={handleVideoMouseMove}
-                onMouseLeave={handleVideoMouseLeave}
-                className={`group relative flex h-full max-w-full aspect-[4/3] flex-col overflow-hidden rounded-2xl ${
-                  cameraStatus === 'connected' ? 'bg-slate-950' : 'bg-slate-100/90'
-                } shadow-sm border border-slate-200/80 [&:fullscreen]:aspect-auto [&:fullscreen]:h-screen [&:fullscreen]:w-screen [&:fullscreen]:max-w-none [&:fullscreen]:rounded-none`}
-              >
+      <div className="flex-1 min-h-0 lg:overflow-hidden p-2.5 sm:p-3 lg:p-3.5 flex flex-col">
+        <div className="dashboard-grid-container mx-auto max-w-[1700px] gap-2 lg:gap-2.5 flex-1 w-full min-h-0">
+          {/* TOP ROW: Responsive Dual-Mode (16:10 2-Column vs 16:9 3-Column Centered) */}
+          <div className="top-row-layout gap-2.5 lg:gap-3 shrink-0 min-h-0">
+            {/* Left Flank for 16:9 Layout Mode: Weather Card */}
+            <div className="weather-dock-16-9 bento-card flex-1 min-h-0 flex-col p-3 sm:p-3.5 rounded-2xl justify-between gap-2.5 shadow-xs overflow-hidden">
+              {/* Header */}
+              <div className="flex items-center justify-between pb-1.5 border-b border-slate-100 shrink-0">
+                <div>
+                  <span className="text-[10px] font-black text-slate-900 tracking-wider uppercase block leading-none">Weather</span>
+                  <span className="text-[8px] font-semibold text-slate-400 block mt-0.5">Flight Environment</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowLocationModal(true)}
+                  className="group inline-flex min-w-0 max-w-[170px] items-center gap-1 transition cursor-pointer text-right bg-slate-50 hover:bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-lg shadow-2xs active:scale-95"
+                  title="Click to change location"
+                >
+                  <Icon className="text-[13px] text-slate-400 group-hover:text-slate-700 transition">location_on</Icon>
+                  <span className="truncate text-[9px] font-bold text-slate-700 group-hover:text-slate-950">
+                    {weather.locationName}
+                  </span>
+                </button>
+              </div>
+
+              {/* Hero Temperature & Condition Section (Exact 50% Top Half) */}
+              <div className="flex-1 basis-1/2 min-h-0 flex flex-col justify-between bg-slate-50 border border-slate-100 p-3 sm:p-3.5 rounded-xl overflow-hidden">
+                <div className="flex items-center justify-between gap-3 my-auto">
+                  <div className="flex items-center gap-2.5">
+                    <svg className="h-10 w-10 sm:h-12 sm:w-12 text-amber-500 shrink-0" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M12 7c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5zM2 13h2c.55 0 1-.45 1-1s-.45-1-1-1H2c-.55 0-1 .45-1 1s.45 1 1 1zm18 0h2c.55 0 1-.45 1-1s-.45-1-1-1h-2c-.55 0-1 .45-1 1s.45 1 1 1zM11 2v2c0 .55.45 1 1 1s1-.45 1-1V2c0-.55-.45-1-1-1s-1 .45-1 1zm0 18v2c0 .55.45 1 1 1s1-.45 1-1v-2c0-.55-.45-1-1-1s-1 .45-1 1zM5.99 4.58c-.39-.39-1.03-.39-1.41 0s-.39 1.03 0 1.41l1.06 1.06c.39.39 1.03.39 1.41 0s.39-1.03 0-1.41L5.99 4.58zm12.37 12.37c-.39-.39-1.03-.39-1.41 0s-.39 1.03 0 1.41l1.06 1.06c.39.39 1.03.39 1.41 0s.39-1.03 0-1.41l-1.06-1.06zm1.06-10.96c.39-.39.39-1.03 0-1.41s-1.03-.39-1.41 0l-1.06 1.06c-.39.39-.39 1.03 0 1.41s1.03.39 1.41 0l1.06-1.06zM7.05 18.36c.39-.39.39-1.03 0-1.41s-1.03-.39-1.41 0l-1.06 1.06c-.39.39-.39 1.03 0 1.41s1.03.39 1.41 0l1.06-1.06z" />
+                    </svg>
+                    <div className="flex items-baseline gap-1">
+                      <span className="data-font text-3xl sm:text-4xl font-black text-slate-900 tracking-tight leading-none">
+                        {weather.temperature}
+                      </span>
+                      <span className="text-sm font-bold text-slate-400">°C</span>
+                    </div>
+                  </div>
+
+                  <div className="text-right min-w-0">
+                    <p className="text-xs sm:text-sm font-extrabold text-slate-900 truncate">{weather.condition}</p>
+                    {weather.apparentTemperature && (
+                      <span className="inline-block text-[9px] font-bold text-slate-600 bg-white border border-slate-200/80 px-2 py-0.5 rounded-md mt-1 shadow-2xs">
+                        Feels like {weather.apparentTemperature}°C
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Environmental Metrics Section (Exact 50% Bottom Half - Immune to clipping) */}
+              <div className="flex-1 basis-1/2 min-h-0 flex flex-col gap-1.5 justify-between">
+                {/* Upper Row: Humidity & Wind Dir (2 Columns) */}
+                <div className="flex-1 min-h-0 grid grid-cols-2 gap-1.5">
+                  <div className="bento-subcard p-2 sm:p-2.5 flex flex-col justify-between border border-slate-200 h-full min-h-0">
+                    <div className="flex items-center justify-between text-[9px] font-extrabold text-slate-400 uppercase tracking-wider leading-none">
+                      <span>Humidity</span>
+                      <Icon className="text-[13px] text-slate-500">water_drop</Icon>
+                    </div>
+                    <div className="flex items-baseline justify-between gap-1 mt-1">
+                      <span className="data-font text-xs sm:text-sm font-black text-slate-900 leading-none">{weather.humidity || 60}%</span>
+                      <span className="text-[8px] sm:text-[9px] font-semibold text-slate-400 leading-none">Relative</span>
+                    </div>
+                  </div>
+
+                  <div className="bento-subcard p-2 sm:p-2.5 flex flex-col justify-between border border-slate-200 h-full min-h-0">
+                    <div className="flex items-center justify-between text-[9px] font-extrabold text-slate-400 uppercase tracking-wider leading-none">
+                      <span>Wind Dir</span>
+                      <Icon className="text-[13px] text-slate-500">explore</Icon>
+                    </div>
+                    <div className="flex items-baseline justify-between gap-1 mt-1">
+                      <span className="data-font text-xs sm:text-sm font-black text-slate-900 leading-none">{weather.windDirection}°</span>
+                      <span className="text-[8px] sm:text-[9px] font-bold text-slate-500 uppercase leading-none">{weather.windCardinal}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Lower Row: Wind Speed (Full Width) */}
+                <div className="flex-1 min-h-0 bento-subcard p-2 sm:p-2.5 flex flex-col justify-between border border-slate-200 h-full min-h-0">
+                  <div className="flex items-center justify-between text-[9px] font-extrabold text-slate-400 uppercase tracking-wider leading-none">
+                    <span>Wind Speed</span>
+                    <Icon className="text-[13px] text-slate-500">air</Icon>
+                  </div>
+                  <div className="flex items-baseline justify-between gap-2 mt-1">
+                    <div className="flex items-baseline gap-1">
+                      <span className="data-font text-sm sm:text-base font-black text-slate-900 leading-none">{weather.windSpeed}</span>
+                      <span className="text-[10px] font-bold text-slate-400 leading-none">m/s</span>
+                    </div>
+                    <span className="inline-block text-[8px] sm:text-[9px] font-bold text-slate-700 bg-slate-100 border border-slate-200/80 px-1.5 py-0.5 rounded-md data-font leading-none shrink-0">
+                      {weather.windSpeedKmH || (weather.windSpeed * 3.6).toFixed(1)} km/h
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* CENTER / LEFT: Main Drone Camera Viewfinder Feed (Fixed 4:3 Aspect Ratio) */}
+            <div
+              ref={videoPanelRef}
+              onMouseMove={handleVideoMouseMove}
+              onMouseLeave={handleVideoMouseLeave}
+              className={`camera-top-box group relative flex aspect-[4/3] w-full shrink-0 flex-col overflow-hidden rounded-2xl ${
+                cameraStatus === 'connected' ? 'bg-slate-950' : 'bg-slate-100'
+              } shadow-sm border border-slate-200 [&:fullscreen]:aspect-auto [&:fullscreen]:h-screen [&:fullscreen]:w-screen [&:fullscreen]:max-w-none [&:fullscreen]:rounded-none`}
+              style={
+                isFullscreen
+                  ? undefined
+                  : {
+                      height: 'calc(100vh - 275px)',
+                      maxHeight: 'calc(100vh - 275px)',
+                    }
+              }
+            >
                 {/* Video Frame Container */}
                 <div ref={videoFrameRef} className="relative flex-1 h-full min-h-0 w-full bg-slate-950 overflow-hidden">
                   {/* Live WebCam Stream */}
@@ -672,15 +786,15 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
                     <canvas className="pointer-events-none absolute inset-0 z-20" />
                   )}
                   {captureFeedback && (
-                    <div className="pointer-events-none absolute inset-0 z-50 bg-white/70 transition">
-                      <div className="absolute right-5 top-5 flex items-center gap-2 rounded-full bg-slate-950/85 px-4 py-2 text-xs font-bold text-white shadow-xl">
+                    <div className="pointer-events-none absolute inset-0 z-50 bg-white transition">
+                      <div className="absolute right-5 top-5 flex items-center gap-2 rounded-full bg-slate-950 px-4 py-2 text-xs font-bold text-white shadow-xl">
                         <Icon className="text-[16px]">photo_camera</Icon>
                         <span>Photo saved</span>
                       </div>
                     </div>
                   )}
                   {locationFeedback && (
-                    <div className="pointer-events-none absolute left-1/2 top-6 z-50 -translate-x-1/2 rounded-full bg-amber-500 px-4 py-2 text-xs font-black text-white shadow-xl">
+                    <div className="pointer-events-none absolute left-1/2 top-6 z-50 -translate-x-1/2 rounded-full bg-slate-900 px-4 py-2 text-xs font-black text-white shadow-xl border border-slate-800">
                       Location marked on map
                     </div>
                   )}
@@ -750,7 +864,7 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
                         <button
                           type="button"
                           onClick={() => setShowFullscreenMap(false)}
-                          className="pointer-events-auto flex h-6 w-6 items-center justify-center rounded-lg bg-slate-900/90 text-white shadow-md hover:bg-slate-800 transition border border-slate-700 cursor-pointer"
+                          className="pointer-events-auto flex h-6 w-6 items-center justify-center rounded-lg bg-slate-900 text-white shadow-md hover:bg-slate-800 transition border border-slate-700 cursor-pointer"
                           title="Hide Mini Map"
                         >
                           <Icon className="text-[14px]">close</Icon>
@@ -798,70 +912,18 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
                     </div>
                   )}
 
-                  {/* Floating Video Control Bar (Auto-hides on idle) */}
+                  {/* Floating Video Control Overlays (Auto-hides on idle) */}
                   {cameraStatus === 'connected' && (
-                    <div
-                      className={`absolute bottom-2 inset-x-2 z-30 flex items-center justify-between gap-2 transition-all duration-300 ${
-                        showControls ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2 pointer-events-none'
-                      }`}
-                    >
-                      {/* Left Controls: Stop Camera, AI Detect, Camera Selector */}
-                      <div className="flex items-center gap-1.5 pointer-events-auto bg-slate-900/95 border border-slate-800 rounded-lg p-1 shadow-lg">
-                        {/* Stop Camera Button */}
-                        <button
-                          type="button"
-                          onClick={toggleCamera}
-                          className="flex items-center gap-1 rounded-md bg-red-600 hover:bg-red-700 text-white px-2.5 py-1.5 text-[11px] font-bold transition shrink-0 cursor-pointer shadow-xs"
-                          title="Disconnect Camera Stream"
-                        >
-                          <Icon className="text-[14px]">videocam_off</Icon>
-                          <span>Disconnect</span>
-                        </button>
-
-                        {/* AI Detection Toggle Button */}
-                        <button
-                          type="button"
-                          onClick={() => setAiActive((v) => !v)}
-                          className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-bold transition shrink-0 cursor-pointer ${
-                            aiActive
-                              ? 'bg-emerald-600 text-white shadow-xs'
-                              : 'bg-slate-800 text-slate-300 border border-slate-700 hover:bg-slate-700 hover:text-white'
-                          }`}
-                        >
-                          <Icon className="text-[14px]">center_focus_strong</Icon>
-                          <span>AI Detect {aiActive ? `(${detections.length})` : 'Off'}</span>
-                        </button>
-
-                        {/* Capture Photo Button (Icon only when not in fullscreen, full text label in fullscreen) */}
-                        <button
-                          type="button"
-                          onClick={handleCapturePhoto}
-                          className={`flex items-center justify-center gap-1.5 rounded-md bg-sky-600 text-xs font-bold text-white transition hover:bg-sky-700 cursor-pointer ${
-                            isFullscreen ? 'px-3 py-1.5' : 'px-2 py-1.5'
-                          }`}
-                          title="Capture current camera frame"
-                        >
-                          <Icon className="text-[16px]">photo_camera</Icon>
-                          {isFullscreen && <span>{captureFeedback ? 'Photo saved' : 'Capture Photo'}</span>}
-                        </button>
-
-                        {/* Mark Location Button (Icon only when not in fullscreen, full text label in fullscreen) */}
-                        <button
-                          type="button"
-                          onClick={handleMarkLocation}
-                          className={`flex items-center justify-center gap-1.5 rounded-md bg-amber-500 text-xs font-bold text-white transition hover:bg-amber-600 cursor-pointer ${
-                            isFullscreen ? 'px-3 py-1.5' : 'px-2 py-1.5'
-                          }`}
-                          title="Mark current drone location"
-                        >
-                          <Icon className="text-[16px]">location_on</Icon>
-                          {isFullscreen && <span>{locationFeedback ? 'Location Marked' : 'Mark Location'}</span>}
-                        </button>
-                      </div>
-
-                      {/* Right Controls: Camera Selector, Fullscreen Map Toggle & Fullscreen Button */}
-                      <div className="flex items-center gap-1.5 pointer-events-auto bg-slate-900/95 border border-slate-800 rounded-lg p-1 shadow-lg">
-                        {/* Camera Switcher Selector (Always shown on the right side) */}
+                    <>
+                      {/* Camera Selector & Fullscreen Control Overlay */}
+                      <div
+                        className={`z-30 flex items-center gap-1.5 pointer-events-auto bg-slate-900/90 backdrop-blur-md border border-slate-800 rounded-lg p-1 shadow-xl w-max max-w-[calc(100%-1.25rem)] overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden transition-all duration-300 ${
+                          isCompactCamera
+                            ? 'absolute top-2.5 left-1/2 -translate-x-1/2'
+                            : 'absolute bottom-2.5 right-2.5'
+                        } ${showControls ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+                      >
+                        {/* Camera Switcher Selector */}
                         <div className="flex items-center gap-1.5 bg-slate-800 border border-slate-700 rounded-md px-2.5 py-1 text-xs font-medium text-slate-200">
                           <select
                             value={selectedDeviceId}
@@ -895,7 +957,7 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
                           <button
                             type="button"
                             onClick={() => setShowFullscreenMap((v) => !v)}
-className={`flex items-center gap-1 rounded-md px-2.5 py-1.5 text-[11px] font-bold transition shrink-0 cursor-pointer ${
+                            className={`flex items-center gap-1 rounded-md px-2.5 py-1.5 text-[11px] font-bold transition shrink-0 cursor-pointer ${
                               showFullscreenMap
                                 ? 'bg-slate-800 text-slate-300 border border-slate-700 hover:bg-slate-700 hover:text-white'
                                 : 'bg-emerald-600 text-white shadow-xs'
@@ -924,7 +986,67 @@ className={`flex items-center gap-1 rounded-md px-2.5 py-1.5 text-[11px] font-bo
                           <span className="hidden sm:inline">Fullscreen</span>
                         </button>
                       </div>
-                    </div>
+
+                      {/* Disconnect, AI Detect & Action Controls Overlay */}
+                      <div
+                        className={`z-30 flex items-center gap-1.5 pointer-events-auto bg-slate-900/90 backdrop-blur-md border border-slate-800 rounded-lg p-1 shadow-xl w-max max-w-[calc(100%-1.25rem)] overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden transition-all duration-300 ${
+                          isCompactCamera
+                            ? 'absolute bottom-2.5 left-1/2 -translate-x-1/2'
+                            : 'absolute bottom-2.5 left-2.5'
+                        } ${showControls ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+                      >
+                        {/* Stop Camera Button */}
+                        <button
+                          type="button"
+                          onClick={toggleCamera}
+                          className="flex items-center gap-1 rounded-md bg-red-600 hover:bg-red-700 text-white px-2.5 py-1.5 text-[11px] font-bold transition shrink-0 cursor-pointer shadow-xs"
+                          title="Disconnect Camera Stream"
+                        >
+                          <Icon className="text-[14px]">videocam_off</Icon>
+                          <span>Disconnect</span>
+                        </button>
+
+                        {/* AI Detection Toggle Button */}
+                        <button
+                          type="button"
+                          onClick={() => setAiActive((v) => !v)}
+                          className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-bold transition shrink-0 cursor-pointer ${
+                            aiActive
+                              ? 'bg-emerald-600 text-white shadow-xs'
+                              : 'bg-slate-800 text-slate-300 border border-slate-700 hover:bg-slate-700 hover:text-white'
+                          }`}
+                        >
+                          <Icon className="text-[14px]">center_focus_strong</Icon>
+                          <span>AI Detect {aiActive ? `(${detections.length})` : 'Off'}</span>
+                        </button>
+
+                        {/* Capture Photo Button */}
+                        <button
+                          type="button"
+                          onClick={handleCapturePhoto}
+                          className={`flex items-center justify-center gap-1.5 rounded-md bg-sky-600 text-xs font-bold text-white transition hover:bg-sky-700 cursor-pointer ${
+                            isFullscreen ? 'px-3 py-1.5' : 'px-2 py-1.5'
+                          }`}
+                          title="Capture current camera frame"
+                        >
+                          <Icon className="text-[16px]">photo_camera</Icon>
+                          {isFullscreen && <span>{captureFeedback ? 'Photo saved' : 'Capture Photo'}</span>}
+                        </button>
+
+                        {/* Mark Location Button */}
+                        <button
+                          type="button"
+                          onClick={handleMarkLocation}
+                          className={`flex items-center justify-center gap-1.5 rounded-md bg-slate-800 border border-slate-700 text-xs font-bold text-white transition hover:bg-slate-700 cursor-pointer ${
+                            isFullscreen ? 'px-3 py-1.5' : 'px-2 py-1.5'
+                          }`}
+                          title="Mark current drone location"
+                        >
+                          <Icon className="text-[16px]">location_on</Icon>
+                          {isFullscreen && <span>{locationFeedback ? 'Location Marked' : 'Mark Location'}</span>}
+                        </button>
+                      </div>
+                    </>
                   )}
 
                   {/* Camera Offline / Selection Standby View */}
@@ -939,7 +1061,7 @@ className={`flex items-center gap-1 rounded-md px-2.5 py-1.5 text-[11px] font-bo
                       </div>
 
                       {/* Hardware Device Selection Box */}
-                      <div className="relative z-10 flex flex-col items-center max-w-xs sm:max-w-[340px] w-full text-center bg-white/95 backdrop-blur-md p-5 sm:p-6 rounded-2xl border border-slate-200 shadow-md">
+                      <div className="relative z-10 flex flex-col items-center max-w-xs sm:max-w-[340px] w-full text-center bg-white p-5 sm:p-6 rounded-2xl border border-slate-200 shadow-md">
                         {/* Camera Icon without background box */}
                         <Icon className="text-[40px] text-slate-800 mb-2">videocam</Icon>
 
@@ -1032,77 +1154,196 @@ className={`flex items-center gap-1 rounded-md px-2.5 py-1.5 text-[11px] font-bo
                   )}
               </div>
             </div>
-          </div>
 
-          {/* TOP-RIGHT: Weather Card */}
-            <div className="col-span-12 lg:col-span-3 h-full min-h-0 flex flex-col">
-              <div className="bento-card flex flex-1 h-full min-h-0 flex-col p-2.5 gap-2 rounded-2xl">
+            {/* RIGHT DOCK WRAPPER (FOR 16:10 MODE): Weather Card (Top) + Metrics Grid (Bottom) */}
+            <div className="right-dock-wrapper-16-10 flex-col gap-2.5 lg:gap-3 h-full min-h-0">
+              {/* Weather Card */}
+              <div className="bento-card flex-1 min-h-0 flex flex-col p-3 sm:p-3.5 rounded-2xl justify-between gap-2.5 shadow-xs overflow-hidden">
+                {/* Header */}
                 <div className="flex items-center justify-between pb-1.5 border-b border-slate-100 shrink-0">
-                  <span className="text-[10px] font-bold text-slate-600 tracking-wide uppercase">Weather</span>
+                  <div>
+                    <span className="text-[10px] font-black text-slate-900 tracking-wider uppercase block leading-none">Weather</span>
+                    <span className="text-[8px] font-semibold text-slate-400 block mt-0.5">Flight Environment</span>
+                  </div>
                   <button
                     type="button"
                     onClick={() => setShowLocationModal(true)}
-                    className="group inline-flex min-w-0 max-w-[140px] items-center justify-end transition cursor-pointer text-right"
+                    className="group inline-flex min-w-0 max-w-[170px] items-center gap-1 transition cursor-pointer text-right bg-slate-50 hover:bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-lg shadow-2xs active:scale-95"
                     title="Click to change location"
                   >
-                    <span className="truncate border-b border-slate-300 text-[10px] font-semibold text-slate-700 group-hover:text-slate-950">
+                    <Icon className="text-[13px] text-slate-400 group-hover:text-slate-700 transition">location_on</Icon>
+                    <span className="truncate text-[9px] font-bold text-slate-700 group-hover:text-slate-950">
                       {weather.locationName}
                     </span>
                   </button>
                 </div>
 
-                <div className="flex flex-1 flex-col items-center justify-center text-center py-1">
-                  <div className="relative mb-0.5 flex items-center justify-center">
-                    <svg className="h-20 w-24 sm:h-24 sm:w-28" viewBox="0 0 120 100" fill="none">
-                      <circle cx="60" cy="50" r="24" fill="url(#sunOnlyGrad)" />
-                      <circle cx="60" cy="50" r="32" stroke="#fbbf24" strokeWidth="2" strokeDasharray="3 6" opacity="0.8" />
-                      <defs>
-                        <linearGradient id="sunOnlyGrad" x1="36" y1="26" x2="84" y2="74" gradientUnits="userSpaceOnUse">
-                          <stop stopColor="#fde047" />
-                          <stop offset="0.6" stopColor="#f59e0b" />
-                          <stop offset="1" stopColor="#ea580c" />
-                        </linearGradient>
-                      </defs>
-                    </svg>
-                  </div>
-
-                  <div className="flex items-baseline justify-center gap-1">
-                    <span className="data-font text-3xl sm:text-4xl font-black text-slate-900 tracking-tight leading-none">
-                      {weather.temperature}
-                    </span>
-                    <span className="text-base font-bold text-slate-400">°C</span>
-                  </div>
-                  <p className="mt-0.5 text-xs font-bold text-slate-800">{weather.condition}</p>
-                </div>
-
-                <div className="flex flex-col gap-1.5 pt-1.5 border-t border-slate-100 shrink-0">
-                  <div className="bento-subcard p-2 sm:p-2.5 flex items-center justify-between">
+                {/* Hero Temperature & Condition Section (Exact 50% Top Half) */}
+                <div className="flex-1 basis-1/2 min-h-0 flex flex-col justify-between bg-slate-50 border border-slate-100 p-3 sm:p-3.5 rounded-xl overflow-hidden">
+                  <div className="flex items-center justify-between gap-3 my-auto">
                     <div className="flex items-center gap-2.5">
-                      <Icon className="text-[18px] text-slate-500 shrink-0">air</Icon>
-                      <div>
-                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block leading-none">
-                          WIND SPEED
+                      <svg className="h-10 w-10 sm:h-12 sm:w-12 text-amber-500 shrink-0" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 7c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5zM2 13h2c.55 0 1-.45 1-1s-.45-1-1-1H2c-.55 0-1 .45-1 1s.45 1 1 1zm18 0h2c.55 0 1-.45 1-1s-.45-1-1-1h-2c-.55 0-1 .45-1 1s.45 1 1 1zM11 2v2c0 .55.45 1 1 1s1-.45 1-1V2c0-.55-.45-1-1-1s-1 .45-1 1zm0 18v2c0 .55.45 1 1 1s1-.45 1-1v-2c0-.55-.45-1-1-1s-1 .45-1 1zM5.99 4.58c-.39-.39-1.03-.39-1.41 0s-.39 1.03 0 1.41l1.06 1.06c.39.39 1.03.39 1.41 0s.39-1.03 0-1.41L5.99 4.58zm12.37 12.37c-.39-.39-1.03-.39-1.41 0s-.39 1.03 0 1.41l1.06 1.06c.39.39 1.03.39 1.41 0s.39-1.03 0-1.41l-1.06-1.06zm1.06-10.96c.39-.39.39-1.03 0-1.41s-1.03-.39-1.41 0l-1.06 1.06c-.39.39-.39 1.03 0 1.41s1.03.39 1.41 0l1.06-1.06zM7.05 18.36c.39-.39.39-1.03 0-1.41s-1.03-.39-1.41 0l-1.06 1.06c-.39.39-.39 1.03 0 1.41s1.03.39 1.41 0l1.06-1.06z" />
+                      </svg>
+                      <div className="flex items-baseline gap-1">
+                        <span className="data-font text-3xl sm:text-4xl font-black text-slate-900 tracking-tight leading-none">
+                          {weather.temperature}
                         </span>
-                        <div className="flex items-baseline gap-1.5 mt-0.5">
-                          <span className="data-font text-xs sm:text-sm font-bold text-slate-900">{weather.windSpeed} m/s</span>
-                        </div>
+                        <span className="text-sm font-bold text-slate-400">°C</span>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-1 text-[11px] font-bold text-slate-600 data-font">
-                      <Icon className="text-[14px] text-slate-500">near_me</Icon>
-                      <span>{weather.windDirection}° {weather.windCardinal}</span>
+                    <div className="text-right min-w-0">
+                      <p className="text-xs sm:text-sm font-extrabold text-slate-900 truncate">{weather.condition}</p>
+                      {weather.apparentTemperature && (
+                        <span className="inline-block text-[9px] font-bold text-slate-600 bg-white border border-slate-200/80 px-2 py-0.5 rounded-md mt-1 shadow-2xs">
+                          Feels like {weather.apparentTemperature}°C
+                        </span>
+                      )}
                     </div>
                   </div>
+                </div>
+
+                {/* Environmental Metrics Section (16:10 Mode: Horizontal 3-Column Grid) */}
+                <div className="grid grid-cols-3 gap-2 shrink-0">
+                  {/* Metric 1: Wind Speed */}
+                  <div className="bento-subcard p-3 sm:p-3.5 flex flex-col justify-between border border-slate-200 min-h-[86px] sm:min-h-[94px]">
+                    <div className="flex items-center justify-between text-[10px] sm:text-[11px] font-extrabold text-slate-400 uppercase tracking-wider leading-none">
+                      <span>Wind Speed</span>
+                      <Icon className="text-[16px] text-slate-500">air</Icon>
+                    </div>
+                    <div className="flex items-baseline justify-between gap-1 mt-1">
+                      <div className="flex items-baseline gap-1">
+                        <span className="data-font text-base sm:text-lg font-black text-slate-900 leading-none">{weather.windSpeed}</span>
+                        <span className="text-[10px] font-bold text-slate-400 leading-none">m/s</span>
+                      </div>
+                      <span className="inline-block text-[9px] sm:text-[10px] font-bold text-slate-700 bg-slate-100 border border-slate-200/80 px-1.5 py-0.5 rounded-md data-font leading-none shrink-0">
+                        {weather.windSpeedKmH || (weather.windSpeed * 3.6).toFixed(1)} km/h
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Metric 2: Wind Dir */}
+                  <div className="bento-subcard p-3 sm:p-3.5 flex flex-col justify-between border border-slate-200 min-h-[86px] sm:min-h-[94px]">
+                    <div className="flex items-center justify-between text-[10px] sm:text-[11px] font-extrabold text-slate-400 uppercase tracking-wider leading-none">
+                      <span>Wind Dir</span>
+                      <Icon className="text-[16px] text-slate-500">explore</Icon>
+                    </div>
+                    <div className="flex items-baseline justify-between gap-1 mt-1">
+                      <span className="data-font text-base sm:text-lg font-black text-slate-900 leading-none">{weather.windDirection}°</span>
+                      <span className="text-[10px] sm:text-[11px] font-bold text-slate-500 uppercase leading-none">{weather.windCardinal}</span>
+                    </div>
+                  </div>
+
+                  {/* Metric 3: Humidity */}
+                  <div className="bento-subcard p-3 sm:p-3.5 flex flex-col justify-between border border-slate-200 min-h-[86px] sm:min-h-[94px]">
+                    <div className="flex items-center justify-between text-[10px] sm:text-[11px] font-extrabold text-slate-400 uppercase tracking-wider leading-none">
+                      <span>Humidity</span>
+                      <Icon className="text-[16px] text-slate-500">water_drop</Icon>
+                    </div>
+                    <div className="flex items-baseline justify-between gap-1 mt-1">
+                      <span className="data-font text-base sm:text-lg font-black text-slate-900 leading-none">{weather.humidity || 60}%</span>
+                      <span className="text-[10px] font-semibold text-slate-400 leading-none">Relative</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2.5 lg:gap-3 flex-1 min-h-0">
+                <div className="bento-card flex flex-col justify-between p-3.5 sm:p-4 rounded-2xl min-h-0 overflow-hidden shadow-xs">
+                  <div className="flex items-center justify-between pb-1.5 border-b border-slate-100 shrink-0">
+                    <span className="text-[10px] font-extrabold text-slate-700 uppercase tracking-wider">ALTITUDE</span>
+                    <Icon className="text-[16px] text-slate-400">unfold_more</Icon>
+                  </div>
+                  <div className="my-auto py-1 flex flex-col items-center justify-center text-center gap-1">
+                    <div className="flex items-baseline justify-center gap-1.5">
+                      <span className="data-font text-4xl sm:text-5xl font-extrabold text-slate-900 leading-none tracking-tight">
+                        {telemetry.altitude}
+                      </span>
+                      <span className="text-sm sm:text-base font-extrabold text-slate-400">m</span>
+                    </div>
+                    <p className="text-xs font-semibold text-slate-500 mt-0.5">Relative Altitude</p>
+                  </div>
+                  <div className="flex items-center justify-between pt-1.5 border-t border-slate-100 text-[9px] font-bold text-slate-400 shrink-0">
+                    <span>AGL MODE</span>
+                    <span className="text-slate-700 font-semibold uppercase">GPS REL</span>
+                  </div>
+                </div>
+
+                <div className="bento-card flex flex-col justify-between p-3.5 sm:p-4 rounded-2xl min-h-0 overflow-hidden shadow-xs">
+                  <div className="flex items-center justify-between pb-1.5 border-b border-slate-100 shrink-0">
+                    <span className="text-[10px] font-extrabold text-slate-700 uppercase tracking-wider">GROUND SPEED</span>
+                    <Icon className="text-[16px] text-slate-400">speed</Icon>
+                  </div>
+                  <div className="my-auto py-1 flex flex-col items-center justify-center text-center gap-1">
+                    <div className="flex items-baseline justify-center gap-1.5">
+                      <span className="data-font text-4xl sm:text-5xl font-extrabold text-slate-900 leading-none tracking-tight">
+                        {telemetry.speed}
+                      </span>
+                      <span className="text-sm sm:text-base font-extrabold text-slate-400">m/s</span>
+                    </div>
+                    <span className="inline-block text-xs font-bold text-slate-700 bg-slate-100 border border-slate-200/80 px-2.5 py-0.5 rounded-md mt-0.5 data-font shadow-2xs">
+                      {(telemetry.speed * 3.6).toFixed(1)} km/h
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between pt-1.5 border-t border-slate-100 text-[9px] font-bold text-slate-400 shrink-0">
+                    <span>HUD SPEED</span>
+                    <span className="text-slate-700 font-semibold uppercase">LIVE STREAM</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* METRICS DOCK (FOR 16:9 MODE): Altitude Card (Top) + Ground Speed Card (Bottom) Stacked */}
+            <div className="metrics-dock-16-9 flex-1 min-h-0 flex-col gap-2.5 lg:gap-3 h-full justify-between">
+              <div className="bento-card flex-1 flex flex-col justify-between p-3.5 sm:p-4 rounded-2xl min-h-0 overflow-hidden shadow-xs">
+                <div className="flex items-center justify-between pb-1.5 border-b border-slate-100 shrink-0">
+                  <span className="text-[10px] font-extrabold text-slate-700 uppercase tracking-wider">ALTITUDE</span>
+                  <Icon className="text-[16px] text-slate-400">unfold_more</Icon>
+                </div>
+                <div className="my-auto py-1 flex flex-col items-center justify-center text-center gap-1">
+                  <div className="flex items-baseline justify-center gap-1.5">
+                    <span className="data-font text-3xl sm:text-4xl font-extrabold text-slate-900 leading-none tracking-tight">
+                      {telemetry.altitude}
+                    </span>
+                    <span className="text-sm font-extrabold text-slate-400">m</span>
+                  </div>
+                  <p className="text-xs font-semibold text-slate-500 mt-0.5">Relative Altitude</p>
+                </div>
+                <div className="flex items-center justify-between pt-1.5 border-t border-slate-100 text-[9px] font-bold text-slate-400 shrink-0">
+                  <span>AGL MODE</span>
+                  <span className="text-slate-700 font-semibold uppercase">GPS REL</span>
+                </div>
+              </div>
+
+              <div className="bento-card flex-1 flex flex-col justify-between p-3.5 sm:p-4 rounded-2xl min-h-0 overflow-hidden shadow-xs">
+                <div className="flex items-center justify-between pb-1.5 border-b border-slate-100 shrink-0">
+                  <span className="text-[10px] font-extrabold text-slate-700 uppercase tracking-wider">GROUND SPEED</span>
+                  <Icon className="text-[16px] text-slate-400">speed</Icon>
+                </div>
+                <div className="my-auto py-1 flex flex-col items-center justify-center text-center gap-1">
+                  <div className="flex items-baseline justify-center gap-1.5">
+                    <span className="data-font text-3xl sm:text-4xl font-extrabold text-slate-900 leading-none tracking-tight">
+                      {telemetry.speed}
+                    </span>
+                    <span className="text-sm font-extrabold text-slate-400">m/s</span>
+                  </div>
+                  <span className="inline-block text-xs font-bold text-slate-700 bg-slate-100 border border-slate-200/80 px-2.5 py-0.5 rounded-md mt-0.5 data-font shadow-2xs">
+                    {(telemetry.speed * 3.6).toFixed(1)} km/h
+                  </span>
+                </div>
+                <div className="flex items-center justify-between pt-1.5 border-t border-slate-100 text-[9px] font-bold text-slate-400 shrink-0">
+                  <span>HUD SPEED</span>
+                  <span className="text-slate-700 font-semibold uppercase">LIVE STREAM</span>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* BOTTOM ROW: Compact & Clean (Map Col 3 + Telemetry Console Col 6 + Heading Col 3) */}
-          <div className="grid grid-cols-12 gap-2 lg:gap-2.5 h-full min-h-0">
-            {/* BOTTOM-LEFT: Mini Map Card */}
-            <div className="col-span-12 md:col-span-4 lg:col-span-3 h-full min-h-0 flex flex-col">
+          {/* BOTTOM ROW: Aligned Grid (Matches Top Dock Columns 1:1) */}
+          <div className="bottom-row-layout gap-2.5 lg:gap-3 flex-1 min-h-0">
+            {/* BOTTOM-LEFT: Mini Map Card (Matches Weather Card Width 1:1) */}
+            <div className="bottom-map-card h-full min-h-0 flex flex-col">
               <div
                 className="bento-card relative flex flex-1 h-full min-h-0 flex-col overflow-hidden rounded-2xl group transition"
               >
@@ -1193,8 +1434,8 @@ className={`flex items-center gap-1 rounded-md px-2.5 py-1.5 text-[11px] font-bo
               </div>
             </div>
 
-            {/* BOTTOM-CENTER: Flight Dynamics & MAVLink Telemetry Console */}
-            <div className="col-span-12 md:col-span-8 lg:col-span-6 h-full min-h-0 flex flex-col">
+            {/* BOTTOM-CENTER: Flight Dynamics Console (Matches Camera Feed Width 1:1) */}
+            <div className="bottom-console-card h-full min-h-0 flex flex-col">
               <div className="bento-card flex flex-1 h-full min-h-0 flex-col p-2 sm:p-2.5 gap-1.5 rounded-2xl">
                 {/* Top Header: Drone Status + Battery */}
                 <div className="flex flex-wrap items-center justify-between gap-2 pb-1.5 border-b border-slate-100 shrink-0">
@@ -1214,82 +1455,53 @@ className={`flex items-center gap-1 rounded-md px-2.5 py-1.5 text-[11px] font-bo
                   </div>
                 </div>
 
-                {/* 4 Telemetry Metrics Grid */}
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-1.5 flex-1 min-h-0 auto-rows-fr">
-                  {/* Metric 1: Altitude */}
-                  <div className="bento-subcard min-h-0 overflow-hidden p-1.5 sm:p-2 flex flex-col justify-between gap-0.5">
+                {/* 2 Telemetry Metrics Grid: Attitude & GPS Fix */}
+                <div className="grid grid-cols-2 gap-2 flex-1 min-h-0 auto-rows-fr">
+                  {/* Metric 1: Attitude Pitch & Roll */}
+                  <div className="bento-subcard min-h-0 overflow-hidden p-2 sm:p-2.5 flex flex-col justify-between gap-1">
                     <div className="flex items-center justify-between">
-                      <span className="text-[9px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-wider">ALTITUDE</span>
-                      <Icon className="text-[18px] text-slate-400">unfold_more</Icon>
+                      <span className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">ATTITUDE</span>
+                      <Icon className="text-[18px] text-slate-400">3d_rotation</Icon>
                     </div>
-                    <div className="flex items-baseline gap-1 my-0.5">
-                      <span className="data-font text-lg sm:text-xl font-black text-slate-900 leading-none">{telemetry.altitude}</span>
-                      <span className="text-[10px] sm:text-xs font-bold text-slate-400">m</span>
-                    </div>
-                    <div className="flex items-center justify-between gap-2 text-[9px] font-semibold text-slate-400 pt-1 border-t border-slate-100">
-                       <span>Altitude</span>
-                       <span className="text-slate-600 font-medium">Rel</span>
-                    </div>
-                  </div>
-
-                  {/* Metric 2: Ground Speed */}
-                  <div className="bento-subcard min-h-0 overflow-hidden p-1.5 sm:p-2 flex flex-col justify-between gap-0.5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[9px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-wider">GROUND SPEED</span>
-                      <Icon className="text-[18px] text-slate-400">speed</Icon>
-                    </div>
-                    <div className="flex items-baseline gap-1 my-0.5">
-                      <span className="data-font text-lg sm:text-xl font-black text-slate-900 leading-none">{telemetry.speed}</span>
-                      <span className="text-[10px] sm:text-xs font-bold text-slate-400">m/s</span>
-                    </div>
-                    <div className="flex items-center justify-between gap-2 text-[9px] font-semibold text-slate-400 pt-1 border-t border-slate-100">
-                      <span className="data-font font-bold text-slate-700">{(telemetry.speed * 3.6).toFixed(1)} km/h</span>
-                       <span className="text-slate-600 font-medium">HUD</span>
-                    </div>
-                  </div>
-
-                  {/* Metric 3: Attitude Pitch & Roll */}
-                  <div className="bento-subcard min-h-0 overflow-hidden p-1.5 sm:p-2 flex flex-col justify-between gap-0.5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[9px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-wider">ATTITUDE</span>
-                      <Icon className="text-[15px] text-slate-400">3d_rotation</Icon>
-                    </div>
-                    <div className="flex flex-1 items-center justify-between gap-2 py-0.5">
-                      <div className="min-w-0 flex-1 text-center">
-                        <span className="block text-[8px] font-bold uppercase leading-none text-slate-400">Pitch</span>
-                        <span className="data-font block truncate text-sm sm:text-base font-black leading-tight text-slate-900">{telemetry.pitch}°</span>
+                    <div className="flex flex-1 items-center justify-around gap-3 my-0.5">
+                      <div className="min-w-0 text-center">
+                        <span className="block text-[9px] font-bold uppercase text-slate-400">Pitch</span>
+                        <span className="data-font block truncate text-lg sm:text-xl font-black text-slate-900 leading-tight">{telemetry.pitch}°</span>
                       </div>
-                      <div className="h-7 w-px shrink-0 bg-slate-200" />
-                      <div className="min-w-0 flex-1 text-center">
-                        <span className="block text-[8px] font-bold uppercase leading-none text-slate-400">Roll</span>
-                        <span className="data-font block truncate text-sm sm:text-base font-black leading-tight text-slate-900">{telemetry.roll}°</span>
+                      <div className="h-8 w-px shrink-0 bg-slate-200" />
+                      <div className="min-w-0 text-center">
+                        <span className="block text-[9px] font-bold uppercase text-slate-400">Roll</span>
+                        <span className="data-font block truncate text-lg sm:text-xl font-black text-slate-900 leading-tight">{telemetry.roll}°</span>
                       </div>
                     </div>
-                    <div className="truncate border-t border-slate-100 pt-0.5 text-[8px] font-semibold leading-none text-slate-400">Pitch / Roll · 3D</div>
+                    <div className="flex items-center justify-between border-t border-slate-100 pt-1 text-[9px] font-semibold text-slate-400">
+                      <span>3D Horizon</span>
+                      <span className="text-slate-600 font-bold">Pitch / Roll</span>
+                    </div>
                   </div>
 
-                  {/* Metric 4: GPS Coordinates */}
-                  <div className="bento-subcard min-h-0 overflow-hidden p-1.5 sm:p-2 flex flex-col justify-between gap-0.5">
+                  {/* Metric 2: GPS Coordinates & Satellites */}
+                  <div className="bento-subcard min-h-0 overflow-hidden p-2 sm:p-2.5 flex flex-col justify-between gap-1">
                     <div className="flex items-center justify-between">
-                      <span className="text-[9px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-wider">GPS FIX & SATS</span>
+                      <span className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">GPS FIX & SATS</span>
                       <Icon className="text-[18px] text-slate-400">gps_fixed</Icon>
                     </div>
                     <div className="my-0.5">
-                      <p className="data-font text-xs sm:text-sm font-black text-slate-900 truncate">
+                      <p className="data-font text-sm sm:text-base font-black text-slate-900 truncate">
                         {telemetry.latitude.toFixed(5)}, {telemetry.longitude.toFixed(5)}
                       </p>
                     </div>
-                    <div className="flex items-center justify-between gap-2 border-t border-slate-100 pt-0.5 text-[8px] font-semibold leading-none text-slate-400">
-                      <span className="truncate">{telemetry.satellites} Sats</span>
-                      <span className="truncate text-right text-slate-600 font-medium">{telemetry.gpsFix}</span>
+                    <div className="flex items-center justify-between gap-2 border-t border-slate-100 pt-1 text-[9px] font-semibold text-slate-400">
+                      <span className="data-font font-bold text-slate-700">{telemetry.satellites} Satellites</span>
+                      <span className="text-slate-600 font-bold">{telemetry.gpsFix}</span>
                     </div>
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* BOTTOM-RIGHT: Drone Heading */}
-            <div className="col-span-12 md:col-span-12 lg:col-span-3 h-full min-h-0 flex flex-col">
+            {/* BOTTOM-RIGHT: Drone Heading Compass (Matches Metrics Dock Width 1:1) */}
+            <div className="bottom-heading-card h-full min-h-0 flex flex-col">
               <div className="bento-card flex flex-1 h-full min-h-0 flex-col items-center justify-between p-2 text-center gap-0.5 rounded-2xl">
                 <div className="flex items-center justify-between w-full pb-1 border-b border-slate-100 shrink-0">
                   <span className="text-[10px] sm:text-xs font-bold text-slate-600 uppercase tracking-wider">HEADING</span>
@@ -1298,7 +1510,7 @@ className={`flex items-center gap-1 rounded-md px-2.5 py-1.5 text-[11px] font-bo
                   </span>
                 </div>
 
-                <div className="relative my-auto flex h-20 w-20 items-center justify-center">
+                <div className="relative my-auto flex h-18 w-18 sm:h-20 sm:w-20 items-center justify-center">
                   <div
                     className="absolute inset-0 transition-transform duration-700 ease-out"
                     style={{ transform: `rotate(${-telemetry.heading}deg)` }}
@@ -1334,10 +1546,10 @@ className={`flex items-center gap-1 rounded-md px-2.5 py-1.5 text-[11px] font-bo
 
       {/* MAVLink Connection Modal */}
       {showMavlinkModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 backdrop-blur-xs p-4">
-          <div className="w-full max-w-lg rounded-xl bg-white shadow-xl border border-slate-200 overflow-hidden">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4">
+          <div className="w-full max-w-lg rounded-2xl bg-white shadow-2xl overflow-hidden border border-slate-200">
             {/* Modal Header */}
-            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 bg-slate-50/50">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 bg-slate-50">
               <div>
                 <h3 className="text-sm font-bold text-slate-900">Telemetry Connection</h3>
                 <p className="text-xs text-slate-500 mt-0.5">Select connection method for hardware devices or flight simulator</p>
@@ -1354,7 +1566,7 @@ className={`flex items-center gap-1 rounded-md px-2.5 py-1.5 text-[11px] font-bo
             {/* Modal Body */}
             <div className="p-5 space-y-3">
               {/* Option 1: Stream Telemetri Simulasi */}
-              <div className="flex items-center justify-between p-3.5 rounded-lg border border-slate-200 hover:border-slate-300 bg-slate-50/30 transition">
+              <div className="flex items-center justify-between p-3.5 rounded-lg border border-slate-200 hover:border-slate-300 bg-slate-50 transition">
                 <div className="pr-3">
                   <h4 className="text-xs font-bold text-slate-900">1. Simulated Telemetry Stream</h4>
                   <p className="text-[11px] text-slate-500 mt-0.5">Real-time MAVLink v2 generator (Heartbeat, Gyro, GPS)</p>
@@ -1370,8 +1582,8 @@ className={`flex items-center gap-1 rounded-md px-2.5 py-1.5 text-[11px] font-bo
                   Use Stream
                 </button>
               </div>
-
               <div className="flex items-center justify-between p-3.5 rounded-lg border border-slate-200 hover:border-slate-300 bg-slate-50/30 transition">
+
                 <div className="pr-3">
                   <h4 className="text-xs font-bold text-slate-900">2. Betaflight USB (MSP)</h4>
                   <p className="text-[11px] text-slate-500 mt-0.5">Read telemetry from Betaflight flight controller COM port</p>
@@ -1405,9 +1617,9 @@ className={`flex items-center gap-1 rounded-md px-2.5 py-1.5 text-[11px] font-bo
                   Connect USB
                 </button>
               </div>
-
               {/* Option 4: WebSocket Server */}
               <div className="p-3.5 rounded-lg border border-slate-200 hover:border-slate-300 bg-slate-50/30 transition space-y-2.5">
+
                 <div>
                   <h4 className="text-xs font-bold text-slate-900">3. WebSocket MAVLink Server</h4>
                   <p className="text-[11px] text-slate-500 mt-0.5">Connect to MAVLink WebSocket bridge (e.g. ws://localhost:8080)</p>
@@ -1436,7 +1648,7 @@ className={`flex items-center gap-1 rounded-md px-2.5 py-1.5 text-[11px] font-bo
 
             {/* Modal Footer */}
             {connectionStatus === 'connected' && (
-              <div className="px-5 py-3 border-t border-slate-100 bg-slate-50/50 flex justify-end">
+              <div className="px-5 py-3 border-t border-slate-100 bg-slate-50 flex justify-end">
                 <button
                   type="button"
                   onClick={() => {
@@ -1455,9 +1667,9 @@ className={`flex items-center gap-1 rounded-md px-2.5 py-1.5 text-[11px] font-bo
 
       {/* Weather Location Selector Modal */}
       {showLocationModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4">
-          <div className="w-full max-w-md rounded-xl bg-white shadow-xl border border-slate-200 overflow-hidden">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 bg-slate-50/50">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4">
+          <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl overflow-hidden border border-slate-200">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 bg-slate-50">
               <div>
                 <h3 className="text-sm font-bold text-slate-900">Set Weather Location</h3>
                 <p className="text-xs text-slate-500 mt-0.5">Auto-detect GPS or search your exact city/area</p>
@@ -1465,7 +1677,7 @@ className={`flex items-center gap-1 rounded-md px-2.5 py-1.5 text-[11px] font-bo
               <button
                 type="button"
                 onClick={() => setShowLocationModal(false)}
-                className="rounded-lg p-1 text-slate-400 hover:bg-slate-200/60 hover:text-slate-700 transition cursor-pointer"
+                className="rounded-lg p-1 text-slate-400 hover:bg-slate-200 hover:text-slate-700 transition cursor-pointer"
               >
                 <Icon className="text-[18px]">close</Icon>
               </button>
@@ -1482,8 +1694,8 @@ className={`flex items-center gap-1 rounded-md px-2.5 py-1.5 text-[11px] font-bo
                   }}
                   className={`w-full flex items-center justify-between p-3 rounded-xl border transition text-left cursor-pointer ${
                     weather.locationMode === 'device'
-                      ? 'bg-emerald-50/80 border-emerald-300 ring-2 ring-emerald-500/20'
-                      : 'bg-slate-50 border-slate-200 hover:bg-slate-100/80 hover:border-slate-300'
+                      ? 'bg-emerald-50 border-emerald-300 ring-2 ring-emerald-500/20'
+                      : 'bg-slate-50 border-slate-200 hover:bg-slate-100 hover:border-slate-300'
                   }`}
                 >
                   <div className="flex items-center gap-3">
@@ -1518,8 +1730,8 @@ className={`flex items-center gap-1 rounded-md px-2.5 py-1.5 text-[11px] font-bo
                   }}
                   className={`w-full flex items-center justify-between p-3 rounded-xl border transition text-left cursor-pointer ${
                     weather.locationMode === 'drone'
-                      ? 'bg-sky-50/80 border-sky-300 ring-2 ring-sky-500/20'
-                      : 'bg-slate-50 border-slate-200 hover:bg-slate-100/80 hover:border-slate-300'
+                      ? 'bg-sky-50 border-sky-300 ring-2 ring-sky-500/20'
+                      : 'bg-slate-50 border-slate-200 hover:bg-slate-100 hover:border-slate-300'
                   }`}
                 >
                   <div className="flex items-center gap-3">
