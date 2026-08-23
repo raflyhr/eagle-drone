@@ -23,3 +23,8 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+    
+# Model ONNX & WASM binary (ukuran besar, jangan di-commit)
+public/models/
+public/ort-wasm/
+Yololol/
