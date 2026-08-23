@@ -23,21 +23,38 @@ export function getDroneLocationName(lat, lon) {
   return getOfflineLocationName(lat, lon)
 }
 
+function withTimeout(promise, timeout = 1000) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error('Operation timed out')), timeout)),
+  ])
+}
+
+function normalizeHeading(value) {
+  if (!Number.isFinite(value)) return null
+  return Math.round((value % 360 + 360) % 360)
+}
+
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
 export default function useTelemetry() {
   const [telemetry, setTelemetry] = useState({
     latitude: -7.5950,
     longitude: 110.4485,
-    altitude: 450,
-    speed: 22,
-    heading: 0,
-    pitch: -2.5,
-    roll: -1.0,
+    altitude: null,
+    speed: null,
+    heading: null,
+    pitch: null,
+    roll: null,
     yaw: 0,
-    battery: 88,
-    voltage: 16.1,
-    current: 14.2,
-    satellites: 18,
-    gpsFix: '3D Fix',
+    battery: null,
+    voltage: null,
+    current: null,
+    satellites: null,
+    distanceFromHome: null,
+    gpsFix: 'Waiting GPS',
     flightMode: 'AUTO',
     sysId: 1,
     compId: 1,
@@ -50,6 +67,9 @@ export default function useTelemetry() {
   const [errorMessage, setErrorMessage] = useState('')
   const [missionLogs, setMissionLogs] = useState([])
   const [currentMission, setCurrentMission] = useState(null)
+  const [deviceInfo, setDeviceInfo] = useState(null)
+  const [serialDevices, setSerialDevices] = useState([])
+  const disconnectingRef = useRef(null)
 
   const serialPortRef = useRef(null)
   const readerRef = useRef(null)
@@ -64,6 +84,7 @@ export default function useTelemetry() {
   const missionDistanceRef = useRef(0)
   const missionMaxAltitudeRef = useRef(0)
   const missionPositionRef = useRef(null)
+  const homePositionRef = useRef(null)
   const missionTrackRef = useRef([])
   const capturesRef = useRef([])
   const pendingCapturesRef = useRef([])
@@ -119,6 +140,14 @@ export default function useTelemetry() {
         pendingCapturesRef.current.splice(0).forEach((capture) => persistCapture(id, capture))
         targetPointsRef.current.filter((point) => !point.databaseId).forEach((point) => persistTargetPoint(id, point))
       }).catch((error) => console.warn('Mission persistence unavailable:', error.message))
+    }
+
+    if (!homePositionRef.current && Number.isFinite(next.latitude) && Number.isFinite(next.longitude)) {
+      homePositionRef.current = { lat: next.latitude, lon: next.longitude }
+    }
+
+    if (homePositionRef.current && Number.isFinite(next.latitude) && Number.isFinite(next.longitude)) {
+      next.distanceFromHome = formatDistance(calculateDistanceMeters(homePositionRef.current.lat, homePositionRef.current.lon, next.latitude, next.longitude))
     }
 
     const last = missionPositionRef.current
@@ -215,7 +244,7 @@ export default function useTelemetry() {
         if (msg.speed !== undefined || msg.groundspeed !== undefined) {
           next.speed = Number((msg.groundspeed ?? msg.speed).toFixed(1))
         }
-        if (msg.heading !== undefined) next.heading = Math.round(msg.heading)
+        if (msg.heading !== undefined) next.heading = normalizeHeading(msg.heading)
       }
 
       latestTelemetryRef.current = next
@@ -234,16 +263,14 @@ export default function useTelemetry() {
       if (msg.type === 'attitude') {
         next.pitch = Number(msg.pitch.toFixed(1))
         next.roll = Number(msg.roll.toFixed(1))
-        next.heading = Math.round(msg.heading)
-        next.yaw = Math.round(msg.heading)
+        next.heading = normalizeHeading(msg.heading)
+        next.yaw = next.heading
       } else if (msg.type === 'altitude') {
-        next.altitude = Number(msg.altitude.toFixed(1))
+        next.altitude = Number(msg.altitude.toFixed(2))
       } else if (msg.type === 'gps') {
-        if (Number.isFinite(msg.latitude)) next.latitude = Number(msg.latitude.toFixed(6))
-        if (Number.isFinite(msg.longitude)) next.longitude = Number(msg.longitude.toFixed(6))
-        if (msg.altitude !== undefined) next.altitude = msg.altitude
+        if (msg.fix && Number.isFinite(msg.latitude) && msg.latitude !== 0) next.latitude = Number(msg.latitude.toFixed(6))
+        if (msg.fix && Number.isFinite(msg.longitude) && msg.longitude !== 0) next.longitude = Number(msg.longitude.toFixed(6))
         if (msg.speed !== undefined) next.speed = Number(msg.speed.toFixed(1))
-        if (msg.heading !== undefined) next.heading = Math.round(msg.heading)
         next.satellites = msg.satellites ?? next.satellites
         next.gpsFix = msg.fix ? 'GPS Fix' : 'No Fix'
       } else if (msg.type === 'analog') {
@@ -256,6 +283,12 @@ export default function useTelemetry() {
       } else if (msg.type === 'status') {
         const activeModes = mspBoxNamesRef.current.filter((_, index) => msg.modeFlags & (1 << index))
         next.flightMode = activeModes[0] || (msg.armingFlags ? 'ARMED' : prev.flightMode)
+      } else if (msg.type === 'api') {
+        setDeviceInfo((info) => ({ ...info, apiVersion: msg.version }))
+      } else if (msg.type === 'variant') {
+        setDeviceInfo((info) => ({ ...info, name: msg.variant }))
+      } else if (msg.type === 'version') {
+        setDeviceInfo((info) => ({ ...info, version: msg.version }))
       } else if (msg.type === 'boxNames') {
         mspBoxNamesRef.current = msg.names
       }
@@ -392,75 +425,73 @@ export default function useTelemetry() {
   }, [])
 
   // Disconnect function
-  const disconnect = useCallback(async () => {
-    if (missionDbIdRef.current) {
-      try {
-        await updateMissionRecord(missionDbIdRef.current, {
-          status: 'success',
-          finishedAt: new Date().toISOString(),
-          durationSeconds: Math.round((Date.now() - missionStartRef.current) / 1000),
-          distanceMeters: missionDistanceRef.current,
-          maxAltitudeMeters: missionMaxAltitudeRef.current,
-          currentAltitudeMeters: latestTelemetryRef.current.altitude,
-          startLatitude: missionTrackRef.current[0]?.[0],
-          startLongitude: missionTrackRef.current[0]?.[1],
-          finishLatitude: missionTrackRef.current.at(-1)?.[0],
-          finishLongitude: missionTrackRef.current.at(-1)?.[1],
-        })
-        const records = await fetchMissionLogs()
-        setMissionLogs(records.map(formatMissionRecord))
-      } catch (error) {
-        console.warn('Mission finalization unavailable:', error.message)
-      }
-    }
+  const disconnect = useCallback(() => {
+    if (disconnectingRef.current) return disconnectingRef.current
+
+    setConnectionStatus('disconnected')
+    setConnectionType('none')
+    setErrorMessage('')
 
     if (simTimerRef.current) {
       clearInterval(simTimerRef.current)
       simTimerRef.current = null
     }
-
     if (mspPollTimerRef.current) {
       clearInterval(mspPollTimerRef.current)
       mspPollTimerRef.current = null
     }
 
-    if (readerRef.current) {
-      try {
-        await readerRef.current.cancel()
-        readerRef.current.releaseLock()
-      } catch (err) {
-        console.warn('Error releasing serial reader:', err)
-      }
-      readerRef.current = null
+    const reader = readerRef.current
+    readerRef.current = null
+    const writer = writerRef.current
+    writerRef.current = null
+    const port = serialPortRef.current
+    serialPortRef.current = null
+    const socket = socketRef.current
+    socketRef.current = null
+    const missionId = missionDbIdRef.current
+    const missionSummary = missionId ? {
+      status: 'success',
+      finishedAt: new Date().toISOString(),
+      durationSeconds: Math.round((Date.now() - missionStartRef.current) / 1000),
+      distanceMeters: missionDistanceRef.current,
+      maxAltitudeMeters: missionMaxAltitudeRef.current,
+      currentAltitudeMeters: latestTelemetryRef.current.altitude,
+      startLatitude: missionTrackRef.current[0]?.[0],
+      startLongitude: missionTrackRef.current[0]?.[1],
+      finishLatitude: missionTrackRef.current.at(-1)?.[0],
+      finishLongitude: missionTrackRef.current.at(-1)?.[1],
+    } : null
+
+    if (missionId) {
+      updateMissionRecord(missionId, missionSummary)
+        .then(fetchMissionLogs)
+        .then((records) => setMissionLogs(records.map(formatMissionRecord)))
+        .catch((error) => console.warn('Mission finalization unavailable:', error.message))
     }
 
-    if (writerRef.current) {
-      try {
-        writerRef.current.releaseLock()
-      } catch (err) {
-        console.warn('Error releasing serial writer:', err)
-      }
-      writerRef.current = null
-    }
-
-    if (serialPortRef.current) {
-      try {
-        await serialPortRef.current.close()
-      } catch (err) {
-        console.warn('Error closing serial port:', err)
-      }
-      serialPortRef.current = null
-    }
-
-    if (socketRef.current) {
-      socketRef.current.close()
-      socketRef.current = null
-    }
+    setDeviceInfo(null)
+    setCurrentMission(null)
+    setTelemetry((current) => ({
+      ...current,
+      altitude: null,
+      speed: null,
+      pitch: null,
+      roll: null,
+      heading: null,
+      battery: null,
+      voltage: null,
+      current: null,
+      satellites: null,
+      distanceFromHome: null,
+      gpsFix: 'Waiting GPS',
+    }))
 
     missionStartRef.current = null
     missionDistanceRef.current = 0
     missionMaxAltitudeRef.current = 0
     missionPositionRef.current = null
+    homePositionRef.current = null
     missionTrackRef.current = []
     capturesRef.current = []
     pendingCapturesRef.current = []
@@ -469,10 +500,20 @@ export default function useTelemetry() {
     missionDbIdRef.current = null
     lastTrackWriteRef.current = { at: 0, point: null }
     lastMissionSummaryWriteRef.current = 0
-    setCurrentMission(null)
-    setConnectionStatus('disconnected')
-    setConnectionType('none')
-    setErrorMessage('')
+
+    const task = (async () => {
+      await delay(200)
+      if (reader) await withTimeout(reader.cancel(), 500).catch(() => {})
+      try { reader?.releaseLock() } catch {}
+      if (writer) await withTimeout(writer.abort?.(), 500).catch(() => {})
+      try { writer?.releaseLock() } catch {}
+      if (port) await withTimeout(port.close(), 800).catch(() => {})
+      socket?.close()
+    })().finally(() => {
+      disconnectingRef.current = null
+    })
+    disconnectingRef.current = task
+    return task
   }, [])
 
   // Connect via WebSerial API (USB / Telemetry Radio)
@@ -511,10 +552,8 @@ export default function useTelemetry() {
             console.error('Serial read error:', err)
             break
           } finally {
-            if (readerRef.current) {
-              readerRef.current.releaseLock()
-              readerRef.current = null
-            }
+            try { reader.releaseLock() } catch {}
+            if (readerRef.current === reader) readerRef.current = null
           }
         }
       }
@@ -536,11 +575,12 @@ export default function useTelemetry() {
       return false
     }
 
+    let port = null
     try {
       await disconnect()
       setConnectionStatus('connecting')
       setConnectionType('betaflight')
-      const port = await navigator.serial.requestPort()
+      port = await navigator.serial.requestPort()
       await port.open({ baudRate: Number(baudRate) })
       serialPortRef.current = port
       parserRef.current = new MspParser(handleMspMessage)
@@ -557,33 +597,47 @@ export default function useTelemetry() {
               if (value) parserRef.current?.parseBytes(value)
             }
           } finally {
-            reader.releaseLock()
-            readerRef.current = null
+            try { reader.releaseLock() } catch {}
+            if (readerRef.current === reader) readerRef.current = null
           }
         }
       }
 
-      const send = async (command) => {
-        if (writerRef.current) await writerRef.current.write(encodeMspRequest(command))
+      let writeQueue = Promise.resolve()
+      const send = (command) => {
+        writeQueue = writeQueue.catch(() => {}).then(() => {
+          const writer = writerRef.current
+          if (!writer || serialPortRef.current !== port) return undefined
+          return writer.write(encodeMspRequest(command))
+        })
+        return writeQueue
       }
-      const commands = [MSP.ATTITUDE, MSP.ALTITUDE, MSP.RAW_GPS, MSP.BATTERY_STATE, MSP.STATUS_EX, MSP.ANALOG]
-      let index = 0
-      mspPollTimerRef.current = setInterval(() => {
-        send(commands[index % commands.length]).catch((error) => console.warn('Betaflight MSP request failed:', error.message))
-        index += 1
-      }, 100)
 
-      setConnectionStatus('connected')
       readLoop().catch((error) => {
         if (serialPortRef.current === port) {
           setConnectionStatus('error')
           setErrorMessage(error.message || 'Betaflight USB connection stopped.')
         }
       })
-      await Promise.all([send(MSP.API_VERSION), send(MSP.FC_VARIANT), send(MSP.FC_VERSION), send(MSP.BOXNAMES), send(MSP.BOXIDS)])
+      await send(MSP.API_VERSION)
+      await send(MSP.FC_VARIANT)
+      await send(MSP.FC_VERSION)
+      await send(MSP.BOXNAMES)
+      await send(MSP.BOXIDS)
+
+      const secondaryCommands = [MSP.ALTITUDE, MSP.RAW_GPS, MSP.BATTERY_STATE, MSP.STATUS_EX, MSP.ANALOG]
+      let index = 0
+      mspPollTimerRef.current = setInterval(() => {
+        const command = index % 2 === 0 ? MSP.ATTITUDE : secondaryCommands[Math.floor(index / 2) % secondaryCommands.length]
+        send(command).catch((error) => console.warn('Betaflight MSP request failed:', error.message))
+        index += 1
+      }, 50)
+      setConnectionStatus('connected')
       return true
     } catch (err) {
       console.error('Failed to open Betaflight MSP port:', err)
+      if (serialPortRef.current === port) await disconnect()
+      else if (port?.readable || port?.writable) await withTimeout(port.close(), 800).catch(() => {})
       setConnectionStatus('error')
       setErrorMessage(err.message || 'Failed to connect to Betaflight USB.')
       return false
@@ -799,20 +853,47 @@ export default function useTelemetry() {
     }, 200)
   }, [disconnect])
 
-  // Auto-start simulation mode on initial mount
   useEffect(() => {
-    enableMavlinkSim()
-    return () => {
-      if (simTimerRef.current) clearInterval(simTimerRef.current)
-      simTimerRef.current = null
+    if (!('serial' in navigator)) return undefined
+
+    const refreshSerialDevices = async () => {
+      const ports = await navigator.serial.getPorts()
+      setSerialDevices(ports.map((port, index) => {
+        const { usbVendorId, usbProductId } = port.getInfo()
+        return {
+          id: `${usbVendorId || 'serial'}:${usbProductId || index}`,
+          usbVendorId,
+          usbProductId,
+          connected: port === serialPortRef.current,
+        }
+      }))
     }
-  }, [enableMavlinkSim])
+
+    const handleSerialChange = () => refreshSerialDevices().catch(() => setSerialDevices([]))
+    refreshSerialDevices().catch(() => setSerialDevices([]))
+    navigator.serial.addEventListener('connect', handleSerialChange)
+    navigator.serial.addEventListener('disconnect', handleSerialChange)
+    const timer = setInterval(handleSerialChange, 1000)
+
+    return () => {
+      clearInterval(timer)
+      navigator.serial.removeEventListener('connect', handleSerialChange)
+      navigator.serial.removeEventListener('disconnect', handleSerialChange)
+    }
+  }, [connectionStatus])
+
+  useEffect(() => () => {
+    if (simTimerRef.current) clearInterval(simTimerRef.current)
+    simTimerRef.current = null
+  }, [])
 
   return {
     telemetry,
     connectionStatus,
     connectionType,
     errorMessage,
+    deviceInfo,
+    serialDevices,
     missionLogs,
     currentMission,
     capturePhoto,
