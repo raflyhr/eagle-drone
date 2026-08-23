@@ -54,17 +54,17 @@ function createTargetPinIcon() {
 const defaultTelemetry = {
   latitude: -7.5950,
   longitude: 110.4485,
-  altitude: 450,
-  speed: 22,
-  heading: 0,
-  pitch: -2.5,
-  roll: -1.0,
+  altitude: null,
+  speed: null,
+  heading: null,
+  pitch: null,
+  roll: null,
   yaw: 0,
   battery: 88,
   voltage: 16.1,
   current: 14.2,
-  satellites: 18,
-  gpsFix: '3D Fix',
+  satellites: null,
+  gpsFix: 'Waiting GPS',
   flightMode: 'AUTO',
   sysId: 1,
   compId: 1,
@@ -73,7 +73,12 @@ const defaultTelemetry = {
 }
 
 export default function MapArea({ onNavigate, telemetry: rawTelemetry, markedLocations = [], targetPoints = [], onAddTargetPoint, onRemoveTargetPoint, active, mapStyle = 'standard', onMapStyleChange }) {
-  const telemetry = { ...defaultTelemetry, ...(rawTelemetry || {}) }
+  const telemetry = {
+    ...defaultTelemetry,
+    ...(rawTelemetry || {}),
+    latitude: Number.isFinite(rawTelemetry?.latitude) && rawTelemetry.latitude !== 0 ? rawTelemetry.latitude : defaultTelemetry.latitude,
+    longitude: Number.isFinite(rawTelemetry?.longitude) && rawTelemetry.longitude !== 0 ? rawTelemetry.longitude : defaultTelemetry.longitude,
+  }
   const weather = useWeather(telemetry.latitude, telemetry.longitude)
   const droneRegionName = useDroneRegion(telemetry.latitude, telemetry.longitude)
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
@@ -355,7 +360,9 @@ export default function MapArea({ onNavigate, telemetry: rawTelemetry, markedLoc
               <Icon className="text-sky-400 text-[16px]">near_me</Icon>
               <span className="text-slate-400 font-medium">UAV:</span>
               <span className="data-font font-bold text-white">
-                {(telemetry.latitude ?? -7.5950).toFixed(5)}, {(telemetry.longitude ?? 110.4485).toFixed(5)}
+                {rawTelemetry?.gpsFix === 'GPS Fix' && Number.isFinite(rawTelemetry.latitude) && Number.isFinite(rawTelemetry.longitude)
+                  ? `${rawTelemetry.latitude.toFixed(5)}, ${rawTelemetry.longitude.toFixed(5)}`
+                  : 'Waiting GPS'}
               </span>
             </div>
 
@@ -516,25 +523,27 @@ export default function MapArea({ onNavigate, telemetry: rawTelemetry, markedLoc
               <div className="bg-slate-50 rounded-md p-2 border border-slate-200/80">
                 <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">Coordinates</p>
                 <p className="font-bold text-slate-900 data-font truncate" title={`${telemetry.latitude}, ${telemetry.longitude}`}>
-                  {(telemetry.latitude ?? -7.5950).toFixed(5)}, {(telemetry.longitude ?? 110.4485).toFixed(5)}
+                  {rawTelemetry?.gpsFix === 'GPS Fix' && Number.isFinite(rawTelemetry.latitude) && Number.isFinite(rawTelemetry.longitude)
+                  ? `${rawTelemetry.latitude.toFixed(5)}, ${rawTelemetry.longitude.toFixed(5)}`
+                  : 'Waiting GPS'}
                 </p>
               </div>
               <div className="bg-slate-50 rounded-md p-2 border border-slate-200/80">
                 <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">Altitude (Alt)</p>
                 <p className="font-bold text-slate-900 data-font">
-                  {telemetry.altitude ?? 0} m MSL
+                  {telemetry.altitude == null ? '--' : `${telemetry.altitude.toFixed(2)} m relative`}
                 </p>
               </div>
               <div className="bg-slate-50 rounded-md p-2 border border-slate-200/80">
                 <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">Ground Speed</p>
                 <p className="font-bold text-slate-900 data-font">
-                  {telemetry.speed ?? 0} m/s ({(((telemetry.speed ?? 0) * 3.6)).toFixed(1)} km/h)
+                  {telemetry.speed == null ? '--' : `${telemetry.speed} m/s (${(telemetry.speed * 3.6).toFixed(1)} km/h)`}
                 </p>
               </div>
               <div className="bg-slate-50 rounded-md p-2 border border-slate-200/80">
                 <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">Heading</p>
                 <p className="font-bold text-slate-900 data-font">
-                  {telemetry.heading ?? 0}°
+                  {telemetry.heading == null ? '--' : `${telemetry.heading}°`}
                 </p>
               </div>
             </div>

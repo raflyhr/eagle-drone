@@ -3,7 +3,7 @@ import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import useCamera from '../hooks/useCamera'
 import useObjectDetection from '../hooks/useObjectDetection'
-import useWeather, { degreesToCardinal } from '../hooks/useWeather'
+import useWeather from '../hooks/useWeather'
 import useDroneRegion from '../hooks/useDroneRegion'
 import useTelemetryState, { getDroneLocationName } from '../hooks/useTelemetry'
 
@@ -46,17 +46,18 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
   const telemetry = telemetryState?.telemetry || {
     latitude: -7.5950,
     longitude: 110.4485,
-    altitude: 120,
-    speed: 15,
-    heading: 285,
-    pitch: 2.4,
-    roll: -1.2,
+    altitude: null,
+    speed: null,
+    heading: null,
+    pitch: null,
+    roll: null,
     yaw: 285,
-    battery: 74,
-    voltage: 15.2,
-    current: 12.5,
-    satellites: 14,
-    gpsFix: '3D Fix',
+    battery: null,
+    voltage: null,
+    current: null,
+    satellites: null,
+    distanceFromHome: null,
+    gpsFix: 'Waiting GPS',
     flightMode: 'AUTO',
     sysId: 1,
     compId: 1,
@@ -77,6 +78,24 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
     disconnect: disconnectMavlink,
   } = telemetryState || {}
   const targetPoints = currentMission?.targetPoints || []
+  const headingAngleRef = useRef(0)
+  const disconnectTimerRef = useRef(null)
+  const [headingAngle, setHeadingAngle] = useState(0)
+
+  useEffect(() => {
+    if (telemetry.heading == null) {
+      headingAngleRef.current = 0
+      setHeadingAngle(0)
+      return
+    }
+    const current = headingAngleRef.current
+    const diff = ((telemetry.heading - current + 540) % 360) - 180
+    const next = current + diff
+    headingAngleRef.current = next
+    setHeadingAngle(next)
+  }, [telemetry.heading])
+
+  useEffect(() => () => clearTimeout(disconnectTimerRef.current), [])
 
   const weather = useWeather(telemetry.latitude, telemetry.longitude)
   const droneLocationName = useDroneRegion(telemetry.latitude, telemetry.longitude)
@@ -97,6 +116,8 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
 
   const [aiActive, setAiActive] = useState(true)
   const [showMavlinkModal, setShowMavlinkModal] = useState(false)
+  const [isDisconnecting, setIsDisconnecting] = useState(false)
+  const [showForceRefresh, setShowForceRefresh] = useState(false)
   const [showLocationModal, setShowLocationModal] = useState(false)
   const [locationQuery, setLocationQuery] = useState('')
   const [searchResults, setSearchResults] = useState([])
@@ -923,7 +944,7 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
                             {droneLocationName}
                           </p>
                         </div>
-                        <span className="text-[10px] font-semibold text-slate-500 data-font">{telemetry.satellites} Sats</span>
+                        <span className="text-[10px] font-semibold text-slate-500 data-font">{telemetry.satellites ?? '--'} Sats</span>
                       </div>
                     </div>
                   )}
@@ -1274,15 +1295,15 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
                   <div className="my-auto py-1 flex flex-col items-center justify-center text-center gap-1">
                     <div className="flex items-baseline justify-center gap-1.5">
                       <span className="data-font text-4xl sm:text-5xl font-extrabold text-slate-900 leading-none tracking-tight">
-                        {telemetry.altitude}
+                        {telemetry.altitude == null ? '--' : telemetry.altitude.toFixed(2)}
                       </span>
                       <span className="text-sm sm:text-base font-extrabold text-slate-400">m</span>
                     </div>
                     <p className="text-xs font-semibold text-slate-500 mt-0.5">Relative Altitude</p>
                   </div>
                   <div className="flex items-center justify-between pt-1.5 border-t border-slate-100 text-[9px] font-bold text-slate-400 shrink-0">
-                    <span>AGL MODE</span>
-                    <span className="text-slate-700 font-semibold uppercase">GPS REL</span>
+                    <span>FC ESTIMATE</span>
+                    <span className="text-slate-700 font-semibold uppercase">RELATIVE</span>
                   </div>
                 </div>
 
@@ -1294,12 +1315,12 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
                   <div className="my-auto py-1 flex flex-col items-center justify-center text-center gap-1">
                     <div className="flex items-baseline justify-center gap-1.5">
                       <span className="data-font text-4xl sm:text-5xl font-extrabold text-slate-900 leading-none tracking-tight">
-                        {telemetry.speed}
+                        {telemetry.speed ?? '--'}
                       </span>
                       <span className="text-sm sm:text-base font-extrabold text-slate-400">m/s</span>
                     </div>
                     <span className="inline-block text-xs font-bold text-slate-700 bg-slate-100 border border-slate-200/80 px-2.5 py-0.5 rounded-md mt-0.5 data-font shadow-2xs">
-                      {(telemetry.speed * 3.6).toFixed(1)} km/h
+                        {telemetry.speed == null ? '--' : `${(telemetry.speed * 3.6).toFixed(1)} km/h`}
                     </span>
                   </div>
                   <div className="flex items-center justify-between pt-1.5 border-t border-slate-100 text-[9px] font-bold text-slate-400 shrink-0">
@@ -1320,15 +1341,15 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
                 <div className="my-auto py-1 flex flex-col items-center justify-center text-center gap-1">
                   <div className="flex items-baseline justify-center gap-1.5">
                     <span className="data-font text-3xl sm:text-4xl font-extrabold text-slate-900 leading-none tracking-tight">
-                      {telemetry.altitude}
+                      {telemetry.altitude == null ? '--' : telemetry.altitude.toFixed(2)}
                     </span>
                     <span className="text-sm font-extrabold text-slate-400">m</span>
                   </div>
                   <p className="text-xs font-semibold text-slate-500 mt-0.5">Relative Altitude</p>
                 </div>
                 <div className="flex items-center justify-between pt-1.5 border-t border-slate-100 text-[9px] font-bold text-slate-400 shrink-0">
-                  <span>AGL MODE</span>
-                  <span className="text-slate-700 font-semibold uppercase">GPS REL</span>
+                  <span>FC ESTIMATE</span>
+                  <span className="text-slate-700 font-semibold uppercase">RELATIVE</span>
                 </div>
               </div>
 
@@ -1340,12 +1361,12 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
                 <div className="my-auto py-1 flex flex-col items-center justify-center text-center gap-1">
                   <div className="flex items-baseline justify-center gap-1.5">
                     <span className="data-font text-3xl sm:text-4xl font-extrabold text-slate-900 leading-none tracking-tight">
-                      {telemetry.speed}
+                      {telemetry.speed ?? '--'}
                     </span>
                     <span className="text-sm font-extrabold text-slate-400">m/s</span>
                   </div>
                   <span className="inline-block text-xs font-bold text-slate-700 bg-slate-100 border border-slate-200/80 px-2.5 py-0.5 rounded-md mt-0.5 data-font shadow-2xs">
-                    {(telemetry.speed * 3.6).toFixed(1)} km/h
+                    {telemetry.speed == null ? '--' : `${(telemetry.speed * 3.6).toFixed(1)} km/h`}
                   </span>
                 </div>
                 <div className="flex items-center justify-between pt-1.5 border-t border-slate-100 text-[9px] font-bold text-slate-400 shrink-0">
@@ -1445,7 +1466,7 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
                       {droneLocationName}
                     </p>
                   </div>
-                  <span className="text-[11px] font-semibold text-slate-500 data-font">{telemetry.satellites} Sats</span>
+                  <span className="text-[11px] font-semibold text-slate-500 data-font">{telemetry.satellites ?? '--'} Sats</span>
                 </div>
               </div>
             </div>
@@ -1461,12 +1482,12 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
                     <div className="h-1.5 w-16 sm:w-20 overflow-hidden rounded-full bg-slate-200">
                       <div
                         className="h-full rounded-full bg-slate-700 transition-all"
-                        style={{ width: `${telemetry.battery || 74}%` }}
+                        style={{ width: `${telemetry.battery ?? 0}%` }}
                       />
                     </div>
                     <div className="flex items-baseline gap-1 data-font text-[10px]">
-                      <span className="font-bold text-slate-900">{telemetry.battery}%</span>
-                      <span className="text-[10px] text-slate-400">{telemetry.voltage}V</span>
+                      <span className="font-bold text-slate-900">{telemetry.battery == null ? '--' : `${telemetry.battery}%`}</span>
+                      <span className="text-[10px] text-slate-400">{telemetry.voltage == null ? '--' : `${telemetry.voltage}V`}</span>
                     </div>
                   </div>
                 </div>
@@ -1482,12 +1503,12 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
                     <div className="flex flex-1 items-center justify-around gap-3 my-0.5">
                       <div className="min-w-0 text-center">
                         <span className="block text-[9px] font-bold uppercase text-slate-400">Pitch</span>
-                        <span className="data-font block truncate text-lg sm:text-xl font-black text-slate-900 leading-tight">{telemetry.pitch}°</span>
+                        <span className="data-font block truncate text-lg sm:text-xl font-black text-slate-900 leading-tight">{telemetry.pitch == null ? '--' : `${telemetry.pitch}°`}</span>
                       </div>
                       <div className="h-8 w-px shrink-0 bg-slate-200" />
                       <div className="min-w-0 text-center">
                         <span className="block text-[9px] font-bold uppercase text-slate-400">Roll</span>
-                        <span className="data-font block truncate text-lg sm:text-xl font-black text-slate-900 leading-tight">{telemetry.roll}°</span>
+                        <span className="data-font block truncate text-lg sm:text-xl font-black text-slate-900 leading-tight">{telemetry.roll == null ? '--' : `${telemetry.roll}°`}</span>
                       </div>
                     </div>
                     <div className="flex items-center justify-between border-t border-slate-100 pt-1 text-[9px] font-semibold text-slate-400">
@@ -1504,11 +1525,14 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
                     </div>
                     <div className="my-0.5">
                       <p className="data-font text-sm sm:text-base font-black text-slate-900 truncate">
-                        {telemetry.latitude.toFixed(5)}, {telemetry.longitude.toFixed(5)}
+                        {telemetry.gpsFix === 'GPS Fix' && Number.isFinite(telemetry.latitude) && Number.isFinite(telemetry.longitude)
+                          ? `${telemetry.latitude.toFixed(5)}, ${telemetry.longitude.toFixed(5)}`
+                          : '--'}
                       </p>
                     </div>
                     <div className="flex items-center justify-between gap-2 border-t border-slate-100 pt-1 text-[9px] font-semibold text-slate-400">
-                      <span className="data-font font-bold text-slate-700">{telemetry.satellites} Satellites</span>
+                      <span className="data-font font-bold text-slate-700">{telemetry.satellites ?? '--'} Satellites</span>
+                      <span className="data-font font-bold text-slate-700">Distance {telemetry.distanceFromHome || '--'}</span>
                       <span className="text-slate-600 font-bold">{telemetry.gpsFix}</span>
                     </div>
                   </div>
@@ -1522,14 +1546,14 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
                 <div className="flex items-center justify-between w-full pb-1 border-b border-slate-100 shrink-0">
                   <span className="text-[10px] font-extrabold text-slate-700 uppercase tracking-wider">HEADING</span>
                   <span className="data-font text-xs font-bold text-slate-700">
-                    {telemetry.heading}° {degreesToCardinal(telemetry.heading)}
+                    {telemetry.heading == null ? '--' : `${telemetry.heading}°`}
                   </span>
                 </div>
 
                 <div className="relative my-auto flex h-22 w-22 sm:h-26 sm:w-26 lg:h-28 lg:w-28 items-center justify-center">
                   <div
-                    className="absolute inset-0 transition-transform duration-700 ease-out"
-                    style={{ transform: `rotate(${-telemetry.heading}deg)` }}
+                    className="absolute inset-0 transition-transform duration-100 ease-out"
+                    style={{ transform: `rotate(${-headingAngle}deg)` }}
                   >
                     <svg className="h-full w-full" viewBox="0 0 140 140">
                       <circle cx="70" cy="70" r="64" stroke="#cbd5e1" strokeWidth="1.5" fill="none" />
@@ -1557,8 +1581,8 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
                 </div>
 
                 <div className="w-full pt-1.5 border-t border-slate-100 flex flex-col items-center shrink-0">
-                  <p className="data-font text-[10px] sm:text-[11px] font-bold text-slate-700 truncate w-full" title={weather.dmsLocation}>
-                    {weather.dmsLocation}
+                  <p className="data-font text-sm font-black text-slate-900">
+                    {telemetry.heading == null ? '--' : `${telemetry.heading}°`}
                   </p>
                 </div>
               </div>
@@ -1616,8 +1640,8 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
                   type="button"
                   onClick={async () => {
                     resetMapTrail()
-                    await connectBetaflightMsp?.(115200)
-                    setShowMavlinkModal(false)
+                    const connected = await connectBetaflightMsp?.(115200)
+                    if (connected) setShowMavlinkModal(false)
                   }}
                   className="shrink-0 rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-800 transition cursor-pointer"
                 >
@@ -1674,18 +1698,35 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
             </div>
 
             {/* Modal Footer */}
-            {connectionStatus === 'connected' && (
-              <div className="px-5 py-3 border-t border-slate-100 bg-slate-50 flex justify-end">
+            {(connectionStatus === 'connected' || isDisconnecting) && (
+              <div className="px-5 py-3 border-t border-slate-100 bg-slate-50 flex items-center justify-end gap-2">
+                {showForceRefresh && (
+                  <button
+                    type="button"
+                    onClick={() => window.location.reload()}
+                    className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-700 hover:bg-amber-100 transition cursor-pointer"
+                  >
+                    Force Refresh
+                  </button>
+                )}
                 <button
                   type="button"
+                  disabled={isDisconnecting}
                   onClick={() => {
                     resetMapTrail()
-                    disconnectMavlink?.()
-                    setShowMavlinkModal(false)
+                    setIsDisconnecting(true)
+                    setShowForceRefresh(false)
+                    disconnectTimerRef.current = setTimeout(() => setShowForceRefresh(true), 1500)
+                    Promise.resolve(disconnectMavlink?.()).finally(() => {
+                      clearTimeout(disconnectTimerRef.current)
+                      setIsDisconnecting(false)
+                      setShowForceRefresh(false)
+                      setShowMavlinkModal(false)
+                    })
                   }}
-                  className="rounded-lg bg-red-50 text-red-600 border border-red-200 px-3 py-1.5 text-xs font-semibold hover:bg-red-100 transition cursor-pointer"
+                  className="rounded-lg bg-red-50 text-red-600 border border-red-200 px-3 py-1.5 text-xs font-semibold hover:bg-red-100 transition cursor-pointer disabled:cursor-wait disabled:opacity-60"
                 >
-                  Disconnect
+                  {isDisconnecting ? 'Disconnecting...' : 'Disconnect'}
                 </button>
               </div>
             )}
