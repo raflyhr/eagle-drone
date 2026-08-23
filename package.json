@@ -13,12 +13,12 @@
   "dependencies": {
     "@supabase/supabase-js": "^2.112.2",
     "@tailwindcss/vite": "^4.3.3",
-    "@tensorflow-models/coco-ssd": "^2.2.3",
-    "@tensorflow/tfjs": "^4.22.0",
     "leaflet": "^1.9.4",
+    "onnxruntime-web": "^1.27.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
-    "tailwindcss": "^4.3.3"
+    "tailwindcss": "^4.3.3",
+    "vite-plugin-static-copy": "^4.1.1"
   },
   "devDependencies": {
     "@types/react": "^19.2.17",
