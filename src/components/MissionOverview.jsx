@@ -70,6 +70,7 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
     connectionType = 'simulation',
     connectSerial,
     connectBetaflightMsp,
+    connectElrsCrsf,
     connectWebSocket,
     enableMavlinkSim,
     capturePhoto,
@@ -1649,10 +1650,28 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
                 </button>
               </div>
 
-              {/* Option 3: WebSerial API */}
               <div className="flex items-center justify-between p-3.5 rounded-lg border border-slate-200 hover:border-slate-300 bg-slate-50/30 transition">
                 <div className="pr-3">
-                  <h4 className="text-xs font-bold text-slate-900">3. MAVLink USB / Pixhawk</h4>
+                  <h4 className="text-xs font-bold text-slate-900">3. ELRS / CRSF USB Telemetry</h4>
+                  <p className="text-[11px] text-slate-500 mt-0.5">Read passive telemetry from ELRS radio or CRSF serial bridge</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    resetMapTrail()
+                    const connected = await connectElrsCrsf?.(420000)
+                    if (connected) setShowMavlinkModal(false)
+                  }}
+                  className="shrink-0 rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-800 transition cursor-pointer"
+                >
+                  Connect ELRS
+                </button>
+              </div>
+
+              {/* Option 4: WebSerial API */}
+              <div className="flex items-center justify-between p-3.5 rounded-lg border border-slate-200 hover:border-slate-300 bg-slate-50/30 transition">
+                <div className="pr-3">
+                  <h4 className="text-xs font-bold text-slate-900">4. MAVLink USB / Pixhawk</h4>
                   <p className="text-[11px] text-slate-500 mt-0.5">Direct connection to SiK Telemetry Radio or Pixhawk USB cable</p>
                 </div>
                 <button
@@ -1667,11 +1686,11 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
                   Connect USB
                 </button>
               </div>
-              {/* Option 4: WebSocket Server */}
+              {/* Option 5: WebSocket Server */}
               <div className="p-3.5 rounded-lg border border-slate-200 hover:border-slate-300 bg-slate-50/30 transition space-y-2.5">
 
                 <div>
-                  <h4 className="text-xs font-bold text-slate-900">4. WebSocket MAVLink Server</h4>
+                  <h4 className="text-xs font-bold text-slate-900">5. WebSocket MAVLink Server</h4>
                   <p className="text-[11px] text-slate-500 mt-0.5">Connect to MAVLink WebSocket bridge (e.g. ws://localhost:8080)</p>
                 </div>
                 <div className="flex items-center gap-2">

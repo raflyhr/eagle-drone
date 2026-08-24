@@ -15,6 +15,8 @@ export default function Settings({ telemetryState }) {
     ? `${deviceInfo?.name || 'Betaflight FC'}${deviceInfo?.version ? ` ${deviceInfo.version}` : ''}`
     : connectionType === 'serial'
       ? `MAVLink FC · SYS ${telemetry.sysId || '-'} / COMP ${telemetry.compId || '-'}`
+    : connectionType === 'crsf'
+      ? `ELRS / CRSF Serial${deviceInfo?.baudRate ? ` · ${deviceInfo.baudRate}` : ''}`
       : connectionType === 'websocket'
         ? 'MAVLink WebSocket'
         : connectionType === 'simulation'
