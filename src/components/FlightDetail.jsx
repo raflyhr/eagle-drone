@@ -129,7 +129,7 @@ export default function FlightDetail({ mission, onBack }) {
             <p className="text-[11px] font-semibold text-slate-400">{selectedMission?.id || 'MISSION'} · {selectedMission?.type || 'Evacuation'}</p>
           </div>
         </div>
-        <span className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700">{selectedMission?.status || 'Success'}</span>
+        <span className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white shadow-xs">{selectedMission?.status || 'Success'}</span>
       </header>
 
       <div className="grid min-h-0 flex-1 grid-cols-12 gap-4 p-4">

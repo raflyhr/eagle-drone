@@ -68,7 +68,7 @@ export default function Settings({ telemetryState }) {
                       : 'Waiting for flight controller connection'}
                   </span>
                 </div>
-                <span className={`mt-0.5 inline-flex shrink-0 items-center rounded-full px-2 py-1 text-[10px] font-bold ${isLive ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-500'}`}>
+                <span className={`mt-0.5 inline-flex shrink-0 items-center rounded-full px-2.5 py-0.5 text-[10px] font-bold ${isLive ? 'bg-emerald-600 text-white' : 'bg-slate-500 text-white'}`}>
                   {isLive ? 'LIVE' : 'OFFLINE'}
                 </span>
               </div>
