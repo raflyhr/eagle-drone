@@ -1630,7 +1630,7 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
                   Use Stream
                 </button>
               </div>
-              <div className="flex items-center justify-between p-3.5 rounded-lg border border-slate-200 hover:border-slate-300 bg-slate-50/30 transition">
+              <div className="flex items-center justify-between p-3.5 rounded-lg border border-slate-200 hover:border-slate-300 bg-slate-50 transition">
 
                 <div className="pr-3">
                   <h4 className="text-xs font-bold text-slate-900">2. Betaflight USB (MSP)</h4>
@@ -1650,7 +1650,7 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
               </div>
 
               {/* Option 3: WebSerial API */}
-              <div className="flex items-center justify-between p-3.5 rounded-lg border border-slate-200 hover:border-slate-300 bg-slate-50/30 transition">
+              <div className="flex items-center justify-between p-3.5 rounded-lg border border-slate-200 hover:border-slate-300 bg-slate-50 transition">
                 <div className="pr-3">
                   <h4 className="text-xs font-bold text-slate-900">3. MAVLink USB / Pixhawk</h4>
                   <p className="text-[11px] text-slate-500 mt-0.5">Direct connection to SiK Telemetry Radio or Pixhawk USB cable</p>
@@ -1668,7 +1668,7 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
                 </button>
               </div>
               {/* Option 4: WebSocket Server */}
-              <div className="p-3.5 rounded-lg border border-slate-200 hover:border-slate-300 bg-slate-50/30 transition space-y-2.5">
+              <div className="p-3.5 rounded-lg border border-slate-200 hover:border-slate-300 bg-slate-50 transition space-y-2.5">
 
                 <div>
                   <h4 className="text-xs font-bold text-slate-900">4. WebSocket MAVLink Server</h4>
@@ -1704,7 +1704,7 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
                   <button
                     type="button"
                     onClick={() => window.location.reload()}
-                    className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-700 hover:bg-amber-100 transition cursor-pointer"
+                    className="rounded-lg bg-amber-500 hover:bg-amber-600 text-white px-3 py-1.5 text-xs font-bold transition cursor-pointer shadow-xs"
                   >
                     Force Refresh
                   </button>
@@ -1724,7 +1724,7 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
                       setShowMavlinkModal(false)
                     })
                   }}
-                  className="rounded-lg bg-red-50 text-red-600 border border-red-200 px-3 py-1.5 text-xs font-semibold hover:bg-red-100 transition cursor-pointer disabled:cursor-wait disabled:opacity-60"
+                  className="rounded-lg bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 text-xs font-bold transition cursor-pointer shadow-xs disabled:cursor-wait disabled:opacity-60"
                 >
                   {isDisconnecting ? 'Disconnecting...' : 'Disconnect'}
                 </button>
@@ -1763,8 +1763,8 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
                   }}
                   className={`w-full flex items-center justify-between p-3 rounded-xl border transition text-left cursor-pointer ${
                     weather.locationMode === 'device'
-                      ? 'bg-emerald-50 border-emerald-300 ring-2 ring-emerald-500/20'
-                      : 'bg-slate-50 border-slate-200 hover:bg-slate-100 hover:border-slate-300'
+                      ? 'bg-white border-2 border-emerald-600 shadow-sm'
+                      : 'bg-white border border-slate-200 hover:bg-slate-50 hover:border-slate-300'
                   }`}
                 >
                   <div className="flex items-center gap-3">
@@ -1799,8 +1799,8 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
                   }}
                   className={`w-full flex items-center justify-between p-3 rounded-xl border transition text-left cursor-pointer ${
                     weather.locationMode === 'drone'
-                      ? 'bg-sky-50 border-sky-300 ring-2 ring-sky-500/20'
-                      : 'bg-slate-50 border-slate-200 hover:bg-slate-100 hover:border-slate-300'
+                      ? 'bg-white border-2 border-sky-600 shadow-sm'
+                      : 'bg-white border border-slate-200 hover:bg-slate-50 hover:border-slate-300'
                   }`}
                 >
                   <div className="flex items-center gap-3">

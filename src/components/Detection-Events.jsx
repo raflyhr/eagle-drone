@@ -10,7 +10,7 @@ const events = [
     eta: '00:02:14',
     status: 'CRITICAL',
     statusIcon: 'warning',
-    statusClass: 'border-slate-800 bg-slate-900 text-white',
+    statusClass: 'bg-red-600 text-white',
     tags: ['THERMAL', 'STATIONARY'],
   },
   {
@@ -20,7 +20,7 @@ const events = [
     eta: '00:15:42',
     status: 'REVIEW',
     statusIcon: 'visibility',
-    statusClass: 'border-slate-300 bg-slate-100 text-slate-800',
+    statusClass: 'bg-amber-500 text-white',
     tags: ['IR/NIR', 'MOVEMENT: LOW'],
   },
   {
@@ -30,7 +30,7 @@ const events = [
     eta: '00:42:10',
     status: 'LOW CONF',
     statusIcon: 'info',
-    statusClass: 'border-slate-200 bg-slate-100 text-slate-600',
+    statusClass: 'bg-slate-600 text-white',
     tags: ['OPTICAL', 'PATTERN MATCH'],
   },
 ]
