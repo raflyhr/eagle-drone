@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { encodeMavlink2Frame, MAVMSG, MavlinkParser } from '../utils/mavlink'
 import { encodeMspRequest, MSP, MspParser } from '../utils/msp'
+import { CrsfParser } from '../utils/crsf'
 import { getOfflineLocationName } from '../utils/geoCoder'
 import { isSupabaseConfigured, supabase } from '../lib/supabase'
 import { createMissionRecord, deleteTargetPoint, fetchMissionLogs, finalizeMissionOnUnload, formatMissionRecord, getTrackWritePolicy, insertMarkedLocation, insertTargetPoint, insertTrackPoint, updateMissionRecord, uploadMissionCapture } from '../services/missionService'
@@ -70,6 +71,8 @@ export default function useTelemetry() {
   const [deviceInfo, setDeviceInfo] = useState(null)
   const [serialDevices, setSerialDevices] = useState([])
   const disconnectingRef = useRef(null)
+  const crsfFreshnessRef = useRef({ gps: 0, attitude: 0, battery: 0, link: 0 })
+  const crsfWatchdogRef = useRef(null)
 
   const serialPortRef = useRef(null)
   const readerRef = useRef(null)
@@ -301,6 +304,50 @@ export default function useTelemetry() {
     })
   }, [updateCurrentMission])
 
+  const handleCrsfMessage = useCallback((msg) => {
+    setTelemetry((prev) => {
+      const next = { ...prev, packetCount: prev.packetCount + 1, lastHeartbeat: Date.now() }
+      if (msg.type === 'gps') {
+        crsfFreshnessRef.current.gps = Date.now()
+        if (msg.fix && Number.isFinite(msg.latitude) && Number.isFinite(msg.longitude)) {
+          next.latitude = Number(msg.latitude.toFixed(6))
+          next.longitude = Number(msg.longitude.toFixed(6))
+          next.speed = Number(msg.speed.toFixed(2))
+          next.course = normalizeHeading(msg.heading)
+          if (next.heading == null) next.heading = next.course
+          next.altitude = Number(msg.altitude.toFixed(2))
+          next.satellites = msg.satellites
+          next.gpsFix = 'GPS Fix'
+          updateCurrentMission(next)
+        } else {
+          next.gpsFix = 'No Fix'
+          next.speed = null
+        }
+      } else if (msg.type === 'battery') {
+        crsfFreshnessRef.current.battery = Date.now()
+        next.voltage = Number(msg.voltage.toFixed(1))
+        next.current = Number(msg.current.toFixed(1))
+        next.battery = msg.battery
+      } else if (msg.type === 'link') {
+        crsfFreshnessRef.current.link = Date.now()
+        next.signal = msg.linkQuality
+        next.linkQuality = msg.linkQuality
+        next.rssi = msg.rssi1
+        next.snr = msg.snr
+      } else if (msg.type === 'attitude') {
+        crsfFreshnessRef.current.attitude = Date.now()
+        next.pitch = Number(msg.pitch.toFixed(1))
+        next.roll = Number(msg.roll.toFixed(1))
+        next.yaw = normalizeHeading(msg.yaw)
+        next.heading = next.yaw
+      } else if (msg.type === 'flightMode') {
+        next.flightMode = msg.flightMode || prev.flightMode
+      }
+      latestTelemetryRef.current = next
+      return next
+    })
+  }, [updateCurrentMission])
+
   // Initialize MAVLink parser
   useEffect(() => {
     parserRef.current = new MavlinkParser(handleMavlinkMessage)
@@ -440,6 +487,10 @@ export default function useTelemetry() {
       clearInterval(mspPollTimerRef.current)
       mspPollTimerRef.current = null
     }
+    if (crsfWatchdogRef.current) {
+      clearInterval(crsfWatchdogRef.current)
+      crsfWatchdogRef.current = null
+    }
 
     const reader = readerRef.current
     readerRef.current = null
@@ -567,6 +618,67 @@ export default function useTelemetry() {
       return false
     }
   }, [disconnect])
+
+  const connectElrsCrsf = useCallback(async (baudRate = 420000) => {
+    if (!('serial' in navigator)) {
+      setConnectionStatus('error')
+      setErrorMessage('WebSerial API is not supported in this browser (use Chrome/Edge).')
+      return false
+    }
+
+    let port = null
+    try {
+      await disconnect()
+      setConnectionStatus('connecting')
+      setConnectionType('crsf')
+      port = await navigator.serial.requestPort()
+      await port.open({ baudRate: Number(baudRate) })
+      serialPortRef.current = port
+      parserRef.current = new CrsfParser(handleCrsfMessage)
+      const { usbVendorId, usbProductId } = port.getInfo()
+      setDeviceInfo({ name: 'ELRS / CRSF Serial', baudRate, usbVendorId, usbProductId })
+      crsfFreshnessRef.current = { gps: 0, attitude: 0, battery: 0, link: 0 }
+      crsfWatchdogRef.current = setInterval(() => {
+        const fresh = Object.values(crsfFreshnessRef.current).some((at) => Date.now() - at < 2000)
+        if (!fresh && serialPortRef.current === port) {
+          setConnectionStatus('error')
+          setErrorMessage('CRSF port open, but no valid telemetry frames received.')
+        }
+      }, 1000)
+
+      const readLoop = async () => {
+        while (port.readable && serialPortRef.current === port) {
+          const reader = port.readable.getReader()
+          readerRef.current = reader
+          try {
+            while (true) {
+              const { value, done } = await reader.read()
+              if (done) break
+              if (value) parserRef.current?.parseBytes(value)
+            }
+          } finally {
+            try { reader.releaseLock() } catch {}
+            if (readerRef.current === reader) readerRef.current = null
+          }
+        }
+      }
+
+      readLoop().catch((error) => {
+        if (serialPortRef.current === port) {
+          setConnectionStatus('error')
+          setErrorMessage(error.message || 'ELRS / CRSF serial connection stopped.')
+        }
+      })
+      setConnectionStatus('connected')
+      return true
+    } catch (err) {
+      if (serialPortRef.current === port) await disconnect()
+      else if (port?.readable || port?.writable) await withTimeout(port.close(), 800).catch(() => {})
+      setConnectionStatus('error')
+      setErrorMessage(err.message || 'Failed to connect to ELRS / CRSF serial device.')
+      return false
+    }
+  }, [disconnect, handleCrsfMessage])
 
   const connectBetaflightMsp = useCallback(async (baudRate = 115200) => {
     if (!('serial' in navigator)) {
@@ -902,6 +1014,7 @@ export default function useTelemetry() {
     removeTargetPoint,
     connectSerial,
     connectBetaflightMsp,
+    connectElrsCrsf,
     connectWebSocket,
     enableMavlinkSim,
     disconnect,

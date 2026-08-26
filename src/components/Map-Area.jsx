@@ -652,7 +652,7 @@ export default function MapArea({ onNavigate, telemetry: rawTelemetry, markedLoc
                 ['Wind Speed', `${weather.windSpeed} m/s`],
                 ['Humidity', `${weather.humidity}%`],
                 ['Temp', `${weather.temperature} °C`],
-                ['Signal Link', `${telemetry.signal || 98}%`],
+                ['Signal Link', telemetry.signal == null ? '--' : `${telemetry.signal}%`],
               ].map(([label, value]) => (
                 <div key={label} className="bg-slate-50 rounded-md p-2 border border-slate-200/80">
                   <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide mb-0.5">{label}</p>

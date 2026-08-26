@@ -1,324 +1,246 @@
 # Eagle Drone Mission Control
 
-Platform web untuk monitoring misi drone, bukti visual, telemetri, rute penerbangan, serta arsip misi. Aplikasi ini bersifat **observasi dan pencatatan**; tidak mengirim perintah autopilot, motor, arah, atau kecepatan ke drone.
+Platform web untuk memantau misi drone, telemetri, peta, kamera, deteksi objek, dan riwayat penerbangan. Sistem ini dibuat untuk observasi, pencatatan, dan evaluasi misi.
 
-## Fitur Utama
+> Sistem tidak mengirim perintah arm, motor, arah, kecepatan, atau autopilot ke drone.
 
-- Dashboard misi dengan status telemetri MAVLink.
-- Simulasi MAVLink otomatis untuk pengujian UI tanpa perangkat fisik.
-- Koneksi WebSerial dan WebSocket MAVLink untuk sumber telemetri eksternal.
-- Peta Leaflet/OpenStreetMap, rute drone, heading, posisi, dan area pencarian.
+## Daftar Isi
+
+- [Fitur](#fitur)
+- [Arsitektur](#arsitektur)
+- [Teknologi](#teknologi)
+- [Prasyarat](#prasyarat)
+- [Instalasi](#instalasi)
+- [Konfigurasi Supabase](#konfigurasi-supabase)
+- [Menjalankan aplikasi](#menjalankan-aplikasi)
+- [Cara pakai](#cara-pakai)
+- [Sumber telemetry](#sumber-telemetry)
+- [Penyimpanan data](#penyimpanan-data)
+- [Struktur project](#struktur-project)
+- [Perintah project](#perintah-project)
+- [Batasan dan keamanan](#batasan-dan-keamanan)
+- [Troubleshooting](#troubleshooting)
+- [Dokumentasi lanjutan](#dokumentasi-lanjutan)
+
+## Fitur
+
+- Dashboard monitoring misi.
+- Telemetry real-time: attitude, GPS, posisi, altitude, battery, flight mode, dan status koneksi.
+- Mode simulator MAVLink untuk demo tanpa hardware.
+- Koneksi SpeedyBee/Betaflight melalui USB memakai MSP.
+- Koneksi ELRS/CRSF serial untuk telemetry radio.
+- Koneksi Pixhawk atau SiK radio memakai MAVLink serial.
+- Koneksi MAVLink melalui WebSocket bridge.
+- Peta Leaflet/OpenStreetMap, drone trail, heading, marked location, dan target point.
 - Kamera browser melalui `getUserMedia`.
-- Deteksi orang di browser menggunakan TensorFlow.js dan COCO-SSD.
-- Capture foto beserta hasil deteksi AI.
-- Penandaan lokasi/temuan pada posisi GPS drone.
-- Mission Logs realtime dari Supabase.
-- Flight Detail dari rekaman misi: route, koordinat, durasi, altitude, capture, dan marked location.
-- Pagination Mission Logs: 10 mission per halaman.
-- Hapus satu atau banyak log `Success` melalui mode checkbox.
-- Halaman terakhir dan gaya peta disimpan untuk mempertahankan navigasi setelah refresh.
-
-## Status Sistem
-
-| Kapabilitas | Status | Keterangan |
-|---|---|---|
-| Dashboard React + Vite | Aktif | Antarmuka monitoring desktop.
-| Simulasi MAVLink | Aktif | Generator heartbeat, attitude, GPS, position, dan battery.
-| WebSerial MAVLink | Aktif | Untuk telemetry radio/USB pada browser yang mendukung WebSerial.
-| WebSocket MAVLink | Aktif | Untuk MAVLink bridge eksternal.
-| Kamera browser | Aktif | Membutuhkan izin browser.
-| Deteksi manusia COCO-SSD | Aktif | Diproses di browser.
-| Supabase PostgreSQL | Aktif | Menyimpan mission dan telemetry terkait.
-| Supabase Storage | Aktif | Menyimpan capture pada bucket private `mission-captures`.
-| Supabase Realtime | Aktif | Sinkronisasi Mission Logs.
-| Kontrol autopilot | Tidak ada | Platform tidak mengendalikan drone.
+- Deteksi objek di browser memakai model YOLO ONNX dan ONNX Runtime Web.
+- Capture gambar beserta hasil deteksi.
+- Mission log, flight detail, route, capture, dan target point.
+- Supabase PostgreSQL, Storage private, dan Realtime.
 
 ## Arsitektur
 
 ```text
-MAVLink source / Simulation
-          |
-          v
-     useTelemetry
-          |
-          +--> Mission Overview / Map Area
-          |
-          +--> Supabase PostgreSQL
-          |      missions
-          |      mission_track_points
-          |      mission_captures
-          |      mission_marked_locations
-          |
-          +--> Supabase Storage
-                 mission-captures/<mission-id>/<capture-id>.jpg
-
-Flight History <---- Supabase Realtime: missions
-Flight Detail  <---- Supabase PostgreSQL + signed Storage URLs
+Flight controller / telemetry radio / simulator
+                    |
+        MSP | CRSF | MAVLink | WebSocket
+                    |
+             useTelemetry hook
+                    |
+        React state + mission service
+          |        |          |
+ Dashboard     Map UI     Supabase
+          |        |          |
+ Camera + AI   History   Storage
 ```
 
-## Lifecycle Mission
+Sumber telemetry mengirim data mentah. Parser mengubah data menjadi object JavaScript. `useTelemetry` menyimpan object tersebut, memperbarui dashboard, dan menulis data mission ke Supabase bila konfigurasi tersedia.
 
-1. Telemetry GPS pertama memulai satu record `missions` dengan status `live`.
-2. Telemetry disimpan ke `mission_track_points` dengan sampling minimal 1,5 detik atau saat perpindahan melewati ambang jarak.
-3. Ringkasan mission—durasi, jarak, altitude maksimum, posisi awal/akhir—diperbarui berkala.
-4. Capture kamera di-upload ke Supabase Storage, lalu metadata dan hasil deteksi AI disimpan ke `mission_captures`.
-5. Saat lokasi ditandai, marker dan track point pada koordinat serta timestamp yang sama disimpan ke database.
-6. Saat koneksi dihentikan atau halaman ditutup/refresh, mission difinalisasi menjadi `success`.
-7. Detail misi `Success` mengambil satu rekaman lengkap dari database. Mission `Live` tidak dapat dibuka sampai selesai.
+## Teknologi
 
-Database menegakkan maksimal **satu mission `live`**. Saat mission `live` baru dibuat, mission live sebelumnya otomatis diubah menjadi `success`.
+| Bagian | Teknologi |
+|---|---|
+| UI | React 19, Tailwind CSS |
+| Build | Vite |
+| Peta | Leaflet, OpenStreetMap |
+| Telemetry serial | Web Serial API bawaan Chrome/Edge |
+| Protokol FC | MSP, CRSF, MAVLink v1/v2 |
+| Kamera | Browser MediaDevices API |
+| AI | ONNX Runtime Web, model YOLO ONNX |
+| Database, realtime, storage | Supabase |
+| Lint | oxlint |
 
-## Status Mission
-
-| Status database | Status UI | Arti |
-|---|---|---|
-| `live` | Live | Mission sedang berjalan. Detail arsip belum dapat dibuka.
-| `success` | Success | Mission telah selesai dan rekaman lengkap dapat dibuka/dihapus.
-
-## Penyimpanan Data
-
-Log mission dan evidence **tidak memakai localStorage**. Supabase adalah sumber data utama untuk rekaman penerbangan.
-
-`localStorage` hanya dipakai untuk preferensi antarmuka:
-
-- Halaman aktif: `eagle_active_page`
-- Gaya peta: `eagle_map_style`
-- Mode/cuaca koordinat perangkat: `eagle_weather_mode`, `eagle_weather_coords`
-
-### Tabel PostgreSQL
-
-| Tabel | Fungsi | Data utama |
-|---|---|---|
-| `missions` | Ringkasan satu penerbangan | kode, tipe, status, waktu, durasi, jarak, max altitude, koordinat awal/akhir |
-| `mission_track_points` | Jalur telemetri | timestamp, latitude, longitude, altitude, speed, heading, battery |
-| `mission_captures` | Metadata bukti visual | `storage_path`, waktu capture, hasil deteksi AI JSON |
-| `mission_marked_locations` | Lokasi yang ditandai operator | koordinat, altitude, timestamp, capture terkait |
-
-Relasi child menggunakan `ON DELETE CASCADE`, sehingga telemetry, capture metadata, dan marked location ikut terhapus saat mission dihapus.
-
-### Supabase Storage
-
-Bucket private `mission-captures` menyimpan foto dengan struktur:
-
-```text
-mission-captures/
-└── <mission-uuid>/
-    └── capture-<timestamp>.jpg
-```
-
-Saat Flight Detail dibuka, aplikasi membuat signed URL baru selama 1 jam menggunakan `createSignedUrl`. Karena path dan metadata disimpan di database, foto tetap dapat dibuka kembali setelah browser atau website ditutup.
-
-Capture yang dibuat sebelum database mengembalikan `mission_id` ditahan sementara di memori lalu di-upload otomatis ketika ID tersedia. Ini bukan penyimpanan permanen lokal.
-
-## Mission Logs
-
-Mission Logs menggunakan Supabase Realtime untuk tabel `missions`.
-
-- Baris baru langsung muncul.
-- Durasi, jarak, altitude, dan status ikut diperbarui.
-- Maksimum 10 mission per halaman.
-- Search berdasarkan Mission ID.
-- Mission `Live` tampil merah dan membuka modal informasi bila diklik.
-- Mission `Success` dapat dibuka pada Flight Detail.
-- Mode **Delete mission** menampilkan checkbox hanya pada mission `Success`.
-- Hapus terpilih menghapus object Storage terlebih dahulu, lalu record mission. Mission `Live` tidak dapat dihapus.
-
-## Flight Detail
-
-Flight Detail hanya memakai data dari mission yang dipilih:
-
-- Polyline rute dari `mission_track_points`.
-- Start dan finish dari track pertama serta terakhir.
-- Marked location dari `mission_marked_locations`.
-- Capture gambar dari `mission_captures` dan Supabase Storage.
-- Durasi, jarak, altitude, dan tanggal dari `missions`.
-
-Data demo/fallback tidak digunakan untuk detail mission dari database. Rekaman lama ditampilkan apa adanya dan tidak dimodifikasi untuk menyesuaikan rute baru.
+Tidak ada dependency serial eksternal seperti `pyserial` atau `serialport`. Browser memakai `navigator.serial`.
 
 ## Prasyarat
 
-- Node.js LTS.
+- Node.js versi LTS.
 - npm.
-- Project Supabase.
-- Browser Chromium untuk WebSerial dan kamera.
-- HTTPS untuk akses kamera pada deployment non-localhost.
+- Browser Chromium: Chrome atau Edge, untuk Web Serial dan kamera.
+- SpeedyBee FC/Betaflight, radio ELRS/CRSF, Pixhawk, atau sumber MAVLink bila memakai hardware.
+- Project Supabase opsional. Aplikasi masih dapat dijalankan untuk UI/simulator tanpa Supabase.
 
 ## Instalasi
 
 ```bash
+git clone https://github.com/raflyhr/eagle-drone.git
+cd eagle-drone
 npm install
 ```
 
-Buat file `.env` pada root project:
+## Konfigurasi Supabase
+
+Buat file `.env` di root project:
 
 ```env
-VITE_SUPABASE_URL=https://<project-ref>.supabase.co
-VITE_SUPABASE_ANON_KEY=<supabase-anon-key>
+VITE_SUPABASE_URL=https://YOUR_PROJECT.supabase.co
+VITE_SUPABASE_ANON_KEY=YOUR_ANON_KEY
 ```
 
-`.env` diabaikan Git. Jangan commit service role key atau kredensial rahasia.
+Jangan commit `.env`. File ini berisi alamat project dan anon key browser.
 
-## Menyiapkan Supabase
+Terapkan migration pada folder `supabase/migrations` secara berurutan ke project Supabase. Database dan bucket Storage diperlukan bila ingin menyimpan mission, track, capture, marker, dan target point.
 
-Migration berada pada `supabase/migrations/`.
+## Menjalankan aplikasi
 
-Urutan migration mencakup:
-
-1. Pembuatan tabel mission, RLS policy, bucket `mission-captures`, dan index.
-2. Penyesuaian tipe mission/status dari iterasi sebelumnya.
-3. Publication Supabase Realtime untuk `missions` dan tabel detail.
-4. Aturan satu mission `live`.
-5. Policy delete mission `success` dan object capture.
-
-Hubungkan Supabase CLI ke project lalu jalankan migration sesuai workflow tim/proyek Anda. Untuk menjalankan cleanup data demo yang tersedia di repository:
-
-```bash
-npm run db:clear
-```
-
-Perintah tersebut bersifat destruktif: menghapus data pada tabel mission terkait.
-
-## Menjalankan Aplikasi
-
-### Development
+Development server:
 
 ```bash
 npm run dev
 ```
 
-Buka URL yang ditampilkan Vite, biasanya `http://localhost:5173`.
-
-### Build Produksi
+Build produksi:
 
 ```bash
 npm run build
 ```
 
-### Preview Build
+Preview build:
 
 ```bash
 npm run preview
 ```
 
-### Lint
+Lint:
 
 ```bash
 npm run lint
 ```
 
-## Cara Uji Alur Mission
+Buka alamat yang dicetak Vite, biasanya `http://localhost:5173` saat development.
 
-1. Jalankan `npm run dev`.
-2. Buka Mission Overview; simulasi MAVLink berjalan otomatis.
-3. Buka Flight History untuk melihat mission `Live` muncul secara realtime.
-4. Hubungkan kamera dan aktifkan deteksi AI bila ingin membuat capture evidence.
-5. Tandai lokasi dari kontrol mission untuk menyimpan marked location.
-6. Refresh halaman atau disconnect MAVLink untuk memfinalisasi mission menjadi `Success`.
-7. Buka Flight History; mission `Success` dapat dibuka.
-8. Periksa route, capture, dan marker pada Flight Detail.
-9. Tutup browser lalu buka lagi; log dan foto tetap tersedia karena disimpan di Supabase.
+## Cara pakai
 
-## Struktur Project
+1. Jalankan aplikasi di Chrome atau Edge.
+2. Buka halaman Mission Overview.
+3. Tekan tombol telemetry/connection.
+4. Pilih sumber telemetry.
+5. Bila memakai serial, browser menampilkan pemilih perangkat. Pilih port perangkat benar.
+6. Tunggu status menjadi `connected` dan telemetry masuk.
+7. Mulai mission dari dashboard bila ingin menyimpan session.
+8. Sambungkan kamera bila perlu capture atau deteksi objek.
+9. Tambahkan target point atau marked location dari peta/hasil capture.
+10. Selesaikan mission. Riwayat dapat dibuka pada Flight History.
+
+## Sumber telemetry
+
+| Sumber | Protokol | Baudrate default | Kegunaan |
+|---|---:|---:|---|
+| Simulation | MAVLink generator internal | - | Demo tanpa hardware |
+| SpeedyBee / Betaflight USB | MSP | `115200` | Membaca telemetry FC Betaflight |
+| ELRS / CRSF serial bridge | CRSF | `420000` | Membaca GPS, battery, link, attitude |
+| Pixhawk / SiK radio USB | MAVLink | `57600` | Membaca telemetry autopilot |
+| WebSocket bridge | MAVLink | - | Membaca data dari bridge lokal/jaringan |
+
+Rincian frame, parser, command MSP, dan langkah koneksi ada di [docs/TELEMETRY.md](docs/TELEMETRY.md).
+
+## Penyimpanan data
+
+Saat Supabase terkonfigurasi, aplikasi menyimpan:
+
+- mission aktif dan selesai;
+- titik track GPS dengan filter waktu, jarak minimum, dan loncatan GPS;
+- capture kamera dan metadata hasil AI;
+- marked location;
+- target point;
+- riwayat mission dan detail route.
+
+Rincian tabel dan Storage ada di [docs/DATABASE.md](docs/DATABASE.md).
+
+## Struktur project
 
 ```text
 src/
-├── App.jsx                         # Page state, navigasi, detail mission
-├── components/
-│   ├── MissionOverview.jsx          # Dashboard utama, kamera, telemetry, AI
-│   ├── Map-Area.jsx                 # Peta area pencarian
-│   ├── Flight-History.jsx           # Realtime logs, pagination, delete mode
-│   ├── FlightDetail.jsx             # Rekaman route, capture, marker mission
-│   ├── Settings.jsx                 # Preferensi dan hardware health
-│   ├── Sidebar.jsx                  # Navigasi utama
-│   └── Detection-Events.jsx         # Tampilan event deteksi
-├── hooks/
-│   ├── useTelemetry.js              # MAVLink, simulasi, lifecycle mission
-│   ├── useCamera.js                 # Kamera browser
-│   ├── useObjectDetection.js        # COCO-SSD
-│   ├── useWeather.js                # Cuaca dan koordinat wilayah
-│   └── useDroneRegion.js            # Region drone
-├── lib/
-│   └── supabase.js                  # Supabase client
-├── services/
-│   └── missionService.js            # Query mission, storage, signed URL, delete
-└── utils/
-    ├── mavlink.js                   # Parser dan encoder MAVLink
-    └── geoCoder.js                  # Resolusi nama wilayah
-
+  components/       Halaman dan komponen UI
+  hooks/            State telemetry, kamera, AI, cuaca, region
+  lib/              Klien Supabase
+  services/         Operasi mission, track, capture, storage
+  utils/            Parser MSP, CRSF, MAVLink, geocoder
 supabase/
-├── migrations/                      # Schema, RLS, realtime, lifecycle rules
-└── cleanup-demo.sql                 # Cleanup data mission
+  migrations/       Perubahan skema database berurutan
+  cleanup-demo.sql  Bersihkan data demo
+public/             Logo, icon, dan aset statis
+docs/               Dokumentasi teknis
 ```
 
-## Teknologi
+Rincian tanggung jawab file ada di [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
 
-| Teknologi | Penggunaan |
+## Perintah project
+
+| Command | Fungsi |
 |---|---|
-| React 19 | Antarmuka komponen |
-| Vite | Development server dan bundling |
-| Tailwind CSS | Styling |
-| Leaflet | Peta interaktif |
-| OpenStreetMap | Tile peta standar |
-| TensorFlow.js + COCO-SSD | Deteksi manusia di browser |
-| Supabase PostgreSQL | Metadata mission dan telemetry |
-| Supabase Storage | Foto capture mission |
-| Supabase Realtime | Update Mission Logs |
-| Web Serial API | Telemetry MAVLink melalui serial/USB |
-| WebSocket | Telemetry MAVLink bridge |
-| MediaDevices API | Kamera browser |
+| `npm run dev` | Menjalankan Vite development server |
+| `npm run build` | Membuat build produksi ke `dist/` |
+| `npm run preview` | Menjalankan hasil build lokal |
+| `npm run lint` | Memeriksa kualitas kode dengan oxlint |
+| `npm run db:clear` | Menjalankan `supabase/cleanup-demo.sql` pada project Supabase yang sudah linked |
 
-## Keamanan dan Operasional
+## Batasan dan keamanan
 
-- Gunakan hanya `VITE_SUPABASE_ANON_KEY` di frontend.
-- Jangan pernah memasukkan service role key pada `.env` frontend.
-- Bucket capture bersifat private; UI menggunakan signed URL.
-- Policy `anon` saat ini dibuat untuk demo/prototipe. Production sebaiknya memakai Supabase Auth, role operator, dan policy per organisasi/mission.
-- Pastikan migration yang diperlukan telah diterapkan pada environment deployment.
-- Capture browser dan telemetry dapat berhenti bila tab/browser dipaksa ditutup sebelum request selesai. Untuk operasi kritis, gunakan source telemetry server-side atau bridge yang memiliki retry/buffer.
-
-## Batasan Saat Ini
-
-- Simulasi adalah sumber telemetri default; integrasi flight controller nyata bergantung pada sumber MAVLink perangkat.
-- Kamera browser bukan pengganti stream kamera drone/Runcam.
-- COCO-SSD mendeteksi objek di browser; hasil dan performa bergantung pada perangkat operator.
-- Tidak ada kontrol autopilot atau pengiriman command ke drone.
-- RLS demo belum cocok untuk multi-user production.
-- Tidak ada export laporan PDF atau sistem autentikasi operator penuh.
+- Aplikasi hanya monitoring dan pencatatan. Tidak mengontrol drone.
+- Web Serial hanya tersedia pada browser Chromium dan halaman secure context atau localhost.
+- Sambungkan hanya perangkat yang dikenal saat browser meminta izin serial.
+- Lepas propeller saat menguji koneksi flight controller di meja.
+- Telemetry, GPS, dan AI detection tidak menggantikan pemeriksaan pilot, failsafe, atau prosedur keselamatan penerbangan.
+- Jangan masukkan service role key Supabase ke `.env` frontend. Gunakan hanya anon key yang dibatasi RLS.
 
 ## Troubleshooting
 
-### Mission Logs kosong
+### Browser tidak mendukung serial
 
-1. Periksa `VITE_SUPABASE_URL` dan `VITE_SUPABASE_ANON_KEY`.
-2. Pastikan migration Supabase sudah diterapkan.
-3. Pastikan tabel `missions` masuk publication `supabase_realtime`.
-4. Periksa browser console untuk error RLS atau network.
+Pakai Chrome atau Edge versi modern. Firefox dan Safari belum menyediakan Web Serial API stabil.
 
-### Foto tidak muncul di Flight Detail
+### SpeedyBee tidak mengirim data
 
-1. Periksa object pada bucket `mission-captures`.
-2. Pastikan tabel `mission_captures.storage_path` sesuai path object Storage.
-3. Pastikan policy `SELECT` Storage tersedia untuk anon pada bucket tersebut.
-4. Buka ulang detail untuk membuat signed URL baru.
+- Pastikan FC menjalankan firmware Betaflight.
+- Pilih metode `Betaflight USB (MSP)`.
+- Gunakan baudrate `115200`.
+- Tutup Betaflight Configurator atau aplikasi lain yang sedang memakai port.
+- Ganti kabel USB data; banyak kabel hanya mendukung charging.
+- Pastikan port USB FC aktif dan driver terpasang.
 
-### Camera tidak dapat dibuka
+### GPS kosong atau posisi tidak berubah
 
-- Berikan izin kamera pada browser.
-- Gunakan HTTPS selain pada `localhost`.
-- Pastikan perangkat kamera tidak sedang dipakai aplikasi lain.
+- Pastikan GPS sudah mendapat fix.
+- Gunakan telemetry source yang memang mengirim GPS.
+- Periksa antenna, receiver, dan konfigurasi port telemetry.
 
-### WebSerial tidak tersedia
+### Data tidak tersimpan
 
-- Gunakan Chrome atau Edge.
-- Pastikan koneksi dilakukan dari secure context.
+- Periksa `VITE_SUPABASE_URL` dan `VITE_SUPABASE_ANON_KEY`.
+- Pastikan migration selesai diterapkan.
+- Periksa RLS policy dan bucket `mission-captures`.
+- Lihat Console browser untuk error Supabase.
 
-## Kontribusi
+### Kamera atau AI tidak aktif
 
-1. Buat branch fitur dari branch kerja yang disepakati.
-2. Jalankan `npm run lint` dan `npm run build` sebelum push.
-3. Jangan commit `.env`, service role key, atau file `supabase/.temp/`.
-4. Sertakan migration bila mengubah schema, RLS, Storage policy, atau Realtime publication.
+- Izinkan akses kamera pada browser.
+- Pastikan halaman dibuka di localhost atau HTTPS.
+- Tunggu model ONNX selesai dimuat.
+- Periksa browser Console bila model gagal dimuat.
 
-## Lisensi
+## Dokumentasi lanjutan
 
-Private project. Hak penggunaan mengikuti kebijakan pemilik repository.
+- [Telemetry dan flight controller](docs/TELEMETRY.md)
+- [Database dan Supabase](docs/DATABASE.md)
+- [Panduan pengembangan](docs/DEVELOPMENT.md)
