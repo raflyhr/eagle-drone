@@ -74,10 +74,10 @@ export default function FlightHistory({ missionLogs = [], onOpenMission }) {
                 {deleteMode ? (
                   <>
                     <button type="button" onClick={() => { setDeleteMode(false); setSelectedIds([]) }} className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-600 hover:bg-slate-50">Cancel</button>
-                    {selectedIds.length > 0 && <button type="button" onClick={() => setDeleteTargets(successLogs.filter((mission) => selectedIds.includes(mission.databaseId)))} className="rounded-lg border border-red-600 bg-red-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-red-700">Delete selected ({selectedIds.length})</button>}
+                    {selectedIds.length > 0 && <button type="button" onClick={() => setDeleteTargets(successLogs.filter((mission) => selectedIds.includes(mission.databaseId)))} className="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-red-700 shadow-xs">Delete selected ({selectedIds.length})</button>}
                   </>
                 ) : (
-                  <button type="button" onClick={() => setDeleteMode(true)} className="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-bold text-red-700 hover:bg-red-100 transition cursor-pointer">Delete mission</button>
+                  <button type="button" onClick={() => setDeleteMode(true)} className="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-red-700 transition cursor-pointer shadow-xs">Delete mission</button>
                 )}
                 <input
                   type="text"
@@ -122,8 +122,8 @@ export default function FlightHistory({ missionLogs = [], onOpenMission }) {
                       <td className="px-3 py-3.5 text-right">
                         <span className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-bold ${
                           mission.status === 'Success'
-                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                            : 'bg-red-50 text-red-700 border border-red-200'
+                            ? 'bg-emerald-600 text-white'
+                            : 'bg-red-600 text-white'
                         }`}>
                           <Icon className="text-[14px]">
                             {mission.status === 'Success' ? 'check_circle' : 'radio_button_checked'}
