@@ -15,6 +15,7 @@ Platform web untuk memantau misi drone, telemetri, peta, kamera, deteksi objek, 
 - [Menjalankan aplikasi](#menjalankan-aplikasi)
 - [Cara pakai](#cara-pakai)
 - [Sumber telemetry](#sumber-telemetry)
+- [CRSF C/WASM](#crsf-cwasm)
 - [Penyimpanan data](#penyimpanan-data)
 - [Struktur project](#struktur-project)
 - [Perintah project](#perintah-project)
@@ -153,6 +154,224 @@ Buka alamat yang dicetak Vite, biasanya `http://localhost:5173` saat development
 | WebSocket bridge | MAVLink | - | Membaca data dari bridge lokal/jaringan |
 
 Rincian frame, parser, command MSP, dan langkah koneksi ada di [docs/TELEMETRY.md](docs/TELEMETRY.md).
+
+## CRSF C/WASM
+
+Dashboard memiliki opsi **CRSF USB Telemetry (C/WASM)**. Opsi ini membaca telemetry CRSF langsung dari port USB menggunakan Web Serial, lalu menerjemahkan frame dengan parser C yang dikompilasi ke WebAssembly.
+
+### Alur data
+
+```text
+Remote / receiver CRSF
+        |
+        | byte biner CRSF melalui USB serial
+        v
+navigator.serial.requestPort()
+        |
+        v
+src/utils/crsfWasm.js
+        |
+        | crsf.wasm
+        v
+bridge/crsf/src/crsf.c
+        |
+        | validasi sync, length, CRC, dan decode payload
+        v
+handleCrsfMessage()
+        |
+        v
+React telemetry state
+        |
+        v
+Dashboard, map, battery, attitude, dan mission tracking
+```
+
+CRSF mengirim byte biner, bukan JSON. Parser WASM mengubah byte tersebut menjadi object JavaScript seperti:
+
+```js
+{
+  type: 'gps',
+  latitude: -7.595,
+  longitude: 110.4485,
+  speed: 12.5,
+  heading: 90,
+  altitude: 100,
+  satellites: 10,
+  fix: true,
+}
+```
+
+### Data yang didukung
+
+Parser C/WASM saat ini menerjemahkan:
+
+| Frame | Data |
+|---|---|
+| GPS (`0x02`) | latitude, longitude, speed, heading, altitude, satellites, GPS fix |
+| Battery (`0x08`) | voltage, current, capacity, remaining battery |
+| Link statistics (`0x14`) | RSSI, link quality, SNR |
+| Attitude (`0x1E`) | pitch, roll, yaw |
+
+Data masuk realtime setiap frame valid diterima dari serial. UI hanya menampilkan field yang memang dikirim oleh perangkat. Contoh, GPS tidak muncul jika remote/receiver tidak mengirim GPS telemetry.
+
+### File terkait
+
+```text
+bridge/crsf/src/crsf.c          Parser dan CRC CRSF asli
+bridge/crsf/src/crsf.h          Struct, konstanta, dan API C
+bridge/crsf/src/crsf_wasm.c     ABI C untuk dipanggil JavaScript
+bridge/crsf/build-wasm.ps1      Script rebuild artifact WASM
+src/utils/crsfWasm.js           Loader WASM dan buffer serial incremental
+src/hooks/useTelemetry.js        Web Serial dan update telemetry state
+src/components/MissionOverview.jsx  Card koneksi CRSF C/WASM
+public/wasm/crsf.js              Loader Emscripten hasil compile
+public/wasm/crsf.wasm            Binary parser C hasil compile
+```
+
+### Referensi baris kode
+
+Nomor baris berikut merujuk pada source saat dokumentasi ini dibuat. File hasil generate seperti `public/wasm/crsf.js` dapat berubah nomor baris setelah rebuild, sehingga penjelasan utama merujuk ke source C dan JavaScript.
+
+| File dan baris | Penjelasan |
+|---|---|
+| `src/components/MissionOverview.jsx:68-80` | Mengambil fungsi koneksi dari `telemetryState`, termasuk `connectElrsCrsf`. |
+| `src/components/MissionOverview.jsx:82` | Menyimpan pilihan baudrate CRSF di state React. Default `420000`. |
+| `src/components/MissionOverview.jsx:1719-1747` | Card **CRSF USB Telemetry (C/WASM)**, dropdown baudrate, dan button `Connect CRSF`. |
+| `src/components/MissionOverview.jsx:1737-1741` | Button mereset trail, memanggil `connectElrsCrsf`, lalu menutup modal jika koneksi berhasil. |
+| `src/hooks/useTelemetry.js:1-7` | Import React hooks, parser MAVLink/MSP, loader parser CRSF WASM, dan service mission. |
+| `src/hooks/useTelemetry.js:307-349` | `handleCrsfMessage` mengubah pesan GPS, battery, link, attitude, dan flight mode menjadi state dashboard. |
+| `src/hooks/useTelemetry.js:474-568` | `disconnect` menghentikan reader, menutup port, menghentikan watchdog, menutup socket, dan membebaskan memory parser WASM. |
+| `src/hooks/useTelemetry.js:625-684` | `connectElrsCrsf` memeriksa Web Serial, meminta port, membuka port dengan baudrate, membuat parser WASM, dan menjalankan read loop. |
+| `src/hooks/useTelemetry.js:637-640` | Membuka port USB, lalu memanggil `createCrsfWasmParser(handleCrsfMessage)`. Ini titik penghubung Web Serial dan WASM. |
+| `src/hooks/useTelemetry.js:649-671` | Membaca data serial terus-menerus dan meneruskan setiap chunk byte ke `parserRef.current.parseBytes`. |
+| `src/utils/crsfWasm.js:1-10` | Loader mengambil `crsf.js` dari folder public dan membuat module Emscripten dengan file `crsf.wasm`. |
+| `src/utils/crsfWasm.js:11-16` | Mengalokasikan memory WASM untuk input byte, frame, hasil float, dan panjang frame. |
+| `src/utils/crsfWasm.js:19-49` | Parser stream incremental: menerima chunk, mencari sync, menunggu frame lengkap, memanggil fungsi C, lalu mengirim hasil ke React. |
+| `src/utils/crsfWasm.js:25-34` | Validasi sync `0xC8`, batas length, dan frame partial. Frame partial ditahan sampai data berikutnya datang. |
+| `src/utils/crsfWasm.js:36-44` | Menyalin byte ke memory WASM, memanggil `crsf_wasm_parse`, decode tipe/angka, lalu menghapus frame dari buffer. |
+| `src/utils/crsfWasm.js:45-48` | Mengubah hasil C/WASM menjadi object JavaScript untuk GPS, battery, attitude, dan link. |
+| `src/utils/crsfWasm.js:51-57` | `destroy` membebaskan semua memory yang dialokasikan WASM. |
+| `bridge/crsf/src/crsf.h:20-39` | Mendefinisikan ukuran frame, sync byte, panjang payload, dan tipe frame CRSF. |
+| `bridge/crsf/src/crsf.h:71-73` | Mendefinisikan `struct crsf_frame` sebagai penyimpan frame mentah. |
+| `bridge/crsf/src/crsf.h:75-175` | Mendefinisikan struct GPS, battery, attitude, link-related data, dan telemetry lain. |
+| `bridge/crsf/src/crsf.h:229-244` | Mendeklarasikan API CRC dan parser frame/payload. |
+| `bridge/crsf/src/crsf.c:93-129` | Implementasi CRC-8 DVB-S2 dengan polynomial `0xD5`. |
+| `bridge/crsf/src/crsf.c:132-168` | `crsf_parse_frame` memeriksa ukuran buffer, sync, length, CRC, lalu menyimpan frame valid. |
+| `bridge/crsf/src/crsf.c:138-149` | Menolak sync atau panjang frame invalid. |
+| `bridge/crsf/src/crsf.c:157-167` | Menghitung CRC, membandingkan CRC dari perangkat, dan mengembalikan frame valid. |
+| `bridge/crsf/src/crsf.c:170-194` | Mengurai payload GPS dan mengubah altitude CRSF ke meter. |
+| `bridge/crsf/src/crsf.c:295-315` | Mengurai payload attitude pitch, roll, dan yaw. |
+| `bridge/crsf/src/crsf_wasm.c:4-10` | ABI `crsf_wasm_parse`: pintu masuk JavaScript ke parser C. |
+| `bridge/crsf/src/crsf_wasm.c:11-19` | ABI untuk mengambil tipe dan panjang frame dari memory C. |
+| `bridge/crsf/src/crsf_wasm.c:21-71` | `crsf_wasm_decode` mengubah struct hasil parser C menjadi array angka yang mudah dibaca JavaScript. |
+| `bridge/crsf/build-wasm.ps1:14-23` | Mengompilasi source C menjadi `public/wasm/crsf.js` dan `public/wasm/crsf.wasm`. |
+
+### Penjelasan singkat untuk presentasi
+
+Gunakan urutan ini saat menjelaskan kepada dosen:
+
+1. `MissionOverview.jsx` menyediakan tombol dan pilihan baudrate.
+2. `connectElrsCrsf` pada `useTelemetry.js` meminta izin user dan membuka port USB memakai Web Serial API.
+3. Data dari port berbentuk byte biner CRSF, bukan JSON.
+4. `crsfWasm.js` mengumpulkan byte karena satu frame dapat datang dalam beberapa chunk.
+5. Byte dikirim ke `crsf_wasm_parse`, yaitu fungsi C yang diekspor ke WASM.
+6. `crsf.c` memvalidasi sync byte, panjang frame, dan CRC-8 DVB-S2.
+7. `crsf_wasm_decode` menerjemahkan payload menjadi angka GPS, battery, attitude, atau link.
+8. `handleCrsfMessage` memasukkan hasil ke React state.
+9. React merender state baru ke dashboard secara realtime.
+
+Kalimat inti:
+
+> Sistem membaca byte CRSF dari USB menggunakan Web Serial API, menerjemahkannya dengan parser C yang dikompilasi menjadi WebAssembly, lalu memasukkan hasil decoding ke state React agar telemetry tampil realtime.
+
+### Cara memakai
+
+1. Buka aplikasi di Chrome atau Edge.
+2. Pastikan halaman memakai HTTPS atau `localhost`.
+3. Buka modal **Telemetry Connection**.
+4. Pilih **CRSF USB Telemetry (C/WASM)**.
+5. Pilih baudrate `420000` atau `115200` sesuai konfigurasi perangkat.
+6. Tekan **Connect CRSF**.
+7. Pilih port USB remote/receiver pada dialog browser.
+8. Tunggu status terhubung dan packet count bertambah.
+
+Browser tidak dapat memilih COM port secara otomatis tanpa izin user. Nomor port seperti `COM3` atau `COM4` tidak ditulis di source karena dapat berubah setiap perangkat/laptop.
+
+### Rebuild WASM
+
+Artifact WASM sudah tersedia di `public/wasm`. Jika `bridge/crsf/src/crsf.c` atau `bridge/crsf/src/crsf_wasm.c` berubah, install dan aktifkan Emscripten, lalu jalankan PowerShell:
+
+```powershell
+Set-Location D:\eagle-drone\bridge\crsf
+.\build-wasm.ps1
+```
+
+Output:
+
+```text
+D:\eagle-drone\public\wasm\crsf.js
+D:\eagle-drone\public\wasm\crsf.wasm
+```
+
+Build script memakai Emscripten untuk:
+
+- mengompilasi `crsf.c` dan `crsf_wasm.c`;
+- mengekspor fungsi parser ke JavaScript;
+- mengekspor memory view untuk buffer byte dan hasil float;
+- membuat module ES6 yang diload saat user memilih koneksi CRSF.
+
+### Cara kerja parser stream
+
+Data USB bisa datang dalam potongan kecil atau beberapa frame sekaligus. `src/utils/crsfWasm.js` menyimpan byte pada buffer incremental:
+
+1. Gabungkan chunk serial baru ke buffer.
+2. Cari sync byte `0xC8`.
+3. Baca field `length`.
+4. Tunggu sampai satu frame lengkap tersedia.
+5. Kirim frame ke `crsf_wasm_parse()`.
+6. C parser validasi panjang dan CRC-8 DVB-S2 polynomial `0xD5`.
+7. Decode payload dengan `crsf_wasm_decode()`.
+8. Hapus frame yang sudah diproses dan lanjutkan frame berikutnya.
+
+Frame rusak dibuang satu byte demi satu byte sampai sync valid ditemukan. Frame partial disimpan sampai chunk berikutnya datang.
+
+### Troubleshooting CRSF C/WASM
+
+#### WASM gagal dimuat
+
+- Pastikan `public/wasm/crsf.js` dan `public/wasm/crsf.wasm` tersedia.
+- Jalankan `npm run build`.
+- Periksa Network tab browser untuk request `/wasm/crsf.js` dan `/wasm/crsf.wasm`.
+- Jangan buka file HTML langsung dengan `file://`; gunakan `npm run dev` atau HTTPS.
+
+#### Port USB tidak muncul
+
+- Gunakan Chrome atau Edge.
+- Gunakan kabel USB data.
+- Pastikan device terdeteksi Windows.
+- Tutup Betaflight Configurator atau aplikasi lain yang sedang memakai port.
+- Klik button lalu pilih port melalui dialog browser.
+
+#### Port terbuka tetapi tidak ada telemetry
+
+- Coba baud `420000` terlebih dahulu untuk CRSF standar.
+- Coba `115200` jika memakai serial bridge dengan baud custom.
+- Pastikan output perangkat adalah CRSF, bukan MSP.
+- Pastikan receiver/remote memang mengirim telemetry balik.
+- Periksa `packetCount` dan Console browser.
+
+#### GPS kosong
+
+- Pastikan GPS sudah mendapat fix.
+- Pastikan frame GPS dikirim oleh perangkat.
+- Battery atau link frame tidak otomatis menyediakan koordinat GPS.
+
+#### CRC atau frame invalid
+
+- Periksa baudrate.
+- Pastikan koneksi memakai output CRSF yang benar.
+- Jangan sambungkan port yang mengirim MSP ke parser CRSF.
+- Frame parsial normal pada serial; parser akan menunggu chunk berikutnya.
 
 ## Penyimpanan data
 
