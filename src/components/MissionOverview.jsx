@@ -82,6 +82,7 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
   const headingAngleRef = useRef(0)
   const disconnectTimerRef = useRef(null)
   const [headingAngle, setHeadingAngle] = useState(0)
+  const [crsfBaud, setCrsfBaud] = useState('420000')
 
   useEffect(() => {
     if (telemetry.heading == null) {
@@ -1712,6 +1713,35 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
                     className="shrink-0 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition cursor-pointer"
                   >
                     Connect
+                  </button>
+                </div>
+              </div>
+              {/* Option 6: C/WASM CRSF parser */}
+              <div className="flex items-center justify-between p-3.5 rounded-lg border border-slate-200 hover:border-slate-300 bg-slate-50/30 transition">
+                <div className="pr-3">
+                  <h4 className="text-xs font-bold text-slate-900">6. CRSF USB Telemetry (C/WASM)</h4>
+                  <p className="text-[11px] text-slate-500 mt-0.5">Read CRSF telemetry directly from remote USB</p>
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  <select
+                    value={crsfBaud}
+                    onChange={(e) => setCrsfBaud(e.target.value)}
+                    className="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-700"
+                    aria-label="CRSF baud rate"
+                  >
+                    <option value="420000">420000</option>
+                    <option value="115200">115200</option>
+                  </select>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      resetMapTrail()
+                      const connected = await connectElrsCrsf?.(Number(crsfBaud))
+                      if (connected) setShowMavlinkModal(false)
+                    }}
+                    className="shrink-0 rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-800 transition cursor-pointer"
+                  >
+                    Connect CRSF
                   </button>
                 </div>
               </div>

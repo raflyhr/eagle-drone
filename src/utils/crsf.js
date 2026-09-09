@@ -84,7 +84,7 @@ export class CrsfParser {
     while (this.buffer.length >= 5) {
       const start = this.buffer.findIndex((_, index) => {
         const length = this.buffer[index + 1]
-        return length >= 2 && length <= 64
+        return this.buffer[index] === 0xc8 && length >= 2 && length <= 62
       })
       if (start < 0) {
         this.buffer = this.buffer.slice(-1)

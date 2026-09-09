@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { encodeMavlink2Frame, MAVMSG, MavlinkParser } from '../utils/mavlink'
 import { encodeMspRequest, MSP, MspParser } from '../utils/msp'
-import { CrsfParser } from '../utils/crsf'
+import { createCrsfWasmParser } from '../utils/crsfWasm'
 import { getOfflineLocationName } from '../utils/geoCoder'
 import { isSupabaseConfigured, supabase } from '../lib/supabase'
 import { createMissionRecord, deleteTargetPoint, fetchMissionLogs, finalizeMissionOnUnload, formatMissionRecord, getTrackWritePolicy, insertMarkedLocation, insertTargetPoint, insertTrackPoint, updateMissionRecord, uploadMissionCapture } from '../services/missionService'
@@ -500,6 +500,8 @@ export default function useTelemetry() {
     serialPortRef.current = null
     const socket = socketRef.current
     socketRef.current = null
+    const parser = parserRef.current
+    parserRef.current = null
     const missionId = missionDbIdRef.current
     const missionSummary = missionId ? {
       status: 'success',
@@ -560,6 +562,7 @@ export default function useTelemetry() {
       try { writer?.releaseLock() } catch {}
       if (port) await withTimeout(port.close(), 800).catch(() => {})
       socket?.close()
+      parser?.destroy?.()
     })().finally(() => {
       disconnectingRef.current = null
     })
@@ -634,7 +637,7 @@ export default function useTelemetry() {
       port = await navigator.serial.requestPort()
       await port.open({ baudRate: Number(baudRate) })
       serialPortRef.current = port
-      parserRef.current = new CrsfParser(handleCrsfMessage)
+       parserRef.current = await createCrsfWasmParser(handleCrsfMessage)
       const { usbVendorId, usbProductId } = port.getInfo()
       setDeviceInfo({ name: 'ELRS / CRSF Serial', baudRate, usbVendorId, usbProductId })
       crsfFreshnessRef.current = { gps: 0, attitude: 0, battery: 0, link: 0 }
