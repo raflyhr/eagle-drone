@@ -266,23 +266,6 @@ Nomor baris berikut merujuk pada source saat dokumentasi ini dibuat. File hasil 
 | `bridge/crsf/src/crsf_wasm.c:21-71` | `crsf_wasm_decode` mengubah struct hasil parser C menjadi array angka yang mudah dibaca JavaScript. |
 | `bridge/crsf/build-wasm.ps1:14-23` | Mengompilasi source C menjadi `public/wasm/crsf.js` dan `public/wasm/crsf.wasm`. |
 
-### Penjelasan singkat untuk presentasi
-
-Gunakan urutan ini saat menjelaskan kepada dosen:
-
-1. `MissionOverview.jsx` menyediakan tombol dan pilihan baudrate.
-2. `connectElrsCrsf` pada `useTelemetry.js` meminta izin user dan membuka port USB memakai Web Serial API.
-3. Data dari port berbentuk byte biner CRSF, bukan JSON.
-4. `crsfWasm.js` mengumpulkan byte karena satu frame dapat datang dalam beberapa chunk.
-5. Byte dikirim ke `crsf_wasm_parse`, yaitu fungsi C yang diekspor ke WASM.
-6. `crsf.c` memvalidasi sync byte, panjang frame, dan CRC-8 DVB-S2.
-7. `crsf_wasm_decode` menerjemahkan payload menjadi angka GPS, battery, attitude, atau link.
-8. `handleCrsfMessage` memasukkan hasil ke React state.
-9. React merender state baru ke dashboard secara realtime.
-
-Kalimat inti:
-
-> Sistem membaca byte CRSF dari USB menggunakan Web Serial API, menerjemahkannya dengan parser C yang dikompilasi menjadi WebAssembly, lalu memasukkan hasil decoding ke state React agar telemetry tampil realtime.
 
 ### Cara memakai
 
