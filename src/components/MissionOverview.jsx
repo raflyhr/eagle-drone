@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import useCamera from '../hooks/useCamera'
-import useObjectDetection from '../hooks/useObjectDetection'
+import useCocoSsdDetection from '../hooks/useCocoSsdDetection'
 import useWeather from '../hooks/useWeather'
 import useDroneRegion from '../hooks/useDroneRegion'
 import useTelemetryState, { getDroneLocationName } from '../hooks/useTelemetry'
@@ -247,7 +247,7 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
     }
   }, [isDraggingMap])
 
-  const { detections } = useObjectDetection(videoRef, aiActive && cameraStatus === 'connected')
+  const { detections } = useCocoSsdDetection(videoRef, aiActive && cameraStatus === 'connected')
   const videoPanelRef = useRef(null)
   const [panelWidth, setPanelWidth] = useState(0)
 
@@ -297,9 +297,9 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
     if (aiActive) {
       context.lineWidth = Math.max(3, Math.round(canvas.width / 320))
       context.font = `bold ${Math.max(16, Math.round(canvas.width / 48))}px sans-serif`
-      detections.forEach(({ bbox, score }) => {
+      detections.forEach(({ bbox, score, class: className }) => {
         const [x, y, width, height] = bbox
-        const label = `PERSON ${Math.round(score * 100)}%`
+        const label = `${className.toUpperCase()} ${Math.round(score * 100)}%`
         const labelHeight = Math.max(24, Math.round(canvas.width / 28))
         context.strokeStyle = '#10b981'
         context.fillStyle = 'rgba(16, 185, 129, 0.15)'
@@ -311,7 +311,7 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
         context.fillText(label, x + 8, Math.max(labelHeight - 7, y - 7))
       })
     }
-    if (capturePhoto?.(canvas.toDataURL('image/jpeg', 0.85), detections.map(({ score }) => ({ label: 'PERSON', confidence: Math.round(score * 100) })))) {
+     if (capturePhoto?.(canvas.toDataURL('image/jpeg', 0.85), detections.map(({ score, class: className }) => ({ label: className.toUpperCase(), confidence: Math.round(score * 100) })))) {
       setCaptureFeedback(true)
       setTimeout(() => setCaptureFeedback(false), 160)
     }
@@ -359,7 +359,7 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
     context.lineWidth = 2
     context.font = '700 11px JetBrains Mono, monospace'
 
-    detections.forEach(({ bbox, score }) => {
+    detections.forEach(({ bbox, score, class: className }) => {
       const [x, y, width, height] = bbox
       const boxX = x * ratio + offsetX
       const boxY = y * ratio + offsetY
@@ -369,7 +369,7 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
       context.fillRect(boxX, boxY, boxWidth, boxHeight)
       context.strokeStyle = '#10b981'
       context.strokeRect(boxX, boxY, boxWidth, boxHeight)
-      const label = `PERSON ${Math.round(score * 100)}%`
+      const label = `${className.toUpperCase()} ${Math.round(score * 100)}%`
       const labelWidth = context.measureText(label).width + 12
       context.fillStyle = '#10b981'
       context.fillRect(boxX, Math.max(0, boxY - 20), labelWidth, 20)
@@ -1527,7 +1527,7 @@ export default function MissionOverview({ onNavigate, telemetryState, mapStyle =
                     </div>
                     <div className="my-0.5">
                       <p className="data-font text-sm sm:text-base font-black text-slate-900 truncate">
-                        {telemetry.gpsFix === 'GPS Fix' && Number.isFinite(telemetry.latitude) && Number.isFinite(telemetry.longitude)
+                        {telemetry.gpsFix !== 'Waiting GPS' && telemetry.gpsFix !== 'No Fix' && Number.isFinite(telemetry.latitude) && Number.isFinite(telemetry.longitude)
                           ? `${telemetry.latitude.toFixed(5)}, ${telemetry.longitude.toFixed(5)}`
                           : '--'}
                       </p>
