@@ -956,7 +956,23 @@ export default function useTelemetry() {
       const posFrame = encodeMavlink2Frame(MAVMSG.GLOBAL_POSITION_INT, posPayload, 1, 1, seq)
       parserRef.current.parseBytes(posFrame)
 
-      // 4. SYS_STATUS MAVLink Frame
+      // 4. GPS_RAW_INT MAVLink Frame
+      const gpsPayload = new Uint8Array(30)
+      const gpsView = new DataView(gpsPayload.buffer)
+      gpsView.setBigUint64(0, BigInt(Date.now()) * 1000n, true)
+      gpsView.setUint8(8, 3) // Simulated 3D GPS fix
+      gpsView.setInt32(9, simLat, true)
+      gpsView.setInt32(13, simLon, true)
+      gpsView.setInt32(17, simAltitude * 1000, true)
+      gpsView.setUint16(21, 85, true) // HDOP 0.85
+      gpsView.setUint16(23, 120, true) // VDOP 1.20
+      gpsView.setUint16(25, Math.round(st.speed * 100), true)
+      gpsView.setUint16(27, currentHeading * 100, true)
+      gpsView.setUint8(29, 12) // Simulated satellites
+      const gpsFrame = encodeMavlink2Frame(MAVMSG.GPS_RAW_INT, gpsPayload, 1, 1, seq)
+      parserRef.current.parseBytes(gpsFrame)
+
+      // 5. SYS_STATUS MAVLink Frame
       const sysPayload = new Uint8Array(31)
       const sysView = new DataView(sysPayload.buffer)
       sysView.setUint16(12, 350, true)

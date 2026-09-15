@@ -1,8 +1,11 @@
+import { useEffect, useState } from 'react'
+
 function Icon({ children, className = '' }) {
   return <span className={`material-symbols-outlined ${className}`}>{children}</span>
 }
 
 export default function Settings({ telemetryState }) {
+  const [laptopBattery, setLaptopBattery] = useState(null)
   const {
     connectionStatus = 'disconnected',
     connectionType = 'none',
@@ -21,7 +24,25 @@ export default function Settings({ telemetryState }) {
         ? 'MAVLink WebSocket'
         : connectionType === 'simulation'
           ? 'Simulation'
-          : 'No device connected'
+           : 'No device connected'
+
+  useEffect(() => {
+    if (!navigator.getBattery) return undefined
+
+    let battery
+    const updateBattery = () => setLaptopBattery({ level: Math.round(battery.level * 100), charging: battery.charging })
+    navigator.getBattery().then((result) => {
+      battery = result
+      updateBattery()
+      battery.addEventListener('levelchange', updateBattery)
+      battery.addEventListener('chargingchange', updateBattery)
+    })
+
+    return () => {
+      battery?.removeEventListener('levelchange', updateBattery)
+      battery?.removeEventListener('chargingchange', updateBattery)
+    }
+  }, [])
 
   return (
     <main className="ml-[72px] flex min-h-screen flex-1 flex-col bg-[#f5f7fa] text-[#0f172a]">
@@ -35,19 +56,11 @@ export default function Settings({ telemetryState }) {
             <Icon className="text-slate-500">tune</Icon>
             Flight & Interface Preferences
           </h3>
-          <div className="grid gap-5 md:grid-cols-2">
-            <div>
-              <label className="mb-2 block text-xs font-semibold text-slate-500">Measurement Unit</label>
-              <div className="flex gap-2">
-                <button className="flex-1 rounded-lg bg-slate-900 py-2 text-xs font-semibold text-white shadow-sm">Metric (m/s, m)</button>
-                <button className="flex-1 rounded-lg border border-slate-200 bg-white py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">Imperial (ft/s, ft)</button>
-              </div>
-            </div>
+          <div>
             <div>
               <label className="mb-2 block text-xs font-semibold text-slate-500">Theme Mode</label>
               <div className="flex gap-2">
-                <button className="flex-1 rounded-lg bg-slate-900 py-2 text-xs font-semibold text-white shadow-sm"><Icon className="mr-1 align-middle text-[16px]">light_mode</Icon>Light White</button>
-                <button className="flex-1 rounded-lg border border-slate-200 bg-white py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"><Icon className="mr-1 align-middle text-[16px]">dark_mode</Icon>Dark (HUD)</button>
+                <button className="w-1/2 rounded-lg bg-slate-900 py-2 text-xs font-semibold text-white shadow-sm"><Icon className="mr-1 align-middle text-[16px]">light_mode</Icon>Light White</button>
               </div>
             </div>
           </div>
@@ -88,12 +101,6 @@ export default function Settings({ telemetryState }) {
                 </div>
               )) : <span className="text-xs text-slate-500">No permitted serial device detected</span>}
             </div>
-            {['M1 (Front L): 99%', 'M2 (Front R): 98%', 'M3 (Rear L): 99%', 'M4 (Rear R): 97%'].map((motor) => (
-              <div key={motor} className="bento-subcard p-3 text-center">
-                <span className="mb-1 block text-[11px] font-semibold text-slate-400">Motor Status</span>
-                <span className="data-font text-xs font-bold text-emerald-600">{motor}</span>
-              </div>
-            ))}
           </div>
         </section>
 
@@ -104,8 +111,10 @@ export default function Settings({ telemetryState }) {
           </h3>
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="bento-subcard flex items-center justify-between p-4 text-xs">
-              <span className="font-medium text-slate-600">Battery Cycles</span>
-              <span className="data-font font-bold text-slate-900">42 / 500</span>
+               <span className="font-medium text-slate-600">Laptop Battery</span>
+               <span className={`data-font font-bold ${laptopBattery?.level <= 20 ? 'text-red-600' : 'text-slate-900'}`}>
+                 {laptopBattery ? `${laptopBattery.level}%${laptopBattery.charging ? ' · Charging' : ''}` : '--'}
+               </span>
             </div>
             <div className="bento-subcard flex items-center justify-between p-4 text-xs">
               <span className="font-medium text-slate-600">Telemetry Encryption</span>
